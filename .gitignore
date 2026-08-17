@@ -1,0 +1,82 @@
+# ==========================================
+# .gitignore
+# ==========================================
+
+# Environments & Secrets
+.env
+.env.*
+!.env.example
+certs/
+
+# Dependencies & Build
+node_modules/
+dist/
+coverage/
+*.log
+app.log
+
+# Databases & Data
+postgres_data/
+*databases/
+*.db
+*.cdb
+*banlists/
+
+# Project configuration
+*.conf
+
+# Agent tooling (local skill-registry cache)
+.atl/
+
+# VS Code & IDEs
+.vscode/
+.idea/
+.DS_Store
+
+# Qoder IDE (local settings)
+.qoder/
+
+# Core (C++)
+core/Makefile
+core/src/Makefile
+core/premake5
+core/CoreIntegrator
+core/example.so
+core/libluasocket.so
+core/vcpkg/
+core/vcpkg_installed/
+
+# Mercury
+mercury/script/
+mercury/scripts/
+mercury/alternatives/
+mercury/ocg/
+mercury/pre-releases/ocg/*
+!mercury/pre-releases/ocg/ygopro
+mercury/pre-releases/tcg/*
+!mercury/pre-releases/tcg/ygopro
+
+# Git Submodules & Repositories
+*repositories/
+
+# Scripts
+scripts/
+
+# Miscellaneous Directories
+core/dependencies/
+core/build/
+dependencies/
+build/
+
+mycard
+resources/
+
+# Local bats-core installation (not a repo dependency)
+tools/
+resources.manifest.private.json
+resources.manifest.effective.json
+resources.manifest.private.json.*
+
+# Local session + fetched core artifact (not versioned)
+.claude/
+/ocgcore-worker

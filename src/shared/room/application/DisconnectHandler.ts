@@ -1,0 +1,189 @@
+import { ServerInfoMessage } from "@edopro/messages/domain/ServerInfoMessage";
+
+import { Client } from "../../../edopro/client/domain/Client";
+import { PlayerChangeClientMessage } from "../../../edopro/messages/server-to-client/PlayerChangeClientMessage";
+import { ServerMessageClientMessage } from "../../../edopro/messages/server-to-client/ServerMessageClientMessage";
+import { WatchChangeClientMessage } from "../../../edopro/messages/server-to-client/WatchChangeClientMessage";
+import { Room } from "../../../edopro/room/domain/Room";
+import RoomList from "../../../edopro/room/infrastructure/RoomList";
+import { YGOProClient } from "@ygopro/client/domain/YGOProClient";
+import { YGOProRoom } from "@ygopro/room/domain/YGOProRoom";
+import WebSocketSingleton from "../../../web-socket-server/WebSocketSingleton";
+import { ISocket } from "../../socket/domain/ISocket";
+import { DuelState } from "../domain/YgoRoom";
+import { RoomFinder } from "./RoomFinder";
+import { FinalizeYGOProRoom } from "@ygopro/room/application/FinalizeYGOProRoom";
+import { AbortMatchmakingRoom } from "@ygopro/matchmaking/application/AbortMatchmakingRoom";
+
+export class DisconnectHandler {
+	constructor(
+		private readonly socket: ISocket,
+		private readonly roomFinder: RoomFinder,
+	) {}
+
+	run(address?: string): void {
+		if (!this.socket.id) {
+			return;
+		}
+
+		const room = this.roomFinder.run(this.socket.id);
+		if (!room) {
+			return;
+		}
+
+		if (room instanceof Room) {
+			this.handle(room, address);
+
+			return;
+		}
+		if (room instanceof YGOProRoom) {
+			this.handleYGOPro(room);
+
+			return;
+		}
+	}
+
+	private handle(room: Room, address?: string): void {
+		if (room.hasNoConnectedPlayers) {
+			RoomList.deleteRoom(room);
+			WebSocketSingleton.getInstance().broadcast({
+				action: "REMOVE-ROOM",
+				data: room.toRealTimePresentation(),
+			});
+
+			return;
+		}
+
+		const player = room.players.find((client) => client.socket.id === this.socket.id);
+
+		if (!(player instanceof Client)) {
+			this.removeSpectator(room);
+
+			return;
+		}
+
+		if (player.host && room.duelState === DuelState.WAITING) {
+			RoomList.deleteRoom(room);
+			WebSocketSingleton.getInstance().broadcast({
+				action: "REMOVE-ROOM",
+				data: room.toRealTimePresentation(),
+			});
+
+			return;
+		}
+
+		if (room.duelState === DuelState.WAITING) {
+			room.removePlayer(player);
+			player.socket.removeAllListeners();
+			const status = (player.position << 4) | 0xb;
+			const message = PlayerChangeClientMessage.create({ status });
+
+			room.players.forEach((client: Client) => {
+				client.sendMessage(message);
+			});
+
+			room.spectators.forEach((spectator: Client) => {
+				spectator.sendMessage(message);
+			});
+
+			return;
+		}
+
+		if (address) {
+			room.players.forEach((client: Client) => {
+				client.sendMessage(
+					ServerMessageClientMessage.create(
+						`${player.name.replace(/\0/g, "").trim()} ${ServerInfoMessage.HAS_LEFT_THE_DUEL}`,
+					),
+				);
+			});
+
+			room.spectators.forEach((spectator: Client) => {
+				spectator.sendMessage(
+					ServerMessageClientMessage.create(
+						`${player.name.replace(/\0/g, "").trim()} ${ServerInfoMessage.HAS_LEFT_THE_DUEL}`,
+					),
+				);
+			});
+		}
+	}
+
+	private handleYGOPro(room: YGOProRoom): void {
+		// A matchmaking reservation owns the whole two-player WAITING lobby. If
+		// either socket leaves, close the room and release both queue identities;
+		// the connected survivor will immediately re-enter the pool client-side.
+		if (room.isMatchmaking && room.duelState === DuelState.WAITING) {
+			AbortMatchmakingRoom.run(room);
+			return;
+		}
+
+		// On `close` the leaver's socket is already closed, so this also catches
+		// the last WAITING player leaving — finalize instead of leaking a zombie.
+		if (room.hasNoConnectedPlayers) {
+			FinalizeYGOProRoom.run(room);
+
+			return;
+		}
+
+		const player = room.players.find((client) => client.socket.id === this.socket.id);
+
+		if (!(player instanceof YGOProClient)) {
+			this.removeMercurySpectator(room);
+
+			return;
+		}
+
+		// AI rooms have no second human host, so a single human leaving in ANY phase
+		// must tear down the whole room — otherwise the orphaned bot lingers as a zombie.
+		if (room.noHost) {
+			FinalizeYGOProRoom.run(room);
+
+			return;
+		}
+
+		if (room.duelState === DuelState.WAITING) {
+			room.playerLeave(player);
+			player.destroy();
+		}
+	}
+
+	private removeSpectator(room: Room): void {
+		const spectator = room.spectators.find((client) => client.socket.id === this.socket.id);
+		if (!(spectator instanceof Client)) {
+			return;
+		}
+		room.removeSpectator(spectator);
+		spectator.socket.removeAllListeners();
+
+		const message = WatchChangeClientMessage.create({
+			count: room.spectators.length,
+		});
+
+		room.players.forEach((_client: Client) => {
+			_client.sendMessage(message);
+		});
+
+		room.spectators.forEach((_client: Client) => {
+			_client.sendMessage(message);
+		});
+
+		if (room.hasNoConnectedPlayers && room.spectators.length === 0) {
+			RoomList.deleteRoom(room);
+			WebSocketSingleton.getInstance().broadcast({
+				action: "REMOVE-ROOM",
+				data: room.toRealTimePresentation(),
+			});
+		}
+	}
+
+	private removeMercurySpectator(room: YGOProRoom): void {
+		const spectator = room.spectators.find((client) => client.socket.id === this.socket.id);
+
+		if (!(spectator instanceof YGOProClient)) {
+			return;
+		}
+
+		room.spectatorLeave(spectator);
+		spectator.destroy();
+	}
+}

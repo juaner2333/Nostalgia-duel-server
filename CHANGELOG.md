@@ -1,0 +1,445 @@
+# Changelog
+
+## [2.14.0](https://github.com/diangogav/EDOpro-server-ts/compare/v2.13.2...v2.14.0) (2026-08-05)
+
+
+### Features
+
+* **admission:** add pure admission domain + credential resolver ([#269](https://github.com/diangogav/EDOpro-server-ts/issues/269)) ([e64e2c0](https://github.com/diangogav/EDOpro-server-ts/commit/e64e2c08144cc7a9ee2a0301f8ece89990048f70))
+* **admission:** close spectator-&gt;player escalation ([#272](https://github.com/diangogav/EDOpro-server-ts/issues/272)) ([c31cd17](https://github.com/diangogav/EDOpro-server-ts/commit/c31cd170d4a847332fbdb5eb46285a5510f382b0))
+* **admission:** determine room league + AdmitToRoom use case ([#270](https://github.com/diangogav/EDOpro-server-ts/issues/270)) ([b549c59](https://github.com/diangogav/EDOpro-server-ts/commit/b549c59af0bc244549501a863f2687e3a1f8a78e))
+* **admission:** let verified players sit in External rooms (one-way cross-league) ([#277](https://github.com/diangogav/EDOpro-server-ts/issues/277)) ([b9dc5a2](https://github.com/diangogav/EDOpro-server-ts/commit/b9dc5a27a9c2df568daedd39de5b48ff31fd7bd0))
+* **admission:** tell PIN users their credentials are invalid on rejection ([#279](https://github.com/diangogav/EDOpro-server-ts/issues/279)) ([2477327](https://github.com/diangogav/EDOpro-server-ts/commit/24773271412f254d25996acb4de0b10d6d881266))
+* **admission:** wire AdmitToRoom into the join flow ([#271](https://github.com/diangogav/EDOpro-server-ts/issues/271)) ([d425ad9](https://github.com/diangogav/EDOpro-server-ts/commit/d425ad9780d3598c5dd177195bb458e060e73fab))
+* **bootstrap:** hot-reload ban lists without a server restart ([#306](https://github.com/diangogav/EDOpro-server-ts/issues/306)) ([816f305](https://github.com/diangogav/EDOpro-server-ts/commit/816f30513e2420be825cd138c8da0ae3038d2dd6))
+* **botlist:** add Yugi to the botlist example configuration ([afb8b1b](https://github.com/diangogav/EDOpro-server-ts/commit/afb8b1b8e810496b06c763fd3e63742b86496bdd))
+* **card:** refresh the inspection index on a TTL ([#295](https://github.com/diangogav/EDOpro-server-ts/issues/295)) ([#299](https://github.com/diangogav/EDOpro-server-ts/issues/299)) ([a2dc475](https://github.com/diangogav/EDOpro-server-ts/commit/a2dc475169c7b452156437f456a14c3d63df8ec6))
+* **disconnect:** implement hasNoConnectedPlayers check and refactor cleanup logic ([c5357a8](https://github.com/diangogav/EDOpro-server-ts/commit/c5357a8c3943f4068fdf922c2fe547961184f31d))
+* **edison:** MR1 (2010) format — forked core, pre-errata pool, resource pipeline ([#316](https://github.com/diangogav/EDOpro-server-ts/issues/316)) ([83e8cd5](https://github.com/diangogav/EDOpro-server-ts/commit/83e8cd5a73e0129a41a77731daca752c63bf04b0))
+* **emotes:** relay a dedicated emote opcode to the room ([#313](https://github.com/diangogav/EDOpro-server-ts/issues/313)) ([8a2a430](https://github.com/diangogav/EDOpro-server-ts/commit/8a2a43050d623536b5ac64269a003ec7e093e0cd))
+* **genesys:** add new cards and adjust points for existing cards ([c1d7cb6](https://github.com/diangogav/EDOpro-server-ts/commit/c1d7cb6c0d03e1b05b6585c117ff8430c0ffc21e))
+* **genesys:** add new cards with unique codes and point values ([b7abb6f](https://github.com/diangogav/EDOpro-server-ts/commit/b7abb6ffaa2c4d8b5d049325ac8f55fdffd8312c))
+* **genesys:** move point list to lflist.conf, validate on both paths ([#303](https://github.com/diangogav/EDOpro-server-ts/issues/303)) ([b3b51e5](https://github.com/diangogav/EDOpro-server-ts/commit/b3b51e5bc8ac99bf1c8ae4bc0fdbcbe748c0c2f3))
+* **genesys:** show point list with card costs in inspect view ([2385260](https://github.com/diangogav/EDOpro-server-ts/commit/2385260d7a2ca0251c04ab98c64584f4bb04658e))
+* hot-reload the EDOPro card DB via atomic datasource swap ([#297](https://github.com/diangogav/EDOpro-server-ts/issues/297)) ([050ae58](https://github.com/diangogav/EDOpro-server-ts/commit/050ae582e9270aa740fd348a06621514fdaf6449))
+* **lobby:** expose room league in the lobby DTO and broadcast ([#274](https://github.com/diangogav/EDOpro-server-ts/issues/274)) ([6cb347c](https://github.com/diangogav/EDOpro-server-ts/commit/6cb347c9d989dddcf4f2fc99f3c3dd0e2b651ab5))
+* **matchmaking:** auto-pairing queue with ranked + windbot fallback ([#308](https://github.com/diangogav/EDOpro-server-ts/issues/308)) ([e2054d1](https://github.com/diangogav/EDOpro-server-ts/commit/e2054d15bb9ae0b474751f499574d28f193ed1f8))
+* **matchmaking:** multi-format queue with per-format bot roster (tcg, jtp) ([#309](https://github.com/diangogav/EDOpro-server-ts/issues/309)) ([3afaec3](https://github.com/diangogav/EDOpro-server-ts/commit/3afaec3f92a20ac898fe3d54de720881f63e2c81))
+* **matchmaking:** open the ranked TCG room pool via the tt token ([#311](https://github.com/diangogav/EDOpro-server-ts/issues/311)) ([4f706da](https://github.com/diangogav/EDOpro-server-ts/commit/4f706da2e006aa88b0bcf7022ef21506c6d224b8))
+* **matchmaking:** ranked human pairs play best-of-3 matches ([#314](https://github.com/diangogav/EDOpro-server-ts/issues/314)) ([200aec0](https://github.com/diangogav/EDOpro-server-ts/commit/200aec0be2123b5b0c3d81cca241a1d5910fde8e))
+* public card & banlist inspection page ([#294](https://github.com/diangogav/EDOpro-server-ts/issues/294)) ([29809f1](https://github.com/diangogav/EDOpro-server-ts/commit/29809f145301e442d599c646859774168948f88c))
+* **ranked-join:** add RankedUserResolver for ticket-first credential resolution ([729e105](https://github.com/diangogav/EDOpro-server-ts/commit/729e105aab8282c1213f575a23bbaebfdae9f222))
+* **ranked:** add RankedUserResolver with ticket-first identity resolution ([#255](https://github.com/diangogav/EDOpro-server-ts/issues/255)) ([729e105](https://github.com/diangogav/EDOpro-server-ts/commit/729e105aab8282c1213f575a23bbaebfdae9f222))
+* **ranked:** wire ticket-authenticated ranked join end-to-end ([#256](https://github.com/diangogav/EDOpro-server-ts/issues/256)) ([9f3e038](https://github.com/diangogav/EDOpro-server-ts/commit/9f3e0385a0be3b67fab9d05ad8da634ab18c7db8))
+* **reconnect:** add reusable token reconnection layer in shared ([01bf460](https://github.com/diangogav/EDOpro-server-ts/commit/01bf460fb27a191983d6927ec792c9e92be28ada))
+* **reconnect:** harden mid-duel reconnect against identity hijack ([#273](https://github.com/diangogav/EDOpro-server-ts/issues/273)) ([dba5549](https://github.com/diangogav/EDOpro-server-ts/commit/dba554971c9d75ec471cbc9267e8d1b06596e715))
+* **replay:** add STOC_EVRP_EXPORT 0xF0, EvrpSerializer, and omniscient broadcast ([#267](https://github.com/diangogav/EDOpro-server-ts/issues/267)) ([95369ac](https://github.com/diangogav/EDOpro-server-ts/commit/95369ac5577bf114e3fce50969e3ad5481501fd6))
+* **resources:** declarative manifest-driven cdb/banlist sources + ygopro pool derivation ([#305](https://github.com/diangogav/EDOpro-server-ts/issues/305)) ([aa7c96b](https://github.com/diangogav/EDOpro-server-ts/commit/aa7c96bd46b76f03a051fdf410feb2b03209644d))
+* **room:** support casual token and expose ranked flag in room list ([cba2f95](https://github.com/diangogav/EDOpro-server-ts/commit/cba2f95d2447047abb32c42e9db2738ace9105d8))
+* **rule-mappings:** add support for JTP Advanced March 2007 format ([7462eee](https://github.com/diangogav/EDOpro-server-ts/commit/7462eee8bfc9c861df0bca0f7b679eef33e1c7a5))
+* runtime-updatable resources (releases/current) with in-container refresh ([#296](https://github.com/diangogav/EDOpro-server-ts/issues/296)) ([afa8110](https://github.com/diangogav/EDOpro-server-ts/commit/afa81107776b7708892cf65d9daf2c146bc1bc68))
+* **startup:** structured logs, Redis connection observability and fail-closed consume ([#258](https://github.com/diangogav/EDOpro-server-ts/issues/258)) ([ec1aa86](https://github.com/diangogav/EDOpro-server-ts/commit/ec1aa86a564c649e4518d8ff78db8fddcf5b1145))
+* **ticket:** add socket resolvedUserId field and single-use ticket repository ([#253](https://github.com/diangogav/EDOpro-server-ts/issues/253)) ([a2f3f72](https://github.com/diangogav/EDOpro-server-ts/commit/a2f3f7243b7f852cf88dc1a66c353e42a0457877))
+* **ticket:** log consume rejections for ranked-auth observability ([#264](https://github.com/diangogav/EDOpro-server-ts/issues/264)) ([ff44e40](https://github.com/diangogav/EDOpro-server-ts/commit/ff44e400d6d12b2b7b7e1a19e92ee91bb8a0f27a))
+* **version:** add GET /api/resources/version endpoint ([#307](https://github.com/diangogav/EDOpro-server-ts/issues/307)) ([2fa9923](https://github.com/diangogav/EDOpro-server-ts/commit/2fa9923eb3abd2e7eff6ed8938c7a58dcfc6253e))
+* **windbot:** shorten TCG botlist names to fit the join wire budget ([#312](https://github.com/diangogav/EDOpro-server-ts/issues/312)) ([d52dfd7](https://github.com/diangogav/EDOpro-server-ts/commit/d52dfd7408f02e61426edfc08f5f2ad4c7a82a4f))
+* **ws:** accept game-ticket via ?ticket= query param on the WS handshake ([#259](https://github.com/diangogav/EDOpro-server-ts/issues/259)) ([7822d6a](https://github.com/diangogav/EDOpro-server-ts/commit/7822d6af195977ec14871463d1247e0212c63fdc))
+* **ws:** validate single-use ticket on the WebSocket handshake ([#254](https://github.com/diangogav/EDOpro-server-ts/issues/254)) ([0e6f733](https://github.com/diangogav/EDOpro-server-ts/commit/0e6f7335e4d811e193b1408330a6772f3335936b))
+* **ygopro/windbot:** add provider use cases, botlist repository and domain types ([#244](https://github.com/diangogav/EDOpro-server-ts/issues/244)) ([8380879](https://github.com/diangogav/EDOpro-server-ts/commit/83808796118e5f0588b0603e5d8a9297349937ea))
+* **ygopro/windbot:** add WindbotTokenStore for bot reverse-connection auth ([#242](https://github.com/diangogav/EDOpro-server-ts/issues/242)) ([ddecdbf](https://github.com/diangogav/EDOpro-server-ts/commit/ddecdbfb9ad202b27369111b6344b8363c58afad))
+* **ygopro:** add isInternal flag and deck-check bypass for bot clients ([#243](https://github.com/diangogav/EDOpro-server-ts/issues/243)) ([cce5815](https://github.com/diangogav/EDOpro-server-ts/commit/cce58150be54ec741066d78ab662ad03bed407a9))
+* **ygopro:** add ws heartbeat and app-level ping echo ([#290](https://github.com/diangogav/EDOpro-server-ts/issues/290)) ([02de10d](https://github.com/diangogav/EDOpro-server-ts/commit/02de10d33bc85f3282c07afdfeae0005319bec26))
+* **ygopro:** support token reconnection across all duel phases ([a90c12f](https://github.com/diangogav/EDOpro-server-ts/commit/a90c12fb16149dab8b876b039dfe58b7e5d2a356))
+
+
+### Bug Fixes
+
+* **banlist:** source JTP whitelist from evolution-assets ([a8c26c0](https://github.com/diangogav/EDOpro-server-ts/commit/a8c26c0cdb8f7d896f4d455af5e424995d9ac233))
+* **card:** disable EDOPro card DB hot-reload crashing the core ([#301](https://github.com/diangogav/EDOpro-server-ts/issues/301)) ([9013963](https://github.com/diangogav/EDOpro-server-ts/commit/9013963d58c2672e2063a8561b17c3293b46aadf))
+* **card:** refresh EDOPro card DB in place so the C++ core sees hot-reloads ([#302](https://github.com/diangogav/EDOpro-server-ts/issues/302)) ([224f140](https://github.com/diangogav/EDOpro-server-ts/commit/224f14070683880d3cd477ae2889d2ecf0c01868))
+* **chat:** include spectator name in Mercury chat messages ([#262](https://github.com/diangogav/EDOpro-server-ts/issues/262)) ([9dc33e8](https://github.com/diangogav/EDOpro-server-ts/commit/9dc33e811e25ce30fcf6d5b9bbd04ccc5d0222ab))
+* **core:** resolve EDOPro scripts under RESOURCES_DIR (resources/current) ([#300](https://github.com/diangogav/EDOpro-server-ts/issues/300)) ([178107e](https://github.com/diangogav/EDOpro-server-ts/commit/178107edc8bb0530ee762c31df69805296429610))
+* **deck:** encode deck error code so the client shows the specific error ([#263](https://github.com/diangogav/EDOpro-server-ts/issues/263)) ([41a6e7e](https://github.com/diangogav/EDOpro-server-ts/commit/41a6e7e16bb0cd8e33c02e27dafe8776e8258a18))
+* **deps:** bump evolution-types submodule to fix postgres startup crash ([#252](https://github.com/diangogav/EDOpro-server-ts/issues/252)) ([a4d3d1f](https://github.com/diangogav/EDOpro-server-ts/commit/a4d3d1f15b9721c440b975194cc8393e9354eba7))
+* **deps:** resolve two moderate npm audit vulnerabilities ([0337add](https://github.com/diangogav/EDOpro-server-ts/commit/0337addef34e5250c2ef91cbf9b3395c380c70d1))
+* **emotes:** reject spectator emotes server-side ([#315](https://github.com/diangogav/EDOpro-server-ts/issues/315)) ([7a801b1](https://github.com/diangogav/EDOpro-server-ts/commit/7a801b141d6b03adef0ea6cf01993cdb316a6567))
+* **genesys:** copy edopro genesys list as lowercase to overwrite in place ([a720913](https://github.com/diangogav/EDOpro-server-ts/commit/a720913390df0ff2856ed9131a28ab782eb726ce))
+* **join:** close socket on join rejections that send a message ([#261](https://github.com/diangogav/EDOpro-server-ts/issues/261)) ([77aae5d](https://github.com/diangogav/EDOpro-server-ts/commit/77aae5da68ba22228a073f19d59136de8975dd6e))
+* **join:** route blank join password to a default room instead of AI ([#278](https://github.com/diangogav/EDOpro-server-ts/issues/278)) ([d708d2b](https://github.com/diangogav/EDOpro-server-ts/commit/d708d2be9c8eb1aceffee7fab14f8ba3d3239dcd))
+* **join:** send ranked-reject JOINERROR with the ygopro serializer ([#265](https://github.com/diangogav/EDOpro-server-ts/issues/265)) ([3e2a083](https://github.com/diangogav/EDOpro-server-ts/commit/3e2a0836106467bb16577d9c953c92043471ff20))
+* **matchmaking:** abort incomplete room reservations ([#310](https://github.com/diangogav/EDOpro-server-ts/issues/310)) ([7850081](https://github.com/diangogav/EDOpro-server-ts/commit/785008157110519c811e2add7c2f7616f348b41b))
+* **ranked:** require room password on ticket-authenticated joins ([#260](https://github.com/diangogav/EDOpro-server-ts/issues/260)) ([61d4f8f](https://github.com/diangogav/EDOpro-server-ts/commit/61d4f8f51ca4a679686c72fe70285de7634da237))
+* **ranking:** key rank by banlist name to unify formats across paths ([#318](https://github.com/diangogav/EDOpro-server-ts/issues/318)) ([21f8177](https://github.com/diangogav/EDOpro-server-ts/commit/21f81774c90932d7c4f8ab43c106e19597c31b31))
+* **reconnect:** allow ranked by-name reconnect over half-open sockets ([#291](https://github.com/diangogav/EDOpro-server-ts/issues/291)) ([c8f82ff](https://github.com/diangogav/EDOpro-server-ts/commit/c8f82ff3117733db3d806c3b17cbb9136d8010e3))
+* **reconnect:** revoke reconnection tokens on room teardown to stop TokenIndex leak ([#268](https://github.com/diangogav/EDOpro-server-ts/issues/268)) ([b2502b7](https://github.com/diangogav/EDOpro-server-ts/commit/b2502b71cdc4ba24e310cc62159bf2cbbec2419f))
+* **setup:** re-clone repository when directory exists without .git ([a730820](https://github.com/diangogav/EDOpro-server-ts/commit/a7308204b4af5658d8b4d5ef3ff564b63fabf90c))
+* update permissions for libocgcore.so to executable ([052a050](https://github.com/diangogav/EDOpro-server-ts/commit/052a050d273a41edd1be414f14bfca4e43b21f84))
+* update ygopro-scripts repository source in Dockerfile ([f86d185](https://github.com/diangogav/EDOpro-server-ts/commit/f86d185b6a2b4ecf4a3da5ff6e2719ef66a9899a))
+* **ygopro:** resolve genesys ban list by alias and reject join when missing ([#304](https://github.com/diangogav/EDOpro-server-ts/issues/304)) ([98d5ff0](https://github.com/diangogav/EDOpro-server-ts/commit/98d5ff0e179dbc22db3be93383d6276cce920dfc))
+* **ygopro:** send the banlist hash in STOC_JOIN_GAME, not the in-memory index ([ff34797](https://github.com/diangogav/EDOpro-server-ts/commit/ff347973dfb773c75514514a1ca34864d25b8a22))
+
+## [2.13.2](https://github.com/diangogav/EDOpro-server-ts/compare/v2.13.1...v2.13.2) (2026-05-01)
+
+
+### ⚠ BREAKING CHANGES
+
+* **ygopro:** rename YGOPRO_EXTRA_DB_FOLDERS env var to YGOPRO_EXTRA_FOLDERS. The "DB" suffix was misleading — these folders hold scripts too, not only card databases. Internal fields renamed accordingly (extraDbFolders -> extraFolders, extraDbPaths -> extraFolderPaths, hasExtraDbPaths -> hasExtraFolderPaths).
+
+### Features
+
+* **api:** add GET /api/rooms endpoint with display-ready DTO ([#236](https://github.com/diangogav/EDOpro-server-ts/issues/236)) ([7194e3f](https://github.com/diangogav/EDOpro-server-ts/commit/7194e3f22472f7ec167d3846709c16ca1fafd074))
+* **ygopro:** add WebSocket server for YGOPro clients ([#237](https://github.com/diangogav/EDOpro-server-ts/issues/237)) ([4fc62c2](https://github.com/diangogav/EDOpro-server-ts/commit/4fc62c2136f753954e492e4bdc32cc273d1027e9))
+
+
+### Bug Fixes
+
+* **ygopro:** broadcast slot change to all clients in movePlayerToAnotherCellUnsafe ([#235](https://github.com/diangogav/EDOpro-server-ts/issues/235)) ([1f663b0](https://github.com/diangogav/EDOpro-server-ts/commit/1f663b0a0cd53e48784c569997e131d4b0284abc))
+* **ygopro:** load lua scripts from extra pool folders ([aec1b44](https://github.com/diangogav/EDOpro-server-ts/commit/aec1b44a7685d26833e0a72f740c871d7c6ce605))
+* **ygopro:** load lua scripts from extra pool folders in ocgcore ([2ba3d20](https://github.com/diangogav/EDOpro-server-ts/commit/2ba3d208d1102319f65e3bf1cb74893c974d2de2))
+* **ygopro:** persist responses in DuelRecord and fix replay hint token format ([#239](https://github.com/diangogav/EDOpro-server-ts/issues/239)) ([e3bbbc0](https://github.com/diangogav/EDOpro-server-ts/commit/e3bbbc0c0f309fe0b8a5e2ff20d809816de76393))
+* **ygopro:** reject join with wrong password instead of creating duplicate room ([#238](https://github.com/diangogav/EDOpro-server-ts/issues/238)) ([5c875cf](https://github.com/diangogav/EDOpro-server-ts/commit/5c875cfd7f0220f8dca4146b8b19e5cee79846b0))
+* **ygopro:** sort players by position before mapping decks to ocgcore ([#234](https://github.com/diangogav/EDOpro-server-ts/issues/234)) ([c986893](https://github.com/diangogav/EDOpro-server-ts/commit/c98689302ef5a4e28248906d9d2c80f41ed06c5a))
+* **zones:** update MZONE and SZONE query locations for consistency ([bfb9af7](https://github.com/diangogav/EDOpro-server-ts/commit/bfb9af78c125517a840e6c503a10ef86f6109a7a))
+
+
+### Miscellaneous Chores
+
+* release as 2.13.2 ([85c8809](https://github.com/diangogav/EDOpro-server-ts/commit/85c8809d8eca0a1829106c4f38800d3723d5c761))
+
+## [2.13.1](https://github.com/diangogav/EDOpro-server-ts/compare/v2.13.0...v2.13.1) (2026-04-10)
+
+
+### Bug Fixes
+
+* add getter for edoBanListHash and update banListHash reference in YGOProDuelingState ([#226](https://github.com/diangogav/EDOpro-server-ts/issues/226)) ([f2c6deb](https://github.com/diangogav/EDOpro-server-ts/commit/f2c6deb894f054e541effd5a3f309cb9dc7c89b5))
+* allow OCG and TCG cards in pre-release and art room modes ([#230](https://github.com/diangogav/EDOpro-server-ts/issues/230)) ([7c283ec](https://github.com/diangogav/EDOpro-server-ts/commit/7c283ec49cb14210c627f68dc8dcb33acc0655f0))
+* apply position swap in tag duel player resolution ([#229](https://github.com/diangogav/EDOpro-server-ts/issues/229)) ([d92bec8](https://github.com/diangogav/EDOpro-server-ts/commit/d92bec8076d61d3a1c3134dcc381f826b6e95ad4))
+* normalize banlist names for all date formats ([#231](https://github.com/diangogav/EDOpro-server-ts/issues/231)) ([e94ef1d](https://github.com/diangogav/EDOpro-server-ts/commit/e94ef1d61ad2a7b979f1a3496085da3b6519df7f))
+* prevent memory leaks in OCGCore, DuelingState and SideDeckingState ([#227](https://github.com/diangogav/EDOpro-server-ts/issues/227)) ([73476c6](https://github.com/diangogav/EDOpro-server-ts/commit/73476c644249f43ea50f1817285ae1277e5d3c2f))
+* remove extra characters appended by mobile client. ([661ea3c](https://github.com/diangogav/EDOpro-server-ts/commit/661ea3c499c664d5a9118e699c0fecc2fabd9969))
+* use OcgcoreScriptConstants for zone refresh location matching ([#228](https://github.com/diangogav/EDOpro-server-ts/issues/228)) ([4be2649](https://github.com/diangogav/EDOpro-server-ts/commit/4be26495a709b49a96649b95e60ab48859ee1e06))
+
+## [2.13.0](https://github.com/diangogav/EDOpro-server-ts/compare/v2.12.0...v2.13.0) (2026-04-03)
+
+
+### Features
+
+* add new cards and update points in genesys.json ([54afff1](https://github.com/diangogav/EDOpro-server-ts/commit/54afff1450984ebfcc2c0a873c620530a275019b))
+* add new cards and update points in genesys.json ([0242b13](https://github.com/diangogav/EDOpro-server-ts/commit/0242b13f2c556951b579bf13c81508e7b316c747))
+* **genesys:** add new cards and adjust points for existing entries ([c9810eb](https://github.com/diangogav/EDOpro-server-ts/commit/c9810ebd73592b423c6fab653d40b8d99f2f8d7c))
+* harden Node↔C++ IPC flow (backpressure queue, frame draining, safer core IO) ([#220](https://github.com/diangogav/EDOpro-server-ts/issues/220)) ([c307e23](https://github.com/diangogav/EDOpro-server-ts/commit/c307e231be3576ddb846d3b5d852c98110315720))
+* implement game_id logic for statistics module ([a731260](https://github.com/diangogav/EDOpro-server-ts/commit/a73126005348b85ee95699d5af1ea8a1a04961dd))
+* implement simplified saving of unranked matches and duels ([#219](https://github.com/diangogav/EDOpro-server-ts/issues/219)) ([ad8bbab](https://github.com/diangogav/EDOpro-server-ts/commit/ad8bbabb51f68bc28350d6dc1099cf1b9fd11641))
+* instrument Node↔C++ IPC metrics in EDOPro and add reproducible performance benchmarks ([b535617](https://github.com/diangogav/EDOpro-server-ts/commit/b5356172f7e69e07954cf6b02190fc327626ec5d))
+* integrate YGOPro OCGCore WASM engine with complete duel flow ([b1041a6](https://github.com/diangogav/EDOpro-server-ts/commit/b1041a61fc3110734f2c6c080ce7aa307b77e7eb))
+* **security:** implement configurable CORS allowed origins ([c0a260c](https://github.com/diangogav/EDOpro-server-ts/commit/c0a260c24f3c8e2940093ee470950567ab2444d4))
+* **security:** implement input validation schemas with Zod for HTTP controllers ([e887541](https://github.com/diangogav/EDOpro-server-ts/commit/e887541b9edd012d515e00145e3b0c667e518232))
+* **web:** add WebSocket support and CORS middleware for hybrid crossplay ([3a158dc](https://github.com/diangogav/EDOpro-server-ts/commit/3a158dce93405ddddffb2adfb700b9730448e0d1))
+
+
+### Bug Fixes
+
+* command match m ([#216](https://github.com/diangogav/EDOpro-server-ts/issues/216)) ([8e09840](https://github.com/diangogav/EDOpro-server-ts/commit/8e098404f7703d1d55229655529f476a5c3319d9))
+* prevent match scores from incrementing on a draw and add tests for duel winner logic ([10551e3](https://github.com/diangogav/EDOpro-server-ts/commit/10551e3c0e8a883fffd8d44e379e8ed339e10ec0))
+* **reconnection:** deep fix of reconnection logic across server and core ([6d2ca3e](https://github.com/diangogav/EDOpro-server-ts/commit/6d2ca3eaae6fdc6021e4348a309f67bd10889597))
+* **room:** ensure match cleanup, side-deck validation, and spectator-triggered room destruction ([56d44a3](https://github.com/diangogav/EDOpro-server-ts/commit/56d44a3dc1b0d9b5254dd622ed797c94a1093d31))
+* **security:** migrate to async bcrypt and timing-safe comparison ([16e3d37](https://github.com/diangogav/EDOpro-server-ts/commit/16e3d3737d7616db2c7ed28f503a283d4eeb333b))
+* **security:** use cryptographically secure random integers for IDs and passwords ([3d828e0](https://github.com/diangogav/EDOpro-server-ts/commit/3d828e0183e29a20ad7324be3ce5eee25451e77c))
+* **server:** include remaining reconnection infrastructure and tests ([aa37449](https://github.com/diangogav/EDOpro-server-ts/commit/aa3744910e468d3f78017411d2a71bdd6501b0cf))
+* **socket:** ensure rooms are deleted by tracking connection state accurately ([147e3c3](https://github.com/diangogav/EDOpro-server-ts/commit/147e3c333828e5991021e6cfe7a88974f97e6217))
+* **test:** update mocks to include destroy and validate methods ([641be28](https://github.com/diangogav/EDOpro-server-ts/commit/641be28cbd4cba1ff194a9c99f7e2933be9819b0))
+
+
+### Performance Improvements
+
+* optimize banlist loader with async file reading ([800d777](https://github.com/diangogav/EDOpro-server-ts/commit/800d777caf82c822f0a92747ea030ad45cddf89b))
+
+## [2.12.0](https://github.com/diangogav/EDOpro-server-ts/compare/v2.11.0...v2.12.0) (2026-01-26)
+
+
+### Features
+
+* add production Docker Compose file ([a10c27f](https://github.com/diangogav/EDOpro-server-ts/commit/a10c27fd0c25b81aea3cbe81d18ba0390bbe4641))
+* update JSON message processor to use 4-byte size headers ([c05a11b](https://github.com/diangogav/EDOpro-server-ts/commit/c05a11b7f628f1d35d1a1e0a2f502312e532fbd3))
+
+
+### Bug Fixes
+
+* get banlist for websocket in mercury ([b7785ef](https://github.com/diangogav/EDOpro-server-ts/commit/b7785efd682d514f00782142744debcb35b836fe))
+* handle large messages in JSONMessageProcessor by using 4-byte size header ([bae67f1](https://github.com/diangogav/EDOpro-server-ts/commit/bae67f1207e6df2e4fc7251f3dd52f98f12c5cbe))
+* json message procesor comparison ([5cead59](https://github.com/diangogav/EDOpro-server-ts/commit/5cead5908f647b2575fccfc1aeb289714d1d6981))
+* mercury message handler ([4d81811](https://github.com/diangogav/EDOpro-server-ts/commit/4d818110a986af9b56638502249dad9cc8ec33d0))
+* read correct field size length in JSONMessageProcessor ([9ab803a](https://github.com/diangogav/EDOpro-server-ts/commit/9ab803a9591a1f76c1e8108d0a71ff269c0ca9f0))
+
+## [2.11.0](https://github.com/diangogav/EDOpro-server-ts/compare/v2.10.0...v2.11.0) (2026-01-04)
+
+
+### Features
+
+* notify all players when a new spectator joins the duel ([1c71643](https://github.com/diangogav/EDOpro-server-ts/commit/1c71643fb0a6f9b0aa3f00011c760528193cf894))
+
+
+### Bug Fixes
+
+* dockerfile conan compilation ([0e2f8e2](https://github.com/diangogav/EDOpro-server-ts/commit/0e2f8e28dbf9436b1f83e59b98c7a465e545a4ff))
+* remove unused side getter method from Room class ([8b541b8](https://github.com/diangogav/EDOpro-server-ts/commit/8b541b8a504fb27c9b157f205ce75b7107d6ba9f))
+* rename 'id' to 'code' in CardInfo interface for clarity ([28fbae3](https://github.com/diangogav/EDOpro-server-ts/commit/28fbae3572d2cd2f427acc90329d815c6d4520f4))
+* update log message to include exclamation mark for emphasis ([e2aa0b8](https://github.com/diangogav/EDOpro-server-ts/commit/e2aa0b82bb0469431db105f879771f48e5bea68f))
+* update points value for 'Change of Heart' in genesys.json ([828ee46](https://github.com/diangogav/EDOpro-server-ts/commit/828ee46509df574f1a59df3fc3e68fc8cbc99fb2))
+* user node at dockerfile ([22724f3](https://github.com/diangogav/EDOpro-server-ts/commit/22724f332e48b1b338711e5ea05c5aaaf6e87801))
+
+## [2.10.0](https://github.com/diangogav/EDOpro-server-ts/compare/v2.9.0...v2.10.0) (2025-11-13)
+
+
+### Features
+
+* added genesys  to edopro ([#192](https://github.com/diangogav/EDOpro-server-ts/issues/192)) ([a1503f3](https://github.com/diangogav/EDOpro-server-ts/commit/a1503f373d8ad1be392d469927905ca39a0ebc17))
+* added message emitter logs ([#204](https://github.com/diangogav/EDOpro-server-ts/issues/204)) ([1d58692](https://github.com/diangogav/EDOpro-server-ts/commit/1d58692aee275cecd3fa61260c03a45a4ba0d991))
+* configure server ports using environment variables ([1b6d1a7](https://github.com/diangogav/EDOpro-server-ts/commit/1b6d1a77989df010e946f2f4c6a9867750b4c3ca))
+* **duel:** add support for MSG_SPSUMMONING in message handling ([28d9601](https://github.com/diangogav/EDOpro-server-ts/commit/28d96014565c4177623b258153ade2a6c3a2949b))
+
+
+### Bug Fixes
+
+* **build:** :building_construction: remove pretty-transport file by errors in docker execution ([#202](https://github.com/diangogav/EDOpro-server-ts/issues/202)) ([474d808](https://github.com/diangogav/EDOpro-server-ts/commit/474d808a0ec5d33c7968f6ad1fabe8b76a100a8e))
+* correct spacing in banlist mappings in Dockerfile ([a68923f](https://github.com/diangogav/EDOpro-server-ts/commit/a68923f5a87c9cbd0c370320dccd0bb9cd94480b))
+* mercury goat command collision with genesys command ([#198](https://github.com/diangogav/EDOpro-server-ts/issues/198)) ([46e7eb2](https://github.com/diangogav/EDOpro-server-ts/commit/46e7eb2861613f5d20c8c4b96abde25421829e19))
+* rename TCP_PORT and MERCURY_TCP_PORT to HOST_PORT and MERCURY_PORT in .env.example ([e9c1abd](https://github.com/diangogav/EDOpro-server-ts/commit/e9c1abd236c810472b04d66eb544fb2c9e88c235))
+* rule mappings mode and tm apply , genesys duelRule 5([#195](https://github.com/diangogav/EDOpro-server-ts/issues/195)) ([5799af9](https://github.com/diangogav/EDOpro-server-ts/commit/5799af91d378c9528eaf790708ea8f0654985f67))
+* update Dockerfile to copy cards.cdb into alternatives/genesys folder ([260abb2](https://github.com/diangogav/EDOpro-server-ts/commit/260abb266c4f3243e505168b12799ad729d69b79))
+* update Dockerfile to copy cards.cdb into alternatives/genesys folder ([#205](https://github.com/diangogav/EDOpro-server-ts/issues/205)) ([74f03de](https://github.com/diangogav/EDOpro-server-ts/commit/74f03dea503847115db5eb7485cbc5108263b538))
+* update environment variable name for WebSocket port ([86f0f3f](https://github.com/diangogav/EDOpro-server-ts/commit/86f0f3f975046d5bf3bbe002c1076fa6dfe3206b))
+
+## [2.9.0](https://github.com/diangogav/EDOpro-server-ts/compare/v2.8.0...v2.9.0) (2025-07-31)
+
+
+### Features
+
+* add IP address tracking for players and games ([36cde49](https://github.com/diangogav/EDOpro-server-ts/commit/36cde494576b348ff83dcc9c98ecb91c568d1d9f))
+* add ipAddress field to match resume storage ([98f8b51](https://github.com/diangogav/EDOpro-server-ts/commit/98f8b51c84699c873b818fba158594d11aa7cc15))
+* integrate user authentication in JoinHandler and MercuryJoinHandler ([7d94334](https://github.com/diangogav/EDOpro-server-ts/commit/7d9433428fc52e5a7b09a68ca6d8cca7c84de9ea))
+* **stats:** add ipAddress parameter to DuelResumeCreator ([e5b3383](https://github.com/diangogav/EDOpro-server-ts/commit/e5b33837a82d9afb0c9c6ea707edfe1cae13377f))
+* **stats:** add ipAddress to basic stats calculation ([fc650cb](https://github.com/diangogav/EDOpro-server-ts/commit/fc650cb701e8dadeb6273691c2b94195d6ee86f4))
+
+
+### Bug Fixes
+
+* add missing ipAddress property to MatchHistory games ([f2cdbb4](https://github.com/diangogav/EDOpro-server-ts/commit/f2cdbb465e02a138a024044b5c07f17830ccb41f))
+* **MercuryRoom:** clear roomname property in toPresentation method ([d7b25e1](https://github.com/diangogav/EDOpro-server-ts/commit/d7b25e1704655513e7720ee4565d7ab822beae57))
+* **security:** update brace-expansion to resolve ReDoS vulnerability ([#175](https://github.com/diangogav/EDOpro-server-ts/issues/175)) ([2df4318](https://github.com/diangogav/EDOpro-server-ts/commit/2df4318ae5b486e144a134373098942fc71772f2))
+* update mercury version to 4962 ([cc91853](https://github.com/diangogav/EDOpro-server-ts/commit/cc91853d7c14e45a867d04f4623abbdc1b4f7faa))
+
+## [2.8.0](https://github.com/diangogav/EDOpro-server-ts/compare/v2.7.0...v2.8.0) (2025-06-23)
+
+
+### Features
+
+* add password validation for joining duels ([#171](https://github.com/diangogav/EDOpro-server-ts/issues/171)) ([1bf6b4b](https://github.com/diangogav/EDOpro-server-ts/commit/1bf6b4b244b51cc04eceef54a4f13df828f4097d))
+
+## [2.7.0](https://github.com/diangogav/EDOpro-server-ts/compare/v2.6.0...v2.7.0) (2025-05-18)
+
+
+### Features
+
+* add ranked flag to distinguish ranked/unranked duels ([76c86ef](https://github.com/diangogav/EDOpro-server-ts/commit/76c86ef7ca1c7b28d0b7ed845867d761dcf17ab7))
+* added otto and toot ([aa2f685](https://github.com/diangogav/EDOpro-server-ts/commit/aa2f6852c65d49f4d576c2730e86985121a6fce6))
+* added otto and toot ([6e31940](https://github.com/diangogav/EDOpro-server-ts/commit/6e31940c6c132ce1fc48f662da294f956bf566d4))
+* **room:** add players ready validation before starting duel ([af1522d](https://github.com/diangogav/EDOpro-server-ts/commit/af1522db6cbe494490df312409bf7c6a25aee8e4))
+* update server messages to English ([#167](https://github.com/diangogav/EDOpro-server-ts/issues/167)) ([467a474](https://github.com/diangogav/EDOpro-server-ts/commit/467a474e2368e7598fd9a74b0275a28b7059484c))
+
+
+### Bug Fixes
+
+* **docker:** required packages ([#164](https://github.com/diangogav/EDOpro-server-ts/issues/164)) ([a40fe11](https://github.com/diangogav/EDOpro-server-ts/commit/a40fe11d1a635bd2a67779dbad08b497bcf0ac49))
+* fix basic stats calculator test ([#166](https://github.com/diangogav/EDOpro-server-ts/issues/166)) ([a9ffb23](https://github.com/diangogav/EDOpro-server-ts/commit/a9ffb2356d845a15f704b77b6fb06937dd3af18f))
+
+## [2.6.0](https://github.com/diangogav/EDOpro-server-ts/compare/v2.5.0...v2.6.0) (2025-04-23)
+
+
+### Features
+
+* add support for Rush Ritual monsters ([bf2d69b](https://github.com/diangogav/EDOpro-server-ts/commit/bf2d69b2ecfca8365e557d49d33070b77d8f097d))
+* logs for web socket ([44d66d4](https://github.com/diangogav/EDOpro-server-ts/commit/44d66d42eaa59b268324bec3352665c6fb82946f))
+* **mercury:** :sparkles: Identifie ranked mrcury rooms ([2eb0f1e](https://github.com/diangogav/EDOpro-server-ts/commit/2eb0f1eb09813b88b61b8804be7e3beb13c66933))
+* **mercury:** :zap: added ocg command ([#154](https://github.com/diangogav/EDOpro-server-ts/issues/154)) ([112c854](https://github.com/diangogav/EDOpro-server-ts/commit/112c854233feb58295edaf6eb827f1974451a692))
+* **room:** improve player position handling in waiting state ([9fa926f](https://github.com/diangogav/EDOpro-server-ts/commit/9fa926ff7df0e9836297933585ec42482a938b71))
+
+
+### Bug Fixes
+
+* **duel:** fix reconnection logic for tag duels ([1f830e5](https://github.com/diangogav/EDOpro-server-ts/commit/1f830e54b717d3b49bf2949cff53779d016a449c))
+* md command ([8ae654d](https://github.com/diangogav/EDOpro-server-ts/commit/8ae654d4817d4b1ace48356026aaf162166460c1))
+* **mercury:** :bug: fix goat lflist index ([0e49a07](https://github.com/diangogav/EDOpro-server-ts/commit/0e49a078335ed9b210328e3611721775a4e9aa65))
+* **mercury:** :bug: the join message is intercepted to make the ban list compatible with edo pro ([d6679df](https://github.com/diangogav/EDOpro-server-ts/commit/d6679df2d7f7429ffd46c7af09414455bdbc26ba))
+* **mercury:** prevent duplicate game state updates by processing messages only from first player ([9ef85a9](https://github.com/diangogav/EDOpro-server-ts/commit/9ef85a98c41b9ea2e1abfb18c7eb17e04a30cd9c))
+* show ban list hash in client based on mercury ([9ce0436](https://github.com/diangogav/EDOpro-server-ts/commit/9ce04360482e866c29cd546eaee3fedb38fceb43))
+
+## [2.5.0](https://github.com/diangogav/EDOpro-server-ts/compare/v2.4.0...v2.5.0) (2025-04-02)
+
+
+### Features
+
+* season 4 ([1efff33](https://github.com/diangogav/EDOpro-server-ts/commit/1efff336b45c5cd329bcfc54af19da4a17acdd15))
+* update mercury bin ([31f3f67](https://github.com/diangogav/EDOpro-server-ts/commit/31f3f67acc1738a84f8c7023adb1d7e9593abb44))
+
+
+### Bug Fixes
+
+* rank validator ([4d98554](https://github.com/diangogav/EDOpro-server-ts/commit/4d985547427c38f54d222620ba676fdbb4d03b6b))
+* season 4 in matches and duels ([3bc2824](https://github.com/diangogav/EDOpro-server-ts/commit/3bc2824725de704b9f82c2e726f78b10d52dd55d))
+* season in player stats ([3bd898d](https://github.com/diangogav/EDOpro-server-ts/commit/3bd898ddf0c788e82038ae49cabea0c34948d058))
+
+## [2.4.0](https://github.com/diangogav/EDOpro-server-ts/compare/v2.3.0...v2.4.0) (2024-11-15)
+
+
+### Features
+
+* added season property to player stats ([416fc32](https://github.com/diangogav/EDOpro-server-ts/commit/416fc32a41e141344450fed7f1136ca7894bf58b))
+
+
+### Bug Fixes
+
+* :bug: Validate max card count in deck validation ([34d520e](https://github.com/diangogav/EDOpro-server-ts/commit/34d520ee656837c7ab03f0d41ba3d7b6e73121ea))
+* :hammer: Fix name in global stats script ([#142](https://github.com/diangogav/EDOpro-server-ts/issues/142)) ([46b571b](https://github.com/diangogav/EDOpro-server-ts/commit/46b571bd1e9e4009c07471bedad285c5d7d92e4b))
+* comment reconnect validation ([59575a0](https://github.com/diangogav/EDOpro-server-ts/commit/59575a03a154d5d1e0fa9c02f321188d156557ea))
+* spectator cache buffer after timeout duel finish ([836a5b3](https://github.com/diangogav/EDOpro-server-ts/commit/836a5b3a1c4b36964fb432318eeac558f011e85d))
+* validate socket state in player reconnection ([e60b55b](https://github.com/diangogav/EDOpro-server-ts/commit/e60b55bac071e219c16b545f137347c47b48a92a))
+
+## [2.3.0](https://github.com/diangogav/EDOpro-server-ts/compare/v2.2.1...v2.3.0) (2024-10-26)
+
+
+### Features
+
+* :sparkles: Custom commands for mercury rooms ([#131](https://github.com/diangogav/EDOpro-server-ts/issues/131)) ([2ad3534](https://github.com/diangogav/EDOpro-server-ts/commit/2ad3534b6d3630234eaebb3e17889ea26db18b5f))
+
+
+### Bug Fixes
+
+* :adhesive_bandage: Spectators entering from the lobby watched the duel with errors ([62d9853](https://github.com/diangogav/EDOpro-server-ts/commit/62d9853a994a7a7baec3cfe7e5d7fd461889b833))
+* :bug: Fix alternatives commands ([d094240](https://github.com/diangogav/EDOpro-server-ts/commit/d09424078127736f5c6580a995d10c0bb9582b87))
+
+## [2.2.1](https://github.com/diangogav/EDOpro-server-ts/compare/v2.2.0...v2.2.1) (2024-08-30)
+
+
+### Bug Fixes
+
+* :bug: Mercury rooms were not returned to show them in real time on the web ([#129](https://github.com/diangogav/EDOpro-server-ts/issues/129)) ([1aeac54](https://github.com/diangogav/EDOpro-server-ts/commit/1aeac5495d221e365804b1677cafdf395163fbcf))
+* :bug: Visual errors corrected when reconnecting in edopro rooms ([#128](https://github.com/diangogav/EDOpro-server-ts/issues/128)) ([07f0d3e](https://github.com/diangogav/EDOpro-server-ts/commit/07f0d3e3c9fb2669a5c737d150e146ab5982cc6d))
+
+## [2.2.0](https://github.com/diangogav/EDOpro-server-ts/compare/v2.1.5...v2.2.0) (2024-08-30)
+
+
+### Features
+
+* :sparkles: Mercury rooms are now integrated with the websockets tracking system ([086a107](https://github.com/diangogav/EDOpro-server-ts/commit/086a1078288d08a143ea2132e05702780c6f053b))
+
+## [2.1.5](https://github.com/diangogav/EDOpro-server-ts/compare/v2.1.4...v2.1.5) (2024-08-28)
+
+
+### Bug Fixes
+
+* :bug: Fix duel status for mercury duels in edopro lobby ([688fb22](https://github.com/diangogav/EDOpro-server-ts/commit/688fb22b6453fc30e19db1dc3f98d9392c4ccb6f))
+
+## [2.1.4](https://github.com/diangogav/EDOpro-server-ts/compare/v2.1.3...v2.1.4) (2024-08-20)
+
+
+### Bug Fixes
+
+* :ambulance: Fix score in draw duel ([5ea62b4](https://github.com/diangogav/EDOpro-server-ts/commit/5ea62b466ed062fb10ac71382f9152a8a7d34f4a))
+
+## [2.1.3](https://github.com/diangogav/EDOpro-server-ts/compare/v2.1.2...v2.1.3) (2024-08-18)
+
+
+### Bug Fixes
+
+* :bug: Relay player order ([a11dc89](https://github.com/diangogav/EDOpro-server-ts/commit/a11dc897dc01e5c9a84c78557cd3b62a490b8f5c))
+
+## [2.2.0](https://github.com/diegofcornejo/EDOpro-server-ts/compare/v2.1.2...v2.2.0) (2024-08-05)
+
+
+### Features
+
+* :sparkles: Added ranking points for mercury duels ([75c979f](https://github.com/diegofcornejo/EDOpro-server-ts/commit/75c979f01f0845435b571c4f06f2dde8e54597ef))
+* Add buildspec file for  CI/CD on AWS Codepipeline ([e395c93](https://github.com/diegofcornejo/EDOpro-server-ts/commit/e395c93b1942e71c8e7672fb47491cf2b4f86612))
+* Add consistent notes for HTTP CreateRoom method. ([f0e560d](https://github.com/diegofcornejo/EDOpro-server-ts/commit/f0e560d45fcdc44ad91ea58ee2897b150a8dbebf))
+* Add GET method to sync database endpoint ([e231ecb](https://github.com/diegofcornejo/EDOpro-server-ts/commit/e231ecb80bd565103c96f65031025997ce2f181c))
+* banlist validation ([00d1ffa](https://github.com/diegofcornejo/EDOpro-server-ts/commit/00d1ffa291a065ffb4b4b03ecac7fe5559adcaef))
+* create unranked room if redis is not enabled ([866d9e8](https://github.com/diegofcornejo/EDOpro-server-ts/commit/866d9e8e4ebd3f8486781cbfeeda0bdd089a6ebc))
+* implement SendMessageToAllRooms controller ([0eb0643](https://github.com/diegofcornejo/EDOpro-server-ts/commit/0eb0643beb76cead234423fbc3f945970d0d7ff2))
+* make Redis optional for server initialization ([7037aaa](https://github.com/diegofcornejo/EDOpro-server-ts/commit/7037aaa3eb5d34b34ce4c7a8c51e11e7c3fead37))
+* rollback banlist validation ([68fe03a](https://github.com/diegofcornejo/EDOpro-server-ts/commit/68fe03a71a6897e40194ecc0c5cd15c2fdc06bf0))
+* send message to all rooms and clients ([587bc8e](https://github.com/diegofcornejo/EDOpro-server-ts/commit/587bc8e9891bd06eb6f3250d938957df7f334459))
+* Update RoomCreator to include tournament name in notes if it is provided in the payload. ([ffdb122](https://github.com/diegofcornejo/EDOpro-server-ts/commit/ffdb1221caa5ca89dbd0985298cedf9d82b37a2a))
+
+
+### Bug Fixes
+
+* :adhesive_bandage: Fix mercury duel state transaction ([f084cda](https://github.com/diegofcornejo/EDOpro-server-ts/commit/f084cda99726484b97dbee29b4f8410592baeb48))
+* :ambulance: Auth for mercury players ([#112](https://github.com/diegofcornejo/EDOpro-server-ts/issues/112)) ([d094a4f](https://github.com/diegofcornejo/EDOpro-server-ts/commit/d094a4f0016840ad7380c0d6446cfc66ba3388d2))
+* :ambulance: Mercury rank points persistence, score command and messages ([c60fd9c](https://github.com/diegofcornejo/EDOpro-server-ts/commit/c60fd9c1f94a7daafd510ce87ae10e13874e3a69))
+* :bug: Chat messages fixed ([fe956cb](https://github.com/diegofcornejo/EDOpro-server-ts/commit/fe956cb44d4cb4ef66fbef5544ef9a9932635326))
+* convert utf8 password to utf16 at RoomCreator ([8d96b99](https://github.com/diegofcornejo/EDOpro-server-ts/commit/8d96b998dd8cd661acd1cf3cc32cbdaf347f52f6))
+* default tcg banlist for mercury ([ff0f6c6](https://github.com/diegofcornejo/EDOpro-server-ts/commit/ff0f6c6a6d51cf4e794b1d791d3bd7a8fb98fcba))
+* Dockerfile build server stage ([0c3b528](https://github.com/diegofcornejo/EDOpro-server-ts/commit/0c3b5285b8e407026e4eae71aa8d97e3fe548ecf))
+* Dockerfile build server stage ([ec535c5](https://github.com/diegofcornejo/EDOpro-server-ts/commit/ec535c53869c5795e5407f2d93b34b9f46239b38))
+* duplicated chat messages at mercury caused by extends to RoomState at MercuryJoinHandler ([7fbfc78](https://github.com/diegofcornejo/EDOpro-server-ts/commit/7fbfc782858a8233ebb94cfd151116704751116a))
+* Grave flag ([090007a](https://github.com/diegofcornejo/EDOpro-server-ts/commit/090007ab1cf4ebd07c09253a0bb027a1e09532bb))
+* **linter:** refactor redis optional to comply with linter rules ([4cfb84c](https://github.com/diegofcornejo/EDOpro-server-ts/commit/4cfb84cdbee10729e3a167cc2b03de79511dfeee))
+* mercury lflist links ([721721e](https://github.com/diegofcornejo/EDOpro-server-ts/commit/721721e1b98063319462e526d476d40a8809a375))
+* mercury lflist links ([825141a](https://github.com/diegofcornejo/EDOpro-server-ts/commit/825141aea1475687eb59520151f698418ca654f5))
+* player to spectator validation now is with socket id and not with player name ([1e62f23](https://github.com/diegofcornejo/EDOpro-server-ts/commit/1e62f239e9e0f4c6bda5a8bc2f8c6d236d5389cc))
+* player winner message when player surrenders ([db0d471](https://github.com/diegofcornejo/EDOpro-server-ts/commit/db0d471d7526142aa47fa1ba4266915fc475f475))
+* racing code for handleUpdatedDeck and handleReady ([64e9667](https://github.com/diegofcornejo/EDOpro-server-ts/commit/64e9667b675a6a0608de30d3167f73d9b2418421))
+* remove dangling rooms when creation crash from client ([9b97063](https://github.com/diegofcornejo/EDOpro-server-ts/commit/9b97063c9f24c8a398f57b08247ef59d1730bddd))
+* spectators message working in mercury ([6acfcbd](https://github.com/diegofcornejo/EDOpro-server-ts/commit/6acfcbde778f1123bdaf7b444e8fe5e104309b38))
+* update Dockerfile to include curl and git dependencies ([45cf18a](https://github.com/diegofcornejo/EDOpro-server-ts/commit/45cf18a60f76c1636f9e031d531bf2afbfb8910d))
+* update vulnerable dependencies to secure versions ([e84361c](https://github.com/diegofcornejo/EDOpro-server-ts/commit/e84361c8b214fc05f5ebe7bfd8838a341a3dc082))
+* winner reasons messages ([179716f](https://github.com/diegofcornejo/EDOpro-server-ts/commit/179716f1b557d8766da9015a03e965877a5c566d))
+
+## [2.1.2](https://github.com/diangogav/EDOpro-server-ts/compare/v2.1.1...v2.1.2) (2024-08-05)
+
+
+### Bug Fixes
+
+* :ambulance: Mercury rank points persistence, score command and messages ([c60fd9c](https://github.com/diangogav/EDOpro-server-ts/commit/c60fd9c1f94a7daafd510ce87ae10e13874e3a69))
+
+## [2.1.1](https://github.com/diangogav/EDOpro-server-ts/compare/v2.1.0...v2.1.1) (2024-08-04)
+
+
+### Bug Fixes
+
+* :ambulance: Auth for mercury players ([#112](https://github.com/diangogav/EDOpro-server-ts/issues/112)) ([d094a4f](https://github.com/diangogav/EDOpro-server-ts/commit/d094a4f0016840ad7380c0d6446cfc66ba3388d2))
+
+## [2.1.0](https://github.com/diangogav/EDOpro-server-ts/compare/v2.0.0...v2.1.0) (2024-08-04)
+
+
+### Features
+
+* :sparkles: Added ranking points for mercury duels ([75c979f](https://github.com/diangogav/EDOpro-server-ts/commit/75c979f01f0845435b571c4f06f2dde8e54597ef))
+* Add consistent notes for HTTP CreateRoom method. ([f0e560d](https://github.com/diangogav/EDOpro-server-ts/commit/f0e560d45fcdc44ad91ea58ee2897b150a8dbebf))
+* banlist validation ([00d1ffa](https://github.com/diangogav/EDOpro-server-ts/commit/00d1ffa291a065ffb4b4b03ecac7fe5559adcaef))
+* create unranked room if redis is not enabled ([866d9e8](https://github.com/diangogav/EDOpro-server-ts/commit/866d9e8e4ebd3f8486781cbfeeda0bdd089a6ebc))
+* implement SendMessageToAllRooms controller ([0eb0643](https://github.com/diangogav/EDOpro-server-ts/commit/0eb0643beb76cead234423fbc3f945970d0d7ff2))
+* make Redis optional for server initialization ([7037aaa](https://github.com/diangogav/EDOpro-server-ts/commit/7037aaa3eb5d34b34ce4c7a8c51e11e7c3fead37))
+* rollback banlist validation ([68fe03a](https://github.com/diangogav/EDOpro-server-ts/commit/68fe03a71a6897e40194ecc0c5cd15c2fdc06bf0))
+* send message to all rooms and clients ([587bc8e](https://github.com/diangogav/EDOpro-server-ts/commit/587bc8e9891bd06eb6f3250d938957df7f334459))
+* Update RoomCreator to include tournament name in notes if it is provided in the payload. ([ffdb122](https://github.com/diangogav/EDOpro-server-ts/commit/ffdb1221caa5ca89dbd0985298cedf9d82b37a2a))
+
+
+### Bug Fixes
+
+* :adhesive_bandage: Fix mercury duel state transaction ([f084cda](https://github.com/diangogav/EDOpro-server-ts/commit/f084cda99726484b97dbee29b4f8410592baeb48))
+* :bug: Chat messages fixed ([fe956cb](https://github.com/diangogav/EDOpro-server-ts/commit/fe956cb44d4cb4ef66fbef5544ef9a9932635326))
+* convert utf8 password to utf16 at RoomCreator ([8d96b99](https://github.com/diangogav/EDOpro-server-ts/commit/8d96b998dd8cd661acd1cf3cc32cbdaf347f52f6))
+* default tcg banlist for mercury ([ff0f6c6](https://github.com/diangogav/EDOpro-server-ts/commit/ff0f6c6a6d51cf4e794b1d791d3bd7a8fb98fcba))
+* duplicated chat messages at mercury caused by extends to RoomState at MercuryJoinHandler ([7fbfc78](https://github.com/diangogav/EDOpro-server-ts/commit/7fbfc782858a8233ebb94cfd151116704751116a))
+* **linter:** refactor redis optional to comply with linter rules ([4cfb84c](https://github.com/diangogav/EDOpro-server-ts/commit/4cfb84cdbee10729e3a167cc2b03de79511dfeee))
+* mercury lflist links ([721721e](https://github.com/diangogav/EDOpro-server-ts/commit/721721e1b98063319462e526d476d40a8809a375))
+* mercury lflist links ([825141a](https://github.com/diangogav/EDOpro-server-ts/commit/825141aea1475687eb59520151f698418ca654f5))
+* player to spectator validation now is with socket id and not with player name ([1e62f23](https://github.com/diangogav/EDOpro-server-ts/commit/1e62f239e9e0f4c6bda5a8bc2f8c6d236d5389cc))
+* player winner message when player surrenders ([db0d471](https://github.com/diangogav/EDOpro-server-ts/commit/db0d471d7526142aa47fa1ba4266915fc475f475))
+* remove dangling rooms when creation crash from client ([9b97063](https://github.com/diangogav/EDOpro-server-ts/commit/9b97063c9f24c8a398f57b08247ef59d1730bddd))
+* spectators message working in mercury ([6acfcbd](https://github.com/diangogav/EDOpro-server-ts/commit/6acfcbde778f1123bdaf7b444e8fe5e104309b38))
+* update Dockerfile to include curl and git dependencies ([45cf18a](https://github.com/diangogav/EDOpro-server-ts/commit/45cf18a60f76c1636f9e031d531bf2afbfb8910d))
+* update vulnerable dependencies to secure versions ([e84361c](https://github.com/diangogav/EDOpro-server-ts/commit/e84361c8b214fc05f5ebe7bfd8838a341a3dc082))
+* winner reasons messages ([179716f](https://github.com/diangogav/EDOpro-server-ts/commit/179716f1b557d8766da9015a03e965877a5c566d))

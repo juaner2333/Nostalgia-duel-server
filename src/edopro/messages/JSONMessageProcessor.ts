@@ -1,0 +1,64 @@
+export interface JSONClientMessage {
+	data: string;
+	// previousMessage: Buffer;
+	size: number;
+}
+
+export class JSONMessageProcessor {
+	private buffer: Buffer;
+	private _size: number;
+	private _data: string;
+
+	constructor() {
+		this.buffer = Buffer.alloc(0);
+		this._data = Buffer.alloc(0).toString("utf-8");
+	}
+
+	read(data: Buffer): void {
+		this.buffer = Buffer.concat([this.buffer, data]);
+	}
+
+	process(): void {
+		if (!this.isMessageReady()) {
+			return;
+		}
+		this._size = this.buffer.readUint32LE(0);
+		this._data = this.buffer.subarray(4, this._size + 4).toString("utf-8");
+		this.buffer = this.buffer.subarray(this._size + 4);
+	}
+
+	isMessageReady(): boolean {
+		if (this.buffer.length < 4) {
+			return false;
+		}
+		const messageSize = this.buffer.readUint32LE(0);
+
+		return this.buffer.length >= messageSize + 4;
+	}
+
+	get size(): number {
+		return this._size;
+	}
+
+	get bufferLength(): number {
+		return this.buffer.length;
+	}
+
+	get currentBuffer(): Buffer {
+		return this.buffer;
+	}
+
+	get payload(): JSONClientMessage {
+		return {
+			data: this._data,
+			size: this.size,
+			// previousMessage: this._previousMessage,
+		};
+	}
+
+	clear(): void {
+		this.buffer = Buffer.alloc(0);
+		this._size = 0;
+		this._data = "";
+	}
+}

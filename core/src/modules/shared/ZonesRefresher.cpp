@@ -1,0 +1,55 @@
+#include "ZonesRefresher.h"
+
+void ZonesRefresher::refreshAllMZones(std::vector<QueryRequest> &queryRequests)
+{
+  queryRequests.emplace_back(QueryLocationRequest{0U, LOCATION_MZONE, 0x3981FFF});
+  queryRequests.emplace_back(QueryLocationRequest{1U, LOCATION_MZONE, 0x3981FFF});
+}
+
+void ZonesRefresher::refreshAllSZones(std::vector<QueryRequest> &queryRequests)
+{
+  queryRequests.emplace_back(QueryLocationRequest{0U, LOCATION_SZONE, 0x3F81FFF});
+  queryRequests.emplace_back(QueryLocationRequest{1U, LOCATION_SZONE, 0x3F81FFF});
+}
+
+void ZonesRefresher::refreshAllHands(std::vector<QueryRequest> &queryRequests)
+{
+	queryRequests.emplace_back(QueryLocationRequest{0U, LOCATION_HAND, 0x3781FFF});
+	queryRequests.emplace_back(QueryLocationRequest{1U, LOCATION_HAND, 0x3781FFF});
+}
+
+void ZonesRefresher::refreshAllDecks(std::vector<QueryRequest> &queryRequests)
+{
+	queryRequests.emplace_back(QueryLocationRequest{0U, LOCATION_DECK, 0x1181FFF});
+	queryRequests.emplace_back(QueryLocationRequest{1U, LOCATION_DECK, 0x1181FFF});
+}
+
+void ZonesRefresher::refreshAllGraves(std::vector<QueryRequest> &queryRequests)
+{
+	queryRequests.emplace_back(QueryLocationRequest{0U, LOCATION_GRAVE, 0x381fff});
+	queryRequests.emplace_back(QueryLocationRequest{1U, LOCATION_GRAVE, 0x381fff});
+}
+
+void ZonesRefresher::refreshAllExtras(std::vector<QueryRequest> &queryRequests)
+{
+	queryRequests.emplace_back(QueryLocationRequest{0U, LOCATION_EXTRA, 0x381FFF});
+	queryRequests.emplace_back(QueryLocationRequest{1U, LOCATION_EXTRA, 0x381FFF});
+}
+
+void ZonesRefresher::refreshAllRemoved(std::vector<QueryRequest> &queryRequests)
+{
+	queryRequests.emplace_back(QueryLocationRequest{0U, LOCATION_REMOVED, 0x30681FFF});
+	queryRequests.emplace_back(QueryLocationRequest{1U, LOCATION_REMOVED, 0x30681FFF});
+}
+
+
+void ZonesRefresher::refreshAll(std::vector<QueryRequest> &queryRequests)
+{
+  refreshAllDecks(queryRequests);
+  refreshAllMZones(queryRequests);
+  refreshAllSZones(queryRequests);
+  refreshAllHands(queryRequests);
+  refreshAllGraves(queryRequests);
+  refreshAllExtras(queryRequests);
+  refreshAllRemoved(queryRequests);
+}

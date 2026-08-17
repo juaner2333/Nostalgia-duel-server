@@ -1,0 +1,52 @@
+import { createServer } from "http";
+import { config } from "src/config";
+import MercuryRoomList from "@ygopro/room/infrastructure/YGOProRoomList";
+import LoggerFactory from "src/shared/logger/infrastructure/LoggerFactory";
+import WebSocket, { WebSocketServer } from "ws";
+
+import RoomList from "../edopro/room/infrastructure/RoomList";
+import { WebSocketMessage } from "./WebSocketMessage";
+
+class WebSocketSingleton {
+	private static instance: WebSocketSingleton | null = null;
+	private readonly wss: WebSocketServer | null = null;
+
+	private constructor(port: number) {
+		const logger = LoggerFactory.getLogger();
+		const server = createServer();
+		this.wss = new WebSocketServer({ server });
+		this.wss.on("connection", (ws: WebSocket) => {
+			ws.send(
+				JSON.stringify({
+					action: "GET-ROOMS",
+					data: [...RoomList.getRooms(), ...MercuryRoomList.getRooms()]
+						.filter((item) => item.turn !== 0)
+						.map((room) => room.toRealTimePresentation()),
+				}),
+			);
+		});
+		server.listen(port, () => {
+			logger.info(`WebSocket server running on port ${port}`);
+		});
+	}
+
+	public static getInstance(): WebSocketSingleton {
+		if (!WebSocketSingleton.instance) {
+			WebSocketSingleton.instance = new WebSocketSingleton(config.servers.websocket.port);
+		}
+
+		return WebSocketSingleton.instance;
+	}
+
+	public broadcast(message: WebSocketMessage): void {
+		if (this.wss) {
+			this.wss.clients.forEach((client) => {
+				if (client.readyState === WebSocket.OPEN) {
+					client.send(JSON.stringify(message));
+				}
+			});
+		}
+	}
+}
+
+export default WebSocketSingleton;

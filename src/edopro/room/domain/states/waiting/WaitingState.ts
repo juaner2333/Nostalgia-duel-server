@@ -1,0 +1,307 @@
+import { UserAuth } from "src/shared/user-auth/application/UserAuth";
+import { UserProfile } from "src/shared/user-profile/domain/UserProfile";
+import { EventEmitter } from "stream";
+
+import { Logger } from "../../../../../shared/logger/domain/Logger";
+import { DuelStartClientMessage } from "../../../../../shared/messages/server-to-client/DuelStartClientMessage";
+import { ISocket } from "../../../../../shared/socket/domain/ISocket";
+import { Client } from "../../../../client/domain/Client";
+import { DeckCreator } from "../../../../deck/application/DeckCreator";
+import { UpdateDeckMessageParser } from "../../../../deck/application/UpdateDeckMessageSizeCalculator";
+import { JoinGameMessage } from "../../../../messages/client-to-server/JoinGameMessage";
+import { PlayerInfoMessage } from "../../../../messages/client-to-server/PlayerInfoMessage";
+import { Commands } from "../../../../../shared/messages/Commands";
+import { ClientMessage } from "../../../../../shared/messages/MessageProcessor";
+import { ErrorMessages } from "../../../../messages/server-to-client/error-messages/ErrorMessages";
+import { ErrorClientMessage } from "../../../../messages/server-to-client/ErrorClientMessage";
+import { JoinGameClientMessage } from "../../../../messages/server-to-client/JoinGameClientMessage";
+import { RPSChooseClientMessage } from "../../../../messages/server-to-client/RPSChooseClientMessage";
+import { ServerErrorClientMessage } from "../../../../messages/server-to-client/ServerErrorMessageClientMessage";
+import { ReconnectionTokenIssuer } from "../../../../../shared/room/application/reconnect/ReconnectionTokenIssuer";
+import { isNameTaken } from "../../../../../shared/room/domain/isNameTaken";
+import { Room } from "../../Room";
+import { RoomState } from "../../RoomState";
+
+export class WaitingState extends RoomState {
+	constructor(
+		eventEmitter: EventEmitter,
+		private readonly logger: Logger,
+		private readonly userAuth: UserAuth,
+		private readonly deckCreator: DeckCreator,
+	) {
+		super(eventEmitter);
+		this.logger = this.logger.child({ file: "WaitingState" });
+		this.eventEmitter.on(
+			"JOIN",
+			(message: ClientMessage, room: Room, socket: ISocket) =>
+				void this.handle.bind(this)(message, room, socket),
+		);
+
+		this.eventEmitter.on(
+			Commands.UPDATE_DECK as unknown as string,
+			(message: ClientMessage, room: Room, client: Client) =>
+				void this.handleUpdateDeck.bind(this)(message, room, client),
+		);
+
+		this.eventEmitter.on(
+			Commands.NOT_READY as unknown as string,
+			(message: ClientMessage, room: Room, client: Client) =>
+				void this.handleNotReady.bind(this)(message, room, client),
+		);
+
+		this.eventEmitter.on(
+			Commands.READY as unknown as string,
+			(message: ClientMessage, room: Room, client: Client) =>
+				this.handleReady.bind(this)(message, room, client),
+		);
+
+		this.eventEmitter.on(
+			Commands.TRY_START as unknown as string,
+			(message: ClientMessage, room: Room, client: Client) =>
+				this.tryStartHandler.bind(this)(message, room, client),
+		);
+
+		this.eventEmitter.on(
+			Commands.OBSERVER as unknown as string,
+			(message: ClientMessage, room: Room, client: Client) =>
+				this.handleChangeToObserver.bind(this)(message, room, client),
+		);
+
+		this.eventEmitter.on(
+			Commands.TO_DUEL as unknown as string,
+			(message: ClientMessage, room: Room, client: Client) =>
+				this.handleToDuel.bind(this)(message, room, client),
+		);
+
+		this.eventEmitter.on(
+			Commands.KICK as unknown as string,
+			(message: ClientMessage, room: Room, client: Client) =>
+				this.handleKick.bind(this)(message, room, client),
+		);
+	}
+
+	private handleKick(message: ClientMessage, room: Room, player: Client): void {
+		room.mutex.runExclusive(() => {
+			player.logger.info("WaitingState: KICK");
+
+			const positionKick = message.data.readInt8();
+			const playerSelect = room.players.find((_client) => _client.position === positionKick);
+
+			if (!(playerSelect instanceof Client)) {
+				return;
+			}
+
+			if (playerSelect.host) {
+				return;
+			}
+
+			playerSelect.logger.info("WaitingState: OBSERVER (KICK)");
+			if (!playerSelect.isSpectator && !playerSelect.host) {
+				room.playerToSpectatorUnsafe(playerSelect);
+			}
+
+			room.addKick(playerSelect);
+
+			room.players.forEach((_client: Client) => {
+				_client.sendMessage(
+					ServerErrorClientMessage.create(
+						`The player:${playerSelect.name} has been banned from this room, he can only enter as a spectator!!`,
+					),
+				);
+			});
+
+			room.spectators.forEach((_client: Client) => {
+				_client.sendMessage(
+					ServerErrorClientMessage.create(
+						`The player:${playerSelect.name} has been banned from this room, he can only enter as a spectator!!`,
+					),
+				);
+			});
+		});
+	}
+
+	private handleToDuel(_message: ClientMessage, room: Room, player: Client): void {
+		room.mutex.runExclusive(() => {
+			player.logger.info("WaitingState: TO_DUEL");
+			const ips = player.socket.remoteAddress;
+			if (player.isSpectator && !room.kick.find((kick) => kick.socket.remoteAddress === ips)) {
+				room.spectatorToPlayerUnsafe(player);
+
+				return;
+			}
+
+			if (!room.kick.find((kick) => kick.socket.remoteAddress === ips)) {
+				room.movePlayerToAnotherCellUnsafe(player);
+			}
+		});
+	}
+
+	private tryStartHandler(_message: ClientMessage, room: Room, player: Client): void {
+		room.mutex.runExclusive(() => {
+			player.logger.info("WaitingState: TRY_START");
+
+			if (!room.allPlayersReady) {
+				return;
+			}
+
+			const duelStartMessage = DuelStartClientMessage.create();
+			room.players.forEach((client: Client) => {
+				client.sendMessage(duelStartMessage);
+			});
+
+			room.spectators.forEach((client: Client) => {
+				client.sendMessage(duelStartMessage);
+			});
+
+			const t0Client = room.players
+				.filter((_client: Client) => _client.team === 0)
+				.sort((a, b) => a.position - b.position)[0];
+			const t1Client = room.players
+				.filter((_client: Client) => _client.team === 1)
+				.sort((a, b) => a.position - b.position)[0];
+
+			const rpsChooseMessage = RPSChooseClientMessage.create();
+			(t0Client as Client).sendMessage(rpsChooseMessage);
+			(t1Client as Client).sendMessage(rpsChooseMessage);
+
+			// Issue a per-player reconnection token at match start so every duel
+			// phase (RPS, choosing order, dueling, side-decking) supports reconnect
+			// by token. It is rotated after each successful reconnection, never
+			// re-issued per game.
+			room.players.forEach((client: Client) => {
+				client.sendMessage(ReconnectionTokenIssuer.issue(client, room.id));
+			});
+
+			room.createMatchUnsafe();
+			room.rpsUnsafe();
+		});
+	}
+
+	private handleReady(_message: ClientMessage, room: Room, player: Client): void {
+		room.mutex.runExclusive(() => {
+			player.logger.info("WaitingState: READY");
+
+			if (player.isUpdatingDeck) {
+				player.saveReadyCommand(_message);
+
+				return;
+			}
+
+			room.readyUnsafe(player);
+		});
+	}
+
+	private handleChangeToObserver(_message: ClientMessage, room: Room, player: Client): void {
+		room.mutex.runExclusive(() => {
+			player.logger.info("WaitingState: OBSERVER");
+
+			if (player.isSpectator) {
+				return;
+			}
+
+			if (!player.host) {
+				room.playerToSpectatorUnsafe(player);
+			}
+		});
+	}
+
+	private async handleUpdateDeck(
+		message: ClientMessage,
+		room: Room,
+		player: Client,
+	): Promise<void> {
+		player.logger.info("WaitingState: UPDATE_DECK");
+
+		player.updatingDeck();
+		const parser = new UpdateDeckMessageParser(message.data);
+		const [mainDeck, sideDeck] = parser.getDeck();
+		const deck = await this.deckCreator.build({
+			main: mainDeck,
+			side: sideDeck,
+			banListHash: room.banListHash,
+		});
+
+		const hasError = deck.validate();
+
+		if (hasError) {
+			player.sendMessage(hasError.buffer());
+
+			room.notReadyUnsafe(player);
+
+			return;
+		}
+
+		room.mutex.runExclusive(() => {
+			room.setDecksToPlayerUnsafe(player.position, deck);
+			player.deckUpdated();
+
+			if (player.haveReadyCommand) {
+				player.clearReadyCommand();
+				room.readyUnsafe(player);
+			}
+		});
+	}
+
+	private handleNotReady(_message: ClientMessage, room: Room, player: Client): void {
+		room.mutex.runExclusive(() => {
+			player.logger.info("WaitingState: NOT_READY");
+
+			room.notReadyUnsafe(player);
+		});
+	}
+
+	private async handle(message: ClientMessage, room: Room, socket: ISocket): Promise<void> {
+		this.logger.info("JOIN");
+
+		const playerInfoMessage = new PlayerInfoMessage(message.previousMessage, message.data.length);
+		if (isNameTaken(room.players, playerInfoMessage.name)) {
+			this.sendExistingPlayerErrorMessage(playerInfoMessage, socket);
+
+			return;
+		}
+
+		const joinGameMessage = new JoinGameMessage(message.data);
+
+		await room.mutex.runExclusive(async () => {
+			const place = room.calculatePlaceUnsafe();
+
+			if (!place) {
+				const spectator = room.createSpectatorUnsafe(socket, playerInfoMessage.name);
+				socket.send(JoinGameClientMessage.createFromRoom(joinGameMessage, room));
+				room.addSpectatorUnsafe(spectator);
+				room.notifyToAllLobbyClients(spectator);
+				room.sendSpectatorCount({ enqueue: false });
+
+				return;
+			}
+
+			let userId: string | null = null;
+
+			if (room.ranked) {
+				const user = await this.userAuth.run(playerInfoMessage);
+
+				if (!(user instanceof UserProfile)) {
+					socket.send(user as Buffer);
+					socket.send(ErrorClientMessage.create(ErrorMessages.JOIN_ERROR));
+
+					return;
+				}
+
+				userId = user.id;
+			}
+			const player = room.createPlayerUnsafe(socket, playerInfoMessage.name, userId);
+			if (!player) {
+				const spectator = room.createSpectatorUnsafe(socket, playerInfoMessage.name);
+				socket.send(JoinGameClientMessage.createFromRoom(joinGameMessage, room));
+				room.addSpectatorUnsafe(spectator);
+				room.notifyToAllLobbyClients(spectator);
+				room.sendSpectatorCount({ enqueue: false });
+
+				return;
+			}
+
+			socket.send(JoinGameClientMessage.createFromRoom(joinGameMessage, room));
+			room.addPlayerUnsafe(player);
+		});
+	}
+}

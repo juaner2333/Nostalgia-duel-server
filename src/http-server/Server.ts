@@ -1,0 +1,43 @@
+import express, { Express } from "express";
+import { config } from "src/config";
+
+import { Logger } from "../shared/logger/domain/Logger";
+import { TicketRepository } from "../shared/ticket/domain/TicketRepository";
+import { createDirectoryIfNotExists } from "../utils";
+import { loadRoutes } from "./routes";
+
+export class Server {
+	private readonly app: Express;
+	private readonly logger: Logger;
+
+	constructor(logger: Logger, tickets: TicketRepository) {
+		this.logger = logger;
+		this.app = express();
+		this.app.use(express.json());
+		this.app.use((req, res, next) => {
+			const origin = req.headers.origin;
+			if (
+				origin &&
+				(config.allowedOrigins.includes("*") || config.allowedOrigins.includes(origin))
+			) {
+				res.header("Access-Control-Allow-Origin", origin);
+			}
+			res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE");
+			res.header(
+				"Access-Control-Allow-Headers",
+				"Origin, X-Requested-With, Content-Type, Accept, Authorization, admin-api-key",
+			);
+			if (req.method === "OPTIONS") {
+				res.sendStatus(200);
+			} else {
+				next();
+			}
+		});
+		loadRoutes(this.app, this.logger, tickets);
+	}
+
+	async initialize(): Promise<void> {
+		await createDirectoryIfNotExists("./config");
+		this.app.listen(config.servers.http.port);
+	}
+}
