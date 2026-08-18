@@ -118,23 +118,20 @@ EDOPro 的 `HostServer` 与 `WSHostServer` 实际位于 `src/socket-server/`，�
 - 生效的资源清单中不存在 `edopro/*` 目标或仅供 EDOPro 使用的资源源，且所有保留的 YGOPro 赛制资源仍可解析；
 - 不存在 EDOPro 监听器或对外发布端口；
 - 干净生产镜像清单中不包含原生 CoreIntegrator、EDOPro SQLite 或 EDOPro 资源；
-- 通过当前 MDPro3 固定线协议样本、真实 TCP 接入、YGOPro WebSocket、房间生命周期、重连、禁限卡表、录像、API、统计和资源测试；
+- 通过服务端 YGOPro 固定线协议样本、真实 TCP 接入、WebSocket、房间生命周期、重连、禁限卡表、录像、API、统计和资源测试；
 - 通过完整的代码检查、测试、构建、Bats 资源测试、容器启动及完整 YGOPro 决斗冒烟测试；
 - `.github/workflows/pipeline.yaml` 对应的 CI 流水线全部通过；
 - 取得镜像体积、资源/仓库磁盘占用、启动时间、空闲内存和单次刷新周期的变更前后数据。
 
-### 9. 以 MDPro3 固定线协议样本作为 WSL 回归边界
+### 9. 以服务端 YGOPro 固定线协议样本作为 WSL 回归边界
 
-当前 MDPro3 在 TCP 连接建立后依次调用 `CtosMessage_ExternalAddress`、`CtosMessage_PlayerInfo` 和 `CtosMessage_JoinGame`。每个帧使用二字节小端长度前缀，长度包含一字节命令；当前命令分别为 `0x17`、`0x10`、`0x12`，客户端版本为 `0x1362`。`PlayerInfo` 写入 20 个 UTF-16LE 字符槽，`JoinGame` 在版本后写入两个 `0xCC` 字节、32 位保留/游戏 ID 字段和 20 个 UTF-16LE 字符槽的口令。
+服务端当前接受的 YGOPro TCP 加入序列依次为 `ExternalAddress`、`PlayerInfo` 和 `JoinGame`。每个帧使用二字节小端长度前缀，长度包含一字节命令；命令分别为 `0x17`、`0x10`、`0x12`，配置的协议版本为 `0x1362`。`PlayerInfo` 负载使用 20 个 UTF-16LE 字符槽，`JoinGame` 在版本后包含两个 `0xCC` 字节、32 位保留/游戏 ID 字段和 20 个 UTF-16LE 字符槽的口令。
 
-服务端测试中提交一份由上述客户端实现生成并人工核对的固定十六进制样本及其预期字段。该样本是兼容契约，不在测试运行时引用客户端仓库或重新实现一套仅用于生成期望值的编码器。客户端主动调整线协议时，必须显式更新样本、规范和预期解析结果。
+服务端测试目录提交一份人工核对的固定十六进制样本及其预期字段。该样本是服务端兼容契约，测试运行时不得使用被测编码器重新生成期望值。服务端协议或版本配置主动变化时，必须显式更新样本、规范和预期解析结果。
 
-回归分为两层：
+回归完全在 WSL 内执行：使用 Node.js/Jest、系统分配的临时 loopback 端口和测试侧套接字覆盖固定样本解析、长度前缀拆分、负载拆分、多帧粘包、非法/截断帧、版本拒绝、错误口令、重复玩家、完整加入流程、房间生命周期、WebSocket 与 HTTP 契约。测试不得读取服务端仓库以外的源码或构建产物，可作为每次重构提交的稳定门禁。
 
-1. **WSL 阻断层**：使用 Node.js/Jest、临时 loopback 端口和模拟客户端覆盖固定样本解析、长度前缀拆分、负载拆分、多帧粘包、非法/截断帧、版本拒绝、错误口令、重复玩家、完整加入流程、房间生命周期、WebSocket 与 HTTP 契约。该层不启动 Unity，也不依赖 Windows 图形环境，可以作为每次重构提交的稳定门禁。
-2. **Windows 发布层**：候选版本通过 WSL 层后，从 Windows 启动真实 MDPro3 构建并连接运行在 WSL 中的服务端，完成进入房间、卡组提交、双方准备、开局和结束一场最小决斗，同时保存双端日志。该层验证 Unity 运行时、Windows/WSL 网络和真实资源装载，但不替代可重复的 WSL 协议测试。
-
-当前 MDPro3 在线流程使用 TCP，未发送服务端 WebSocket 重连命令。因此 WebSocket 和令牌重连继续作为独立的 YGOPro 服务端兼容回归，不得将其误记为当前 MDPro3 客户端覆盖。
+TCP 与 WebSocket 是两个独立的 YGOPro 服务端入口。固定首包覆盖 TCP 接入；WebSocket 票据认证、首消息竞态、心跳、应用层 ping/pong 和令牌重连分别通过服务端测试覆盖，不从 TCP 样本推断 WebSocket 行为。
 
 ## Risks / Trade-offs
 
@@ -145,8 +142,8 @@ EDOPro 的 `HostServer` 与 `WSHostServer` 实际位于 `src/socket-server/`，�
 - [双用途 LFList 资源源可能因曾供给 EDOPro 目标而被连带删除] -> 按全部消费者建立资源源矩阵；明确保留 `evolution-lflists` 的 MD/Tengu 映射，以及重命名后的 Project Ignis 源所供给的 world、speed、rush、goat、ocg 映射，并为每个保留赛制通过建房与卡组校验冒烟测试。
 - [删除代码后旧资源仍可能占用磁盘] -> 加入明确的部署后盘点与清理，不能仅凭源码树检查就宣告成本目标达成。
 - [删除 `liblua5.3-dev`、`libsqlite3-dev` 或 `libevent-dev` 可能暴露未记录的 WindBot/YGOPro 运行时依赖] -> 删除前检查依赖树，并使用干净 Docker 镜像完成 WindBot 与 YGOPro WASM 冒烟测试；无法证明无依赖的库继续保留。
-- [测试内重新拼装握手期望值可能与客户端同步漂移并产生假通过] -> 提交独立的固定十六进制样本和已知解析结果，客户端协议变化时要求显式评审样本差异，并由真实 Windows 客户端冒烟测试兜底。
-- [WSL 模拟客户端通过但 Windows/Unity 或跨宿主机网络仍失败] -> 将真实 MDPro3 到 WSL 服务端的最小决斗作为候选版本发布门禁，并保留双端日志。
+- [测试内使用被测编码器重新拼装握手期望值可能掩盖协议回归] -> 提交独立的固定十六进制样本和已知解析结果，服务端协议变化时要求显式评审样本差异。
+- [消息解析器测试通过但真实 TCP 监听、分发或关闭语义回归] -> 使用系统分配的临时 loopback 端口增加服务端进程内 TCP 接入契约测试。
 - [大规模删除会增加评审与回滚难度] -> 将依赖解除、运行时切换、实体删除和部署清理保持为有序且可独立验证的任务组。
 
 ## Migration Plan

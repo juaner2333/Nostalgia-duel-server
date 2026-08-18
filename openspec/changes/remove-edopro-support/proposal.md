@@ -11,7 +11,7 @@
 - 移除 EDOPro SQLite 构建与热重载路径、原生依赖、Docker 构建阶段、脚本、包依赖、路径别名、测试、文档和部署配置。
 - 在删除 EDOPro 模块前，解除 YGOPro 与共享领域代码对 EDOPro 所有类型的依赖。
 - 保留 YGOPro TCP/WebSocket 决斗、怀旧赛制、录像、匹配、WindBot、认证、排行与统计、HTTP 管理以及房间观战行为。
-- 以当前 MDPro3 客户端生成的 TCP 首包固定样本锁定二字节小端帧、`ExternalAddress`/`PlayerInfo`/`JoinGame` 顺序和加入语义；核心自动回归在 WSL 内执行，真实 Windows 客户端仅承担发布前跨宿主机冒烟验证。
+- 以服务端当前接受的 YGOPro TCP 首包固定样本锁定二字节小端帧、`ExternalAddress`/`PlayerInfo`/`JoinGame` 顺序和加入语义，并在 WSL 内完成全部自动回归。
 - 为遗留的 EDOPro 仓库缓存、资源发布版本、生成数据库、容器镜像、端口和外部部署配置增加明确的清理与验证步骤。
 
 ## Capabilities
@@ -31,4 +31,4 @@
 - 资源：`resources.manifest.json`、仓库缓存、组装后的发布版本和运行时更新器不再拉取或发布 EDOPro 资产。
 - 构建与部署：根目录 `core/`、Docker 原生构建阶段与系统库、Compose 端口和环境变量、辅助脚本、包依赖、CI 检查、外部入口与健康检查，以及遗留部署数据。
 - API：移除 EDOPro 专用路由；混合检查响应改为仅返回 YGOPro 数据，因此调用方不能再依赖 `edopro` 字段。
-- 测试：新增不依赖 Unity 的 MDPro3 线协议固定样本、真实 YGOPro TCP 接入和流式分帧回归；保留 Windows MDPro3 到 WSL 服务端的发布前冒烟检查。
+- 测试：新增自包含的 YGOPro 线协议固定样本、真实 TCP 接入和流式分帧回归，所有测试输入、预期结果与执行命令均位于服务端仓库内。

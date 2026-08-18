@@ -15,19 +15,19 @@
 - **WHEN** 检查已部署服务的监听器配置与对外发布端口
 - **THEN** 不存在 EDOPro 决斗监听器、端口映射、入口规则或健康检查
 
-### Requirement: 保持当前 MDPro3 TCP 线协议兼容
-服务器必须（SHALL）继续接受当前 MDPro3 客户端使用的 YGOPro TCP 帧：二字节小端长度前缀的值包含一字节命令和消息负载，连接后依次发送 `ExternalAddress (0x17)`、`PlayerInfo (0x10)` 和 `JoinGame (0x12)`。`PlayerInfo` 使用 20 个 UTF-16LE 字符槽；`JoinGame` 使用客户端版本 `0x1362`、两个 `0xCC` 字节、一个 32 位保留/游戏 ID 字段和 20 个 UTF-16LE 字符槽的房间口令。
+### Requirement: 保持 YGOPro TCP 线协议兼容
+服务器必须（SHALL）继续接受二字节小端长度前缀的 YGOPro TCP 帧，长度值包含一字节命令和消息负载。加入序列依次为 `ExternalAddress (0x17)`、`PlayerInfo (0x10)` 和 `JoinGame (0x12)`；`PlayerInfo` 使用 20 个 UTF-16LE 字符槽，`JoinGame` 使用协议版本 `0x1362`、两个 `0xCC` 字节、一个 32 位保留/游戏 ID 字段和 20 个 UTF-16LE 字符槽的房间口令。
 
-#### Scenario: 接受当前 MDPro3 首包序列
-- **WHEN** TCP 客户端发送由当前 MDPro3 实现生成的 `ExternalAddress`、`PlayerInfo` 和 `JoinGame` 固定二进制样本
+#### Scenario: 接受固定 YGOPro 首包序列
+- **WHEN** TCP 连接发送服务端测试目录中的 `ExternalAddress`、`PlayerInfo` 和 `JoinGame` 固定二进制样本
 - **THEN** 服务器按顺序且各一次消费三条消息，`ExternalAddress` 不会覆盖后续加入所需的上一条 `PlayerInfo`，服务器取得玩家名、版本和房间口令并进入现有 YGOPro 加入流程，且不调用 EDOPro 消息解析器
 
 #### Scenario: 首包跨越任意 TCP 分块
-- **WHEN** 同一份 MDPro3 首包样本的长度前缀、命令或负载被拆分到多个 TCP 数据块，或者多条完整消息被合并到一个数据块
+- **WHEN** 同一份固定首包样本的长度前缀、命令或负载被拆分到多个 TCP 数据块，或者多条完整消息被合并到一个数据块
 - **THEN** 服务器等待完整帧后再处理，并按线协议顺序且各一次分发每条完整消息
 
 #### Scenario: 收到不完整或非法长度的帧
-- **WHEN** TCP 客户端发送截断帧、非法长度或超过服务器上限的帧
+- **WHEN** TCP 连接发送截断帧、非法长度或超过服务器上限的帧
 - **THEN** 服务器不创建或修改房间，不重复处理任何消息，并关闭或拒绝该连接且不影响其他连接
 
 ### Requirement: 保留现有 YGOPro 游戏能力
@@ -44,24 +44,20 @@
 ### Requirement: 使用 YGOPro 原生认证错误
 YGOPro 连接上的认证、准入和版本校验失败不得（SHALL NOT）依赖 EDOPro 消息序列化器。存在 YGOPro 错误码的失败必须（SHALL）先返回兼容消息再关闭连接；错误房间口令等现有静默拒绝必须（SHALL）保持原有关闭语义，并且不得创建、加入或修改房间。
 
-#### Scenario: 客户端版本不兼容
-- **WHEN** 当前 MDPro3 首包使用不受支持的客户端版本加入房间
-- **THEN** 客户端收到有效且兼容 YGOPro 的版本拒绝消息，消息在连接关闭前完成发送，并且房间保持不变
+#### Scenario: 协议版本不兼容
+- **WHEN** YGOPro 加入帧使用不受支持的协议版本加入房间
+- **THEN** 服务器在连接关闭前发送有效的 YGOPro 版本拒绝消息，并且房间保持不变
 
 #### Scenario: 房间口令错误
-- **WHEN** 当前 MDPro3 首包携带错误的房间口令
+- **WHEN** YGOPro 加入帧携带错误的房间口令
 - **THEN** 服务器按现有 YGOPro 静默拒绝行为关闭连接，不创建、不加入且不修改任何房间，也不继续匹配其他加入策略
 
-### Requirement: 分层执行客户端兼容回归
-阻断重构合入的自动回归必须（SHALL）能够仅在 WSL 中使用 Node.js、固定线协议样本和模拟客户端完成，不得要求安装或启动 Unity/Windows 客户端。发布 YGOPro 专用版本前必须（SHALL）另行在 Windows 上使用真实 MDPro3 构建完成跨宿主机冒烟验证。
+### Requirement: 服务端协议回归在 WSL 内自包含执行
+阻断重构合入的自动回归必须（SHALL）能够仅在 WSL 中使用 Node.js、固定线协议样本和测试侧套接字完成。全部测试输入、预期结果和执行命令必须（SHALL）位于服务端仓库内，且不得读取外部源码或构建产物。
 
 #### Scenario: 在 WSL 中执行阻断回归
 - **WHEN** 开发者或 CI 在干净的服务端检出中执行聚焦测试和完整测试命令
-- **THEN** MDPro3 TCP 首包、分片/粘包、加入拒绝、房间生命周期、WebSocket、HTTP、统计和资源测试均可在 WSL 内完成，且测试只监听临时的 loopback 端口
-
-#### Scenario: 发布前执行真实客户端冒烟测试
-- **WHEN** 候选版本通过全部 WSL 自动回归并准备发布
-- **THEN** Windows 上的真实 MDPro3 客户端能够连接 WSL 中的候选服务端，完成进入房间、卡组提交、双方准备、开始和结束一场最小决斗，并留下可审查的客户端与服务端日志
+- **THEN** YGOPro TCP 首包、分片/粘包、加入拒绝、房间生命周期、WebSocket、HTTP、统计和资源测试均可在 WSL 内完成，且网络测试只监听系统分配的临时 loopback 端口
 
 ### Requirement: 仅部署 YGOPro 资源集
 已部署的资源集必须（SHALL）包含所提供 YGOPro 怀旧赛制需要的全部卡片数据库、脚本、禁限卡表和 WASM 决斗核心，并且不得（SHALL NOT）包含组装后的 `edopro` 资源树。
