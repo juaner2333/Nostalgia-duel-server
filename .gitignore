@@ -27,6 +27,7 @@ postgres_data/
 
 # Agent tooling (local skill-registry cache)
 .atl/
+.pi/
 
 # VS Code & IDEs
 .vscode/
