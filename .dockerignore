@@ -35,9 +35,6 @@ postgres_data/
 .idea/
 .DS_Store
 
-# Evolution Source
-src/evolution-types/
-
 # Mercury
 mercury/script/
 mercury/scripts/

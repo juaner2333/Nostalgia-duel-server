@@ -29,8 +29,6 @@ WORKDIR /server
 COPY package.json package-lock.json ./
 RUN npm ci
 
-RUN git clone --depth 1 https://github.com/diangogav/evolution-types.git ./src/evolution-types
-
 COPY . .
 
 RUN npm run build && \
