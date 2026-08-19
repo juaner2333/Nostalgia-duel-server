@@ -1,7 +1,7 @@
 import { EventEmitter } from "stream";
 
-import { PlayerInfoMessage } from "@edopro/messages/client-to-server/PlayerInfoMessage";
-import { RoomState } from "@edopro/room/domain/RoomState";
+import { PlayerInfoMessage } from "@ygopro/messages/client-to-server/PlayerInfoMessage";
+import { YGOProRoomState } from "../YGOProRoomState";
 
 import { YGOProDeckCreator } from "@ygopro/deck/application/YGOProDeckCreator";
 import { YGOProDeckValidator } from "@ygopro/deck/domain/YGOProDeckValidator";
@@ -31,7 +31,7 @@ import {
 const SIDE_TIMEOUT_MINUTES = config.sideTimeoutMinutes;
 const TICK_INTERVAL_MS = 60_000;
 
-export class YGOProSideDeckingState extends RoomState {
+export class YGOProSideDeckingState extends YGOProRoomState {
 	private readonly playerTimers = new Map<number, NodeJS.Timeout>();
 	private readonly playerRemainMinutes = new Map<number, number>();
 

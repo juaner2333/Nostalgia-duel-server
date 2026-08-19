@@ -1,24 +1,22 @@
 <h1 align="center">🎮 Evolution Server</h1>
 <p align="center">
   <strong>A Yu-Gi-Oh! game server built with TypeScript</strong><br>
-  <em>Host duels for EDOPro, Koishi, and YGO Mobile — all from one server.</em>
+  <em>Host duels for Koishi, YGO Mobile, and YGOPro clients.</em>
 </p>
 
 [![PR Pipeline](https://github.com/diangogav/EDOpro-server-ts/actions/workflows/pipeline.yaml/badge.svg)](https://github.com/diangogav/EDOpro-server-ts/actions/workflows/pipeline.yaml)
 
-Evolution Server runs two independent game engines side by side, so you can support both ecosystems from a single server — or pick just one.
+Evolution Server is a YGOPro-only game server: one engine, one protocol, every YGOPro-compatible client.
 
 | Engine | Clients | Protocol | Port |
 |--------|---------|----------|------|
-| 🖥️ **EDOPro** | EDOPro desktop client | EDOPro protocol | `7911` |
 | 📱 **YGOPro** | Koishi, YGO Mobile, YGOPro | YGOPro-compatible (srvpro2) | `7711` |
 
 ---
 
 ## ✨ What can it do?
 
-- 🏰 **Room creation** through the EDOPro lobby or YGOPro-compatible clients
-- 🔀 **Cross-client duels** between different platforms *(experimental)*
+- 🏰 **Room creation** through YGOPro-compatible clients
 - 🔌 **Automatic reconnection** after disconnection or crash
 - 📊 **Match data collection** for rankings and analytics
 - 🧪 **Isolated duel cores** — each match runs in its own process
@@ -35,9 +33,9 @@ cd EDOpro-server-ts
 docker compose -f docker-compose.prod.yaml up -d
 ```
 
-That's it! 🎉 Both engines start automatically with PostgreSQL and Valkey included.
+That's it! 🎉 The server starts automatically with PostgreSQL and Valkey included.
 
-> 💡 Connect with EDOPro on port `7911` or with Koishi/YGO Mobile on port `7711`.
+> 💡 Connect with Koishi or YGO Mobile on port `7711`.
 
 ---
 
@@ -48,8 +46,6 @@ For when you want full control, or Docker isn't an option.
 ### 📋 Prerequisites
 
 - [Node.js](https://nodejs.org) >= 24
-- [CMake](https://cmake.org/download/) >= 3.18
-- A C++ compiler (g++ or clang++)
 - [jq](https://jqlang.github.io/jq/) >= 1.6 — required by `scripts/clone_repositories.sh` and `scripts/setup_resources.sh` to read the resource manifest
 
 On Ubuntu/Debian, the provided script installs everything you need:
@@ -73,58 +69,20 @@ bash scripts/clone_repositories.sh
 # 3️⃣ Organize everything into resources/
 bash scripts/setup_resources.sh
 
-# 4️⃣ Build the C++ duel core (used by the EDOPro engine)
-bash scripts/build_core_integrator.sh
-
-# 5️⃣ Install Node.js dependencies
+# 4️⃣ Install Node.js dependencies
 npm install
 
-# 6️⃣ Configure environment
+# 5️⃣ Configure environment
 cp .env.example .env
 ```
 
 > 📁 `scripts/setup_resources.sh` assembles each run into `resources/releases/<id>/` and points `resources/current` (a symlink) at it. Everything is read through `resources/current/…`, so refreshing resources is an atomic symlink swap — no restart needed. In Docker the container runs this refresh loop in the background (see `scripts/entrypoint.sh` + `scripts/resources-updater.sh`), so card/banlist updates are picked up live.
 
-Now choose which engine(s) you want to run 👇
+Now start the server 👇
 
 ---
 
-### 🖥️ Running the EDOPro engine only
-
-Players connect using the EDOPro desktop client.
-
-**What you need:**
-- ✅ The CoreIntegrator binary (built in step 4)
-- ✅ Card databases and scripts from ProjectIgnis
-- ✅ Banlists from ProjectIgnis and/or Evolution
-
-**Minimum `.env` configuration:**
-
-```env
-HOST_PORT=7911
-HTTP_PORT=7922
-WEBSOCKET_PORT=4000
-```
-
-**Resource structure used:**
-
-```
-📂 resources/current/edopro/
-├── 📜 scripts/            # ProjectIgnis/CardScripts
-├── 🗄️ databases/          # ProjectIgnis/BabelCDB
-├── 📋 banlists-ignis/     # ProjectIgnis/LFLists
-└── 📋 banlists-evolution/ # Evolution community banlists
-```
-
-```bash
-npm run dev
-```
-
-> 🎯 Connect with EDOPro to `your-server-ip:7911`
-
----
-
-### 📱 Running the YGOPro engine only
+### 📱 Running the YGOPro server
 
 The YGOPro engine uses srvpro2-compatible protocol. Players connect using Koishi, YGO Mobile, or any YGOPro-compatible client.
 
@@ -165,26 +123,6 @@ npm run dev
 
 ---
 
-### 🔥 Running both engines
-
-Just set both ports in your `.env`:
-
-```env
-HOST_PORT=7911
-YGOPRO_PORT=7711
-HTTP_PORT=7922
-WEBSOCKET_PORT=4000
-RESOURCES_DIR=./resources/current
-```
-
-```bash
-npm run dev
-```
-
-Both engines run in the same process, sharing the HTTP API and WebSocket server. 💪
-
----
-
 ## 🗂️ Card Database Architecture
 
 The YGOPro engine maintains **two separate card pools** in memory:
@@ -204,7 +142,6 @@ Both pools are loaded at startup and refreshed every 10 minutes if the underlyin
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `HOST_PORT` | EDOPro server port | `7911` |
 | `YGOPRO_PORT` | YGOPro server port | `7711` |
 | `HTTP_PORT` | HTTP API port | `7922` |
 | `WEBSOCKET_PORT` | WebSocket port | `4000` |
@@ -262,21 +199,20 @@ pools.extended.slice(pools.standard.length).forEach(p => console.log(' E', p));
 
 ```
 src/
-├── 🖥️ edopro/             # EDOPro engine (EDOPro protocol)
 ├── 📱 ygopro/             # YGOPro engine (srvpro2-compatible)
 ├── 🤝 shared/             # Shared domain logic (rooms, decks, cards, clients)
-├── 🔌 socket-server/      # TCP socket servers for both engines
+├── 🔌 socket-server/      # YGOPro TCP socket server
+├── 📡 web-socket-server/  # WebSocket server for real-time updates
 ├── 🌐 http-server/        # REST API
-└── 📡 web-socket-server/  # WebSocket server for real-time updates
+└── 🚀 bootstrap/          # Server startup wiring
 ```
 
-Both engines share the same room management, player handling, and match lifecycle — but use different protocols, card databases, and deck validation rules.
+Rooms, player handling, and the match lifecycle are shared domain logic; the YGOPro protocol stack owns its own clients, messages, and duel orchestration.
 
 ---
 
 ## 🙏 Acknowledgments
 
-- [Multirole](https://github.com/DyXel/Multirole) by @Dyxel — the reference for the EDOPro engine
 - [srvpro2](https://github.com/purerosefallen/srvpro) — the reference for the YGOPro engine
 - The [Project Ignis](https://github.com/ProjectIgnis), [MyCard](https://mycard.moe/), and [Evolution](https://github.com/evolutionygo) communities
 

@@ -56,9 +56,9 @@ export class YGOProBanListLoader {
 	}
 
 	/**
-	 * YGOPro lflist.conf uses date-only names for OCG banlists (e.g. "2026.04")
-	 * while EDOpro uses "2026.04 OCG". Append " OCG" to date-only names so they
-	 * match EDOpro banlist names when mapping edoBanListHash.
+	 * YGOPro lflist.conf uses date-only names for OCG banlists (e.g. "2026.04").
+	 * Append " OCG" to date-only names so the canonical name stays aligned with
+	 * the historical persisted rows and room displays already in use.
 	 */
 	private appendOcgSuffix(name: string): string {
 		if (/^\d{4}\.\d{2}(?:\.\d{2})?$/.test(name)) {

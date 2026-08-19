@@ -1,16 +1,9 @@
 import { Request, Response } from "express";
 
 import { toBanListDetail } from "@shared/ban-list/application/BanListDetail";
-import { BanList } from "@shared/ban-list/BanList";
-import EdoProBanListMemoryRepository from "@edopro/ban-list/infrastructure/BanListMemoryRepository";
 import YGOProBanListMemoryRepository from "@ygopro/ban-list/infrastructure/YGOProBanListMemoryRepository";
 
 import { cardRepositories, isCardEngine } from "../composition/CardRepositories";
-
-const findBanList = (engine: "edopro" | "ygopro", name: string): BanList | null =>
-	engine === "edopro"
-		? EdoProBanListMemoryRepository.findByName(name)
-		: YGOProBanListMemoryRepository.findByName(name);
 
 export class GetBanListDetailController {
 	async run(request: Request, response: Response): Promise<void> {
@@ -23,7 +16,7 @@ export class GetBanListDetailController {
 			return;
 		}
 
-		const banList = findBanList(engine, name);
+		const banList = YGOProBanListMemoryRepository.findByName(name);
 		if (!banList) {
 			response.status(404).json({ error: "ban list not found" });
 
@@ -31,7 +24,7 @@ export class GetBanListDetailController {
 		}
 
 		const ids = [...banList.forbidden, ...banList.limited, ...banList.semiLimited, ...banList.all];
-		const names = await cardRepositories[engine].resolveNames(ids);
+		const names = await cardRepositories.ygopro.resolveNames(ids);
 
 		response.status(200).json({
 			engine,

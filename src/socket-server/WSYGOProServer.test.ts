@@ -5,23 +5,24 @@ import { WebSocket, WebSocketServer } from "ws";
 import { Logger } from "@shared/logger/domain/Logger";
 import { WebSocketClientSocket } from "../shared/socket/domain/WebSocketClientSocket";
 import { Commands } from "../shared/messages/Commands";
-import { MessageEmitter } from "../edopro/MessageEmitter";
+import { MessageEmitter } from "@ygopro/messages/MessageEmitter";
 import { HandshakeTicketAuthenticator } from "./HandshakeTicketAuthenticator";
 import { WSYGOProServer } from "./WSYGOProServer";
 
 // --- Infrastructure mocks (prevent DB connections and port binding) ---
 jest.mock("ws");
-jest.mock("http", () => ({ createServer: jest.fn().mockReturnValue({}) }));
+jest.mock("http", () => ({
+	createServer: jest.fn().mockReturnValue({ listen: jest.fn(), address: jest.fn() }),
+}));
 jest.mock("crypto", () => ({ randomUUID: jest.fn().mockReturnValue("test-socket-uuid") }));
 jest.mock("src/config", () => ({
 	config: { servers: { mercury: { wsPort: 7800, wsHeartbeatIntervalMs: 30000 } } },
 }));
-jest.mock("src/shared/user-auth/application/CheckIfUserCanJoin");
 jest.mock("src/shared/user-auth/application/UserAuth");
 jest.mock("src/shared/user-profile/infrastructure/postgres/UserProfilePostgresRepository");
-jest.mock("../edopro/MessageEmitter");
-jest.mock("../shared/room/application/DisconnectHandler");
-jest.mock("../shared/room/application/RoomFinder");
+jest.mock("@ygopro/messages/MessageEmitter");
+jest.mock("@ygopro/room/application/YGOProDisconnectHandler");
+jest.mock("@ygopro/room/application/YGOProRoomFinder");
 jest.mock("../shared/socket/domain/WebSocketClientSocket");
 jest.mock("@ygopro/room/application/YGOProGameCreatorHandler");
 jest.mock("@ygopro/room/application/YGOProJoinHandler");

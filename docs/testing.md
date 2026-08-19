@@ -1,6 +1,6 @@
 # Testing conventions
 
-How we write tests in EDOpro-server-ts: where they live, how we build test data, how we mock, and how we format them. The goal is one consistent pattern so any test reads like the one next to it.
+How we write tests in Nostalgia-duel-server: where they live, how we build test data, how we mock, and how we format them. The goal is one consistent pattern so any test reads like the one next to it.
 
 > **Status:** Active standard. All tests are co-located under `src/` — the legacy `tests/` folder has been fully migrated and removed. New tests **must** follow this doc.
 
@@ -8,7 +8,7 @@ How we write tests in EDOpro-server-ts: where they live, how we build test data,
 
 1. **Co-locate it.** Put `Thing.test.ts` next to `Thing.ts` inside `src/`. Never add tests to the root `tests/` folder.
 2. **Build domain objects with a Mother.** Use (or create) an Object Mother for shared domain entities. Use a local `make*` factory only for stubs specific to that one suite.
-3. **Mock infra with the shared doubles.** `LoggerMock`, `SocketMock`, `MessageRepositoryMock` for ubiquitous interfaces; `jest.mock()` for module singletons; `mock<T>()` (jest-mock-extended) for one-off interface mocks.
+3. **Mock infra with the shared doubles.** `LoggerMock`, `MessageRepositoryMock` for ubiquitous interfaces; `jest.mock()` for module singletons; `mock<T>()` (jest-mock-extended) for one-off interface mocks.
 4. **Reset singletons** in `afterEach` (e.g. `WindbotModule.resetForTests()`, `JoinStrategyRegistry.reset()`).
 5. **Format:** tab indentation — Biome applies it (`npm run format`), and your editor via `.editorconfig`.
 
@@ -28,27 +28,26 @@ Decide by **what** you are building:
 
 | You are building… | Use | Why |
 |-------------------|-----|-----|
-| A shared **domain entity** (Client, Player, Room, YGOProRoom, UserProfile, Game) | **Object Mother** | One canonical builder. Faker defaults expose hidden coupling; override only the field under test. |
+| A shared **domain entity** (Player, Room, YGOProRoom, UserProfile, Game) | **Object Mother** | One canonical builder. Faker defaults expose hidden coupling; override only the field under test. |
 | A **local stub** used by one suite (a fake repo, provider, socket) | **Inline `make*` factory** | Lightweight, self-contained, fresh per test. No need to share. |
 
 ### Object Mother (domain entities)
 
-A static `create(params?: Partial<Props>)` returning a real domain object, with sensible faker-backed defaults:
+A static `create(overrides?: Partial<Props>)` returning a real domain object, with sensible faker-backed defaults:
 
 ```ts
-export class ClientMother {
-  static create(params?: Partial<ClientMotherProps>): Client {
-    return new Client({
-      name: params?.name ?? faker.person.firstName(),
-      team: params?.team ?? faker.number.int({ min: 0, max: 1 }),
+export class YGOProRoomMother {
+  static create(overrides?: Partial<YGOProRoomMotherProps>): YGOProRoom {
+    return YGOProRoom.create(
+      overrides?.id ?? randomInt(0, 10000),
+      overrides?.command ?? faker.string.alpha({ length: 6 }),
       // ...other faker defaults
-      ...params,
-    });
+    );
   }
 }
 
 // usage — override only what the test cares about
-const client = ClientMother.create({ id: "1" });
+const room = YGOProRoomMother.create({ command: "m#123" });
 ```
 
 Rule: **one Mother per shared domain entity.** If an entity is built more than one way across the suite, that is a bug to consolidate (see Migration targets).

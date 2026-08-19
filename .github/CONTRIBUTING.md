@@ -1,4 +1,4 @@
-# Contributing to EDOpro-server-ts
+# Contributing to Nostalgia-duel-server
 
 Thank you for your interest in contributing to Evolution Server! Your help is welcome and appreciated. Please follow these guidelines to make the process smooth for everyone.
 

@@ -18,7 +18,6 @@
 		"sourceMap": true,
 		"inlineSources": true,
 		"paths": {
-			"@edopro/*": ["src/edopro/*"],
 			"@shared/*": ["src/shared/*"],
 			"@ygopro/*": ["src/ygopro/*"],
 			"@test-support/*": ["src/test-support/*"]

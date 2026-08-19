@@ -1,8 +1,7 @@
 import { EventEmitter } from "stream";
 
-import BanListMemoryRepository from "@edopro/ban-list/infrastructure/BanListMemoryRepository";
-import { PlayerInfoMessage } from "@edopro/messages/client-to-server/PlayerInfoMessage";
-import { RoomState } from "@edopro/room/domain/RoomState";
+import { PlayerInfoMessage } from "@ygopro/messages/client-to-server/PlayerInfoMessage";
+import { YGOProRoomState } from "./YGOProRoomState";
 
 import { Team } from "@shared/room/Team";
 import { RoomLeague } from "@shared/room/admission/domain/RoomLeague";
@@ -16,7 +15,7 @@ import { RoomAdmission } from "@shared/room/admission/domain/RoomAdmission";
 import { Logger } from "@shared/logger/domain/Logger";
 import { DeckRules, DuelState, YgoRoom } from "@shared/room/domain/YgoRoom";
 import { RoomType } from "@shared/room/domain/RoomType";
-import { MessageRepository } from "@shared/messages/MessageRepository";
+import { MessageRepository } from "@ygopro/room/domain/MessageRepository";
 import { ISocket } from "@shared/socket/domain/ISocket";
 import { Deck } from "@shared/deck/domain/Deck";
 
@@ -67,10 +66,8 @@ export class YGOProRoom extends YgoRoom {
 	readonly createdBySocketId: string;
 	readonly banListHash: number;
 	readonly useExtendedCardPool: boolean;
-	//TODO: compatibility with edopro list and rank;
-	private _edoBanListHash: number;
 	private _logger: Logger;
-	private _roomState: RoomState | null = null;
+	private _roomState: YGOProRoomState | null = null;
 	private _isPositionSwapped: boolean = false;
 	private _duelRecords: DuelRecord[] = [];
 	private _currentDuelRecord: DuelRecord;
@@ -151,10 +148,6 @@ export class YGOProRoom extends YgoRoom {
 			rule: this._hostInfo.rule,
 			maxDeckPoints: this._hostInfo.max_deck_points,
 		});
-		banListHash;
-		const banList = MercuryBanListMemoryRepository.findByHash(banListHash);
-		const edoBanList = BanListMemoryRepository.findByName(banList?.name ?? "");
-		this._edoBanListHash = edoBanList?.hash ?? 0;
 	}
 
 	static create(
@@ -334,10 +327,6 @@ export class YGOProRoom extends YgoRoom {
 
 	get duelRecords(): DuelRecord[] {
 		return this._duelRecords;
-	}
-
-	get edoBanListHash(): number {
-		return this._edoBanListHash;
 	}
 
 	get banListName(): string | null {
@@ -747,7 +736,7 @@ export class YGOProRoom extends YgoRoom {
 			rule: this._hostInfo.rule,
 			no_check: Boolean(this._hostInfo.no_check_deck),
 			no_shuffle: Boolean(this._hostInfo.no_shuffle_deck),
-			banlist_hash: this._edoBanListHash ?? this.banListHash,
+			banlist_hash: this.banListHash,
 			istart: this.isStart,
 			main_min: 40,
 			main_max: 60,

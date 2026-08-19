@@ -1,9 +1,8 @@
 import { Request, Response } from "express";
 import { z } from "zod";
 
-import { ServerMessageClientMessage } from "../../edopro/messages/server-to-client/ServerMessageClientMessage";
-import RoomList from "../../edopro/room/infrastructure/RoomList";
 import MercuryRoomList from "@ygopro/room/infrastructure/YGOProRoomList";
+import { YGOProPlayerChatMessage } from "@ygopro/messages/server-to-client/YGOProPlayerChatMessage";
 
 export const ServerMessageSchema = z.object({
 	message: z.string().min(1).max(500),
@@ -25,12 +24,12 @@ export class ServerMessagesController {
 		}
 
 		const payload = validation.data;
-		const rooms = [...RoomList.getRooms(), ...MercuryRoomList.getRooms()];
+		const rooms = MercuryRoomList.getRooms();
 		for (const room of rooms) {
 			const allClients = [...room.players, ...room.spectators];
 			for (const client of allClients) {
 				const socket = client.socket;
-				socket.send(ServerMessageClientMessage.create(`[${payload.reason}] ${payload.message}`));
+				socket.send(YGOProPlayerChatMessage.create(`[${payload.reason}] ${payload.message}`));
 			}
 		}
 		response.status(200).json({ ...payload });

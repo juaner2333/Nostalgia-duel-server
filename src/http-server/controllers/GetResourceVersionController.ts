@@ -1,7 +1,5 @@
 import { Request, Response } from "express";
 
-import EdoProBanListMemoryRepository from "@edopro/ban-list/infrastructure/BanListMemoryRepository";
-import { EdoProCardDbHotReload } from "@edopro/card/infrastructure/sqlite/EdoProCardDbHotReload";
 import YGOProBanListMemoryRepository from "@ygopro/ban-list/infrastructure/YGOProBanListMemoryRepository";
 import { YGOProResourceLoader } from "@ygopro/ygopro/YGOProResourceLoader";
 import { BanList } from "src/shared/ban-list/BanList";
@@ -16,7 +14,6 @@ export class GetResourceVersionController {
 		// get() would lazily construct a loader (with filesystem + timer side effects),
 		// so only read it once something has actually initialized it.
 		const loader = YGOProResourceLoader.isInitialized ? YGOProResourceLoader.get() : null;
-		const cardDb = EdoProCardDbHotReload.getShared();
 
 		response.status(200).json({
 			schemaVersion: 1,
@@ -24,11 +21,7 @@ export class GetResourceVersionController {
 				standardSha512: loader?.standardSha512Hex ?? null,
 				extendedSha512: loader?.extendedSha512Hex ?? null,
 			},
-			edopro: {
-				cardDbFingerprint: cardDb?.fingerprint ?? null,
-			},
 			banlists: {
-				edopro: toBanListVersions(EdoProBanListMemoryRepository.get()),
 				ygopro: toBanListVersions(YGOProBanListMemoryRepository.get()),
 				reloadedAt: getBanListReloadedAt(),
 			},

@@ -4,7 +4,7 @@ import { Deck } from "@shared/deck/domain/Deck";
 import { CardMoreThan3Error } from "@shared/deck/domain/errors/CardMoreThan3Error";
 import { MainDeckLimitError } from "@shared/deck/domain/errors/MainDeckLimitError";
 import { DeckRules } from "@shared/room/domain/YgoRoom";
-import { EdoproBanList } from "@edopro/ban-list/domain/BanList";
+import { YGOProBanList } from "@ygopro/ban-list/domain/YGOProBanList";
 
 import { YGOProDeckValidator } from "./YGOProDeckValidator";
 
@@ -25,8 +25,8 @@ function genesysRules(maxDeckPoints: number): DeckRules {
 	});
 }
 
-function genesysBanList(points: Array<[number, number]>): EdoproBanList {
-	const banList = new EdoproBanList();
+function genesysBanList(points: Array<[number, number]>): YGOProBanList {
+	const banList = new YGOProBanList();
 	banList.setName("Genesys");
 	for (const [code, cost] of points) {
 		banList.add(code, 3, cost);

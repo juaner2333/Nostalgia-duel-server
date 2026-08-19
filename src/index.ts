@@ -4,13 +4,12 @@ import "src/shared/error-handler/error-handler";
 import LoggerFactory from "src/shared/logger/infrastructure/LoggerFactory";
 
 import { config } from "./config";
-import { bootstrapResources } from "./bootstrap/bootstrapResources";
+import { bootstrapYgoproResources } from "./bootstrap/bootstrapYgoproResources";
 import { bootstrapPersistence } from "./bootstrap/bootstrapPersistence";
+import { bootstrapStatsSubscriptions } from "./bootstrap/bootstrapStatsSubscriptions";
 import { bootstrapBanListReloader } from "./bootstrap/bootstrapBanListReloader";
 import { bootstrapMatchmaking } from "./bootstrap/bootstrapMatchmaking";
 import { Server } from "./http-server/Server";
-import { HostServer } from "./socket-server/HostServer";
-import { WSHostServer } from "./socket-server/WSHostServer";
 import { YGOProServer } from "./socket-server/YGOProServer";
 import { WSYGOProServer } from "./socket-server/WSYGOProServer";
 import { HandshakeTicketAuthenticator } from "./socket-server/HandshakeTicketAuthenticator";
@@ -35,11 +34,11 @@ async function start(): Promise<void> {
 		new HandshakeTicketAuthenticator(ticketRepository),
 	);
 
-	const hostServer = new HostServer(logger);
-	const wsHostServer = new WSHostServer(logger);
-
-	await bootstrapResources(logger);
+	await bootstrapYgoproResources(logger);
 	await bootstrapPersistence(logger);
+	// After persistence so Postgres repositories are ready, before any server
+	// accepts traffic so no game-over event can be missed.
+	bootstrapStatsSubscriptions(logger);
 
 	// Keep in-memory ban lists fresh without a restart: re-read them on an interval
 	// when the on-disk .conf files change (see bootstrapBanListReloader).
@@ -47,8 +46,6 @@ async function start(): Promise<void> {
 
 	await server.initialize();
 	WebSocketSingleton.getInstance();
-	hostServer.initialize();
-	wsHostServer.initialize();
 
 	// config.windbot is validated for fail-fast at module load (src/config/index.ts).
 	const windbotModule = config.windbot.enabled
@@ -68,9 +65,6 @@ async function start(): Promise<void> {
 	logger.info(`🔌 HTTP      → :${config.servers.http.port}`);
 	logger.info(
 		`🔌 Mercury   → TCP :${config.servers.mercury.port} · WS :${config.servers.mercury.wsPort}`,
-	);
-	logger.info(
-		`🔌 Host      → TCP :${config.servers.host.port} · WS :${config.servers.websocket.duelPort}`,
 	);
 	logger.info("✅ Evolution server ready");
 }

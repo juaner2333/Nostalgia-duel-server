@@ -4,11 +4,8 @@ import { cardRepositories } from "../composition/CardRepositories";
 
 export class GetDatabasesController {
 	async run(_request: Request, response: Response): Promise<void> {
-		const [edopro, ygopro] = await Promise.all([
-			cardRepositories.edopro.listSources(),
-			cardRepositories.ygopro.listSources(),
-		]);
+		const ygopro = await cardRepositories.ygopro.listSources();
 
-		response.status(200).json({ edopro, ygopro });
+		response.status(200).json({ ygopro });
 	}
 }

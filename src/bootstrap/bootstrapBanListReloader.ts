@@ -1,17 +1,15 @@
 // Periodic ban-list hot-reload.
 //
-// Ban lists are loaded once at boot (bootstrapEdoproResources / bootstrapYgoproResources).
+// Ban lists are loaded once at boot (bootstrapYgoproResources).
 // The resources sidecar refreshes the underlying .conf files on disk, but the Node
 // process never re-reads them — so a new ban list historically required a full restart.
 // This reloader closes that gap: on an interval it detects on-disk changes via a
-// size+mtime fingerprint and, when something changed, rebuilds both ban-list arrays
-// into local temporaries and atomically swaps them into the live repositories.
+// size+mtime fingerprint and, when something changed, rebuilds the ban-list array
+// into a local temporary and atomically swaps it into the live repository.
 //
 // Safety properties:
-// - Double-buffer swap (replaceAll): the swap is synchronous with no await between the
-//   two repositories, so no concurrent HTTP read can observe an empty or half-updated list.
-// - edopro BEFORE ygopro: ygopro rooms cross-reference edopro ban lists by name to resolve
-//   _edoBanListHash (see bootstrapYgoproResources), so edopro must be current first.
+// - Atomic swap (replaceAll): the swap is synchronous, so no concurrent HTTP read can
+//   observe an empty or half-updated list.
 // - In-flight rooms are unaffected: they snapshot their ban list at construction
 //   (YGOProRoom), not a live repository reference.
 // - Never swaps in an empty parse result: if a rebuild yields zero lists the previous
@@ -20,14 +18,12 @@
 import { readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 
-import { EdoproBanList } from "@edopro/ban-list/domain/BanList";
-import BanListMemoryRepository from "@edopro/ban-list/infrastructure/BanListMemoryRepository";
 import { Logger } from "@shared/logger/domain/Logger";
 import { YGOProBanList } from "@ygopro/ban-list/domain/YGOProBanList";
 import YGOProBanListMemoryRepository from "@ygopro/ban-list/infrastructure/YGOProBanListMemoryRepository";
 import { config } from "src/config";
 
-import { loadEdoproBanLists, loadYgoproBanLists } from "./bootstrapBanListLoaders";
+import { loadYgoproBanLists } from "./bootstrapBanListLoaders";
 
 const DEFAULT_INTERVAL_MS = (Number(process.env.RESOURCES_REFRESH_SECONDS) || 600) * 1000;
 
@@ -42,9 +38,7 @@ export function getBanListReloadedAt(): string | null {
 
 /** Injectable seam so the reload logic can be tested without the filesystem or timers. */
 export interface BanListReloaderPorts {
-	loadEdopro(): Promise<EdoproBanList[]>;
 	loadYgopro(): Promise<YGOProBanList[]>;
-	replaceEdopro(next: EdoproBanList[]): void;
 	replaceYgopro(next: YGOProBanList[]): void;
 	fingerprint(): Promise<string>;
 	now(): string;
@@ -70,25 +64,21 @@ export async function reloadBanListsOnce(
 		return { changed: false, fingerprint };
 	}
 
-	const edoproNext = await ports.loadEdopro();
 	const ygoproNext = await ports.loadYgopro();
 
-	if (edoproNext.length === 0 || ygoproNext.length === 0) {
+	if (ygoproNext.length === 0) {
 		logger.error(
-			`[banlist-reloader] rebuild produced empty ban lists (edopro=${edoproNext.length}, ygopro=${ygoproNext.length}) — keeping previous lists`,
+			`[banlist-reloader] rebuild produced empty ban lists (ygopro=${ygoproNext.length}) — keeping previous lists`,
 		);
 		// Do not adopt the new fingerprint: retry on the next cycle.
 		return { changed: false, fingerprint: lastFingerprint };
 	}
 
-	// Double-buffer swap — edopro before ygopro, no await between the two.
-	ports.replaceEdopro(edoproNext);
+	// Atomic swap into the live repository.
 	ports.replaceYgopro(ygoproNext);
 	reloadedAt = ports.now();
 
-	logger.info(
-		`[banlist-reloader] reloaded ${edoproNext.length} edopro + ${ygoproNext.length} ygopro ban lists`,
-	);
+	logger.info(`[banlist-reloader] reloaded ${ygoproNext.length} ygopro ban lists`);
 	return { changed: true, fingerprint };
 }
 
@@ -142,9 +132,7 @@ export async function bootstrapBanListReloader(
 
 function createDefaultPorts(): BanListReloaderPorts {
 	return {
-		loadEdopro: loadEdoproBanLists,
 		loadYgopro: loadYgoproBanLists,
-		replaceEdopro: (next) => BanListMemoryRepository.replaceAll(next),
 		replaceYgopro: (next) => YGOProBanListMemoryRepository.replaceAll(next),
 		fingerprint: () => fingerprintLflists(config.resources.dir),
 		now: () => new Date().toISOString(),
@@ -152,16 +140,12 @@ function createDefaultPorts(): BanListReloaderPorts {
 }
 
 /**
- * Fingerprint every lflist .conf under the resource directories that feed the two loaders,
- * using size + mtime (never reads/hashes contents on the event loop). Mirrors
- * EdoProCardDbPorts.fingerprint(). Missing directories are skipped, not fatal.
+ * Fingerprint every lflist .conf under the resource directories that feed the ygopro
+ * loader, using size + mtime (never reads/hashes contents on the event loop). Missing
+ * directories are skipped, not fatal.
  */
 async function fingerprintLflists(baseDir: string): Promise<string> {
-	const roots = [
-		join(baseDir, "edopro", "evolution-lflists"),
-		join(baseDir, "edopro", "lflists"),
-		join(baseDir, "ygopro", "formats"),
-	];
+	const roots = [join(baseDir, "ygopro", "base"), join(baseDir, "ygopro", "formats")];
 	const parts: string[] = [];
 	for (const root of roots) {
 		await collectConfFingerprints(root, parts);

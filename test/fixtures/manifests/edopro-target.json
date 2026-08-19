@@ -1,0 +1,19 @@
+{
+	"sources": [
+		{
+			"id": "src-a",
+			"type": "git",
+			"url": "https://example.com/a.git"
+		}
+	],
+	"assembly": [
+		{
+			"target": "ygopro/base",
+			"from": "src-a"
+		},
+		{
+			"target": "edopro/lflists",
+			"from": "src-a"
+		}
+	]
+}

@@ -1,7 +1,7 @@
 import { randomInt } from "crypto";
 import { EventEmitter } from "stream";
 
-import { PlayerInfoMessage } from "@edopro/messages/client-to-server/PlayerInfoMessage";
+import { PlayerInfoMessage } from "@ygopro/messages/client-to-server/PlayerInfoMessage";
 import { Logger } from "@shared/logger/domain/Logger";
 
 import { generateUniqueId } from "src/utils/generateUniqueId";

@@ -5,9 +5,7 @@ const loaderState = {
 	standardSha512Hex: null as string | null,
 	extendedSha512Hex: null as string | null,
 };
-const cardDbState = { shared: null as { fingerprint: string | null } | null };
 const banlistState = {
-	edopro: [] as Array<{ name: string | null; hash: number }>,
 	ygopro: [] as Array<{ name: string | null; hash: number }>,
 	reloadedAt: null as string | null,
 };
@@ -19,13 +17,6 @@ jest.mock("@ygopro/ygopro/YGOProResourceLoader", () => ({
 		},
 		get: () => loaderState,
 	},
-}));
-jest.mock("@edopro/card/infrastructure/sqlite/EdoProCardDbHotReload", () => ({
-	EdoProCardDbHotReload: { getShared: () => cardDbState.shared },
-}));
-jest.mock("@edopro/ban-list/infrastructure/BanListMemoryRepository", () => ({
-	__esModule: true,
-	default: { get: () => banlistState.edopro },
 }));
 jest.mock("@ygopro/ban-list/infrastructure/YGOProBanListMemoryRepository", () => ({
 	__esModule: true,
@@ -64,22 +55,22 @@ describe("GetResourceVersionController", () => {
 		loaderState.isInitialized = true;
 		loaderState.standardSha512Hex = null;
 		loaderState.extendedSha512Hex = null;
-		cardDbState.shared = null;
-		banlistState.edopro = [];
 		banlistState.ygopro = [];
 		banlistState.reloadedAt = null;
 	});
 
-	it("returns schemaVersion 1 and all sections with a 200 status", () => {
+	it("returns schemaVersion 1 and the ygopro sections with a 200 status", () => {
 		const out = run();
 
 		expect(out.status()).toBe(200);
 		expect(out.body()).toMatchObject({
 			schemaVersion: 1,
 			ygopro: expect.any(Object),
-			edopro: expect.any(Object),
 			banlists: expect.any(Object),
 		});
+		const body = out.body() as Record<string, unknown>;
+		expect(body).not.toHaveProperty("edopro");
+		expect(body.banlists).not.toHaveProperty("edopro");
 	});
 
 	it("reports the ygopro sha512 hexes when the loader has them", () => {
@@ -100,48 +91,29 @@ describe("GetResourceVersionController", () => {
 		expect(body.ygopro.standardSha512).toBeNull();
 	});
 
-	it("reports null cardDbFingerprint when no hot-reload instance exists yet", () => {
-		cardDbState.shared = null;
-
-		const body = run().body() as { edopro: { cardDbFingerprint: string | null } };
-
-		expect(body.edopro.cardDbFingerprint).toBeNull();
-	});
-
-	it("reports the cardDbFingerprint from the shared hot-reload instance", () => {
-		cardDbState.shared = { fingerprint: "fp-xyz" };
-
-		const body = run().body() as { edopro: { cardDbFingerprint: string } };
-
-		expect(body.edopro.cardDbFingerprint).toBe("fp-xyz");
-	});
-
 	it("maps banlists to name+hash and passes through reloadedAt", () => {
-		banlistState.edopro = [{ name: "2026.04 OCG", hash: 111 }];
 		banlistState.ygopro = [{ name: "2026.04", hash: 222 }];
 		banlistState.reloadedAt = "2026-07-14T12:00:00.000Z";
 
 		const body = run().body() as {
 			banlists: {
-				edopro: Array<{ name: string; hash: number }>;
 				ygopro: Array<{ name: string; hash: number }>;
 				reloadedAt: string;
 			};
 		};
 
-		expect(body.banlists.edopro).toEqual([{ name: "2026.04 OCG", hash: 111 }]);
 		expect(body.banlists.ygopro).toEqual([{ name: "2026.04", hash: 222 }]);
 		expect(body.banlists.reloadedAt).toBe("2026-07-14T12:00:00.000Z");
 	});
 
 	it("skips unnamed banlists", () => {
-		banlistState.edopro = [
+		banlistState.ygopro = [
 			{ name: null, hash: 1 },
 			{ name: "Named", hash: 2 },
 		];
 
-		const body = run().body() as { banlists: { edopro: Array<{ name: string; hash: number }> } };
+		const body = run().body() as { banlists: { ygopro: Array<{ name: string; hash: number }> } };
 
-		expect(body.banlists.edopro).toEqual([{ name: "Named", hash: 2 }]);
+		expect(body.banlists.ygopro).toEqual([{ name: "Named", hash: 2 }]);
 	});
 });

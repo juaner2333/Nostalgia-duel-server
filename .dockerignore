@@ -35,16 +35,6 @@ postgres_data/
 .idea/
 .DS_Store
 
-# Core (C++)
-core/Makefile
-core/src/Makefile
-core/premake5
-core/CoreIntegrator
-core/example.so
-core/libluasocket.so
-core/vcpkg/
-core/vcpkg_installed/
-
 # Evolution Source
 src/evolution-types/
 
@@ -61,13 +51,15 @@ mercury/pre-releases/tcg/*
 # Git Submodules & Repositories
 *repositories/
 
+# Assembled resources are produced inside the image (Stage 1), never copied
+# from the context; the local `resources/current` symlink breaks context upload.
+resources/
+
 # Scripts — exclude the directory but re-include the .sh files for the build
 scripts/
 !scripts/*.sh
 
 # Miscellaneous Directories
-core/dependencies/
-core/build/
 dependencies/
 build/
 

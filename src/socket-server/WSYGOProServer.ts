@@ -4,11 +4,11 @@ import { WebSocketServer, WebSocket } from "ws";
 import { config } from "src/config";
 import { EventEmitter } from "stream";
 
-import { MessageEmitter } from "../edopro/MessageEmitter";
+import { MessageEmitter } from "@ygopro/messages/MessageEmitter";
 import { Logger } from "../shared/logger/domain/Logger";
 import { Commands } from "../shared/messages/Commands";
-import { DisconnectHandler } from "../shared/room/application/DisconnectHandler";
-import { RoomFinder } from "../shared/room/application/RoomFinder";
+import { YGOProDisconnectHandler } from "@ygopro/room/application/YGOProDisconnectHandler";
+import { YGOProRoomFinder } from "@ygopro/room/application/YGOProRoomFinder";
 import { ExpressReconnectHandler } from "../shared/room/application/reconnect/ExpressReconnectHandler";
 import { WebSocketClientSocket } from "../shared/socket/domain/WebSocketClientSocket";
 import { HandshakeTicketAuthenticator } from "./HandshakeTicketAuthenticator";
@@ -26,28 +26,38 @@ type HeartbeatSocket = WebSocket & { isAlive?: boolean };
 
 export class WSYGOProServer {
 	private readonly wss: WebSocketServer;
+	private readonly httpServer: ReturnType<typeof createServer>;
 	private readonly logger: Logger;
-	private readonly roomFinder: RoomFinder;
+	private readonly roomFinder: YGOProRoomFinder;
 	private readonly handshakeAuth: HandshakeTicketAuthenticator;
+	private readonly heartbeatIntervalMs: number;
+	private heartbeatTimer?: NodeJS.Timeout;
 
-	constructor(logger: Logger, handshakeAuth: HandshakeTicketAuthenticator) {
+	constructor(
+		logger: Logger,
+		handshakeAuth: HandshakeTicketAuthenticator,
+		heartbeatIntervalMs: number = config.servers.mercury.wsHeartbeatIntervalMs,
+	) {
 		this.logger = logger;
 		this.handshakeAuth = handshakeAuth;
-		this.roomFinder = new RoomFinder();
-		const server = createServer();
-		this.wss = new WebSocketServer({ server });
+		this.heartbeatIntervalMs = heartbeatIntervalMs;
+		this.roomFinder = new YGOProRoomFinder();
+		this.httpServer = createServer();
+		this.wss = new WebSocketServer({ server: this.httpServer });
 	}
 
-	initialize(): void {
-		const port = config.servers.mercury.wsPort;
+	get boundAddress(): ReturnType<ReturnType<typeof createServer>["address"]> {
+		return this.httpServer.address();
+	}
 
-		this.wss.options.server?.listen(port);
+	initialize(port?: number): void {
+		this.httpServer.listen(port ?? config.servers.mercury.wsPort);
 
 		// Heartbeat: drop half-open connections (e.g. a mobile client whose runtime
 		// is frozen in background). The browser/native WS layer auto-replies to ping
 		// frames, so a missing pong across one interval means the peer is gone. The
 		// terminate() fires the existing onClose -> DisconnectHandler -> room cleanup.
-		const heartbeatInterval = setInterval(() => {
+		this.heartbeatTimer = setInterval(() => {
 			this.wss.clients.forEach((client) => {
 				const heartbeatSocket = client as HeartbeatSocket;
 				if (heartbeatSocket.isAlive === false) {
@@ -57,11 +67,11 @@ export class WSYGOProServer {
 				heartbeatSocket.isAlive = false;
 				heartbeatSocket.ping();
 			});
-		}, config.servers.mercury.wsHeartbeatIntervalMs);
-		heartbeatInterval.unref();
+		}, this.heartbeatIntervalMs);
+		this.heartbeatTimer.unref();
 
 		this.wss.on("close", () => {
-			clearInterval(heartbeatInterval);
+			this.stopHeartbeat();
 		});
 
 		this.wss.on("connection", async (socket: WebSocket, request: IncomingMessage) => {
@@ -130,7 +140,7 @@ export class WSYGOProServer {
 
 				// Application-level ping (0xff): echo it straight back as a pong (0xfe)
 				// preserving the payload, so the client can measure RTT in-duel. Mirrors
-				// the TCP server (SocketConnectionHandler); MessageEmitter ignores 0xff.
+				// the TCP server's ping handling; MessageEmitter ignores 0xff.
 				if (data.length >= 3 && data.readUInt8(2) === Commands.PING) {
 					const pongResponse = Buffer.alloc(data.length);
 					data.copy(pongResponse);
@@ -144,8 +154,8 @@ export class WSYGOProServer {
 
 			ygoClientSocket.onClose(() => {
 				connectionLogger.info("Client left via WebSocket close event");
-				const disconnectHandler = new DisconnectHandler(ygoClientSocket, this.roomFinder);
-				disconnectHandler.run(address);
+				const disconnectHandler = new YGOProDisconnectHandler(ygoClientSocket, this.roomFinder);
+				disconnectHandler.run();
 			});
 
 			const auth = await this.handshakeAuth.authenticate(request);
@@ -161,5 +171,20 @@ export class WSYGOProServer {
 				resolveReady();
 			}
 		});
+	}
+
+	close(): void {
+		this.stopHeartbeat();
+		this.httpServer.close();
+		// terminate() (not close()) so lingering sockets do not keep the
+		// http server's close callback pending indefinitely.
+		this.wss.clients.forEach((client) => client.terminate());
+	}
+
+	private stopHeartbeat(): void {
+		if (this.heartbeatTimer) {
+			clearInterval(this.heartbeatTimer);
+			this.heartbeatTimer = undefined;
+		}
 	}
 }

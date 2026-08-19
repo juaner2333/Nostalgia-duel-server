@@ -1,6 +1,16 @@
+import { ISocket } from "@shared/socket/domain/ISocket";
+import { YgoClient } from "@shared/client/domain/YgoClient";
 import { YgoRoom } from "./YgoRoom";
-import { ClientMother } from "@test-support/mothers/client/ClientMother";
 import { SimpleRoomMother } from "@test-support/mothers/room/SimpleRoomMother";
+
+// YgoClient has no abstract members — a trivial concrete subclass is enough
+// to exercise room player-list mutations.
+class TestClient extends YgoClient {}
+
+function makeClient(id: string): TestClient {
+	const socket = { id, remoteAddress: "::1" } as unknown as ISocket;
+	return new TestClient({ name: `P-${id}`, position: 0, team: 0, socket, host: false, id });
+}
 
 describe("YgoRoom", () => {
 	describe("Lock-Free", () => {
@@ -11,8 +21,8 @@ describe("YgoRoom", () => {
 		});
 
 		it("evita condiciones de carrera al agregar jugadores concurrently", async () => {
-			const c1 = ClientMother.create({ id: "1" });
-			const c2 = ClientMother.create({ id: "2" });
+			const c1 = makeClient("1");
+			const c2 = makeClient("2");
 
 			room.mutex.runExclusive(() => {
 				room.players.push(c1);
@@ -31,8 +41,8 @@ describe("YgoRoom", () => {
 		});
 
 		it("removePlayer se ejecuta de forma segura y secuencial", async () => {
-			const c1 = ClientMother.create({ id: "1" });
-			const c2 = ClientMother.create({ id: "2" });
+			const c1 = makeClient("1");
+			const c2 = makeClient("2");
 
 			room.mutex.runExclusive(() => {
 				room.players.push(c1);
@@ -51,8 +61,8 @@ describe("YgoRoom", () => {
 		});
 
 		it("permite ejecutar lógica síncrona dentro del mutex (simulando pattern Unsafe) sin deadlock", async () => {
-			const c1 = ClientMother.create({ id: "1" });
-			const c2 = ClientMother.create({ id: "2" });
+			const c1 = makeClient("1");
+			const c2 = makeClient("2");
 
 			await room.mutex.runExclusive(() => {
 				// Simula addPlayerUnsafe síncrono

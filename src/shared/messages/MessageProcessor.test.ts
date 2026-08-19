@@ -1,3 +1,13 @@
+import {
+	EXPECTED_EXTERNAL_ADDRESS,
+	EXPECTED_JOIN_GAME,
+	EXPECTED_PLAYER_INFO,
+	EXTERNAL_ADDRESS_FRAME_HEX,
+	JOIN_GAME_FRAME_HEX,
+	PLAYER_INFO_FRAME_HEX,
+	YGOPRO_FIRST_PACKET,
+} from "@test-support/fixtures/ygopro-first-packet";
+
 import { Commands } from "./Commands";
 import { MessageProcessor } from "./MessageProcessor";
 
@@ -172,6 +182,86 @@ describe("MessageProcessor", () => {
 		processor.process();
 		expect(processor.command).toBe(Commands.TIME_CONFIRM);
 		expect(processor.size).toBe(1);
+		expect(processor.bufferLength).toBe(0);
+	});
+});
+
+describe("MessageProcessor · fixed YGOPro first packet", () => {
+	let processor: MessageProcessor;
+
+	const FIXED_FRAME_SEQUENCE = [
+		EXPECTED_EXTERNAL_ADDRESS,
+		EXPECTED_PLAYER_INFO,
+		EXPECTED_JOIN_GAME,
+	].map((frame) => ({ command: frame.command, size: frame.wireLength }));
+
+	const drain = (processor: MessageProcessor) => {
+		const parsed: Array<{ command: number; size: number }> = [];
+		while (processor.isMessageReady()) {
+			processor.process();
+			parsed.push({ command: processor.command, size: processor.size });
+		}
+		return parsed;
+	};
+
+	beforeEach(() => {
+		processor = new MessageProcessor();
+	});
+
+	it("keeps the committed fixture hex consistent with its documented lengths", () => {
+		for (const [hex, expected] of [
+			[EXTERNAL_ADDRESS_FRAME_HEX, EXPECTED_EXTERNAL_ADDRESS],
+			[PLAYER_INFO_FRAME_HEX, EXPECTED_PLAYER_INFO],
+			[JOIN_GAME_FRAME_HEX, EXPECTED_JOIN_GAME],
+		] as const) {
+			const frame = Buffer.from(hex, "hex");
+			expect(frame.readUInt16LE(0)).toBe(expected.wireLength);
+			expect(frame.readUInt8(2)).toBe(expected.command);
+			expect(frame.length).toBe(expected.frameByteLength);
+		}
+		expect(YGOPRO_FIRST_PACKET.length).toBe(115);
+	});
+
+	it("parses the three frames of one coalesced first packet in order", () => {
+		processor.read(YGOPRO_FIRST_PACKET);
+
+		expect(drain(processor)).toEqual(FIXED_FRAME_SEQUENCE);
+		expect(processor.bufferLength).toBe(0);
+	});
+
+	it("reassembles the first packet fed byte by byte", () => {
+		for (const byte of YGOPRO_FIRST_PACKET) {
+			processor.read(Buffer.from([byte]));
+		}
+
+		expect(drain(processor)).toEqual(FIXED_FRAME_SEQUENCE);
+		expect(processor.bufferLength).toBe(0);
+	});
+
+	it("parses the same three frames for any single chunk boundary", () => {
+		for (let split = 1; split < YGOPRO_FIRST_PACKET.length; split++) {
+			const chunked = new MessageProcessor();
+			chunked.read(YGOPRO_FIRST_PACKET.subarray(0, split));
+			const firstPart = drain(chunked);
+
+			chunked.read(YGOPRO_FIRST_PACKET.subarray(split));
+			const secondPart = drain(chunked);
+
+			expect([...firstPart, ...secondPart]).toEqual(FIXED_FRAME_SEQUENCE);
+			expect(chunked.bufferLength).toBe(0);
+		}
+	});
+
+	it("keeps a trailing half frame buffered until its remainder arrives", () => {
+		// 115-byte packet cut inside the third frame (JoinGame spans bytes 64..114).
+		processor.read(YGOPRO_FIRST_PACKET.subarray(0, 100));
+
+		expect(drain(processor)).toEqual(FIXED_FRAME_SEQUENCE.slice(0, 2));
+		expect(processor.isMessageReady()).toBe(false);
+		expect(processor.bufferLength).toBe(36);
+
+		processor.read(YGOPRO_FIRST_PACKET.subarray(100));
+		expect(drain(processor)).toEqual(FIXED_FRAME_SEQUENCE.slice(2));
 		expect(processor.bufferLength).toBe(0);
 	});
 });

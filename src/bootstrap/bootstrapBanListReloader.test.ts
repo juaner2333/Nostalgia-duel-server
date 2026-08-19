@@ -5,11 +5,9 @@ jest.mock("src/config", () => ({
 	config: { resources: { dir: "/fake/resources" } },
 }));
 jest.mock("./bootstrapBanListLoaders", () => ({
-	loadEdoproBanLists: jest.fn(),
 	loadYgoproBanLists: jest.fn(),
 }));
 
-import { EdoproBanList } from "@edopro/ban-list/domain/BanList";
 import { Logger } from "@shared/logger/domain/Logger";
 import { YGOProBanList } from "@ygopro/ban-list/domain/YGOProBanList";
 
@@ -28,12 +26,6 @@ function fakeLogger(): Logger {
 	} as unknown as Logger;
 }
 
-function makeEdoList(name: string): EdoproBanList {
-	const list = new EdoproBanList();
-	list.setName(name);
-	return list;
-}
-
 function makeYgoList(name: string): YGOProBanList {
 	const list = new YGOProBanList();
 	list.setName(name);
@@ -42,7 +34,6 @@ function makeYgoList(name: string): YGOProBanList {
 
 interface Recorder {
 	calls: string[];
-	edoproReplaced: EdoproBanList[] | null;
 	ygoproReplaced: YGOProBanList[] | null;
 }
 
@@ -52,28 +43,15 @@ function makePorts(overrides: Partial<BanListReloaderPorts> & { recorder?: Recor
 } {
 	const recorder: Recorder = overrides.recorder ?? {
 		calls: [],
-		edoproReplaced: null,
 		ygoproReplaced: null,
 	};
 	const ports: BanListReloaderPorts = {
 		fingerprint: overrides.fingerprint ?? jest.fn().mockResolvedValue("fp-new"),
-		loadEdopro:
-			overrides.loadEdopro ??
-			jest.fn().mockImplementation(async () => {
-				recorder.calls.push("loadEdopro");
-				return [makeEdoList("Edo A")];
-			}),
 		loadYgopro:
 			overrides.loadYgopro ??
 			jest.fn().mockImplementation(async () => {
 				recorder.calls.push("loadYgopro");
 				return [makeYgoList("Ygo A")];
-			}),
-		replaceEdopro:
-			overrides.replaceEdopro ??
-			((next) => {
-				recorder.calls.push("replaceEdopro");
-				recorder.edoproReplaced = next;
 			}),
 		replaceYgopro:
 			overrides.replaceYgopro ??
@@ -106,40 +84,22 @@ describe("reloadBanListsOnce — change detection", () => {
 
 		expect(outcome.changed).toBe(true);
 		expect(outcome.fingerprint).toBe("fp-new");
-		expect(recorder.edoproReplaced).toHaveLength(1);
 		expect(recorder.ygoproReplaced).toHaveLength(1);
 	});
 });
 
 describe("reloadBanListsOnce — atomic swap ordering", () => {
-	it("replaces edopro before ygopro", async () => {
+	it("replaces the repository only after the rebuild completes", async () => {
 		const { ports, recorder } = makePorts();
 
 		await reloadBanListsOnce(ports, fakeLogger(), "fp-old");
 
-		expect(recorder.calls).toEqual(["loadEdopro", "loadYgopro", "replaceEdopro", "replaceYgopro"]);
-		expect(recorder.calls.indexOf("replaceEdopro")).toBeLessThan(
-			recorder.calls.indexOf("replaceYgopro"),
-		);
+		expect(recorder.calls).toEqual(["loadYgopro", "replaceYgopro"]);
 	});
 });
 
 describe("reloadBanListsOnce — empty-result safety", () => {
-	it("keeps previous lists and does NOT swap when edopro rebuild is empty", async () => {
-		const { ports, recorder } = makePorts({
-			loadEdopro: jest.fn().mockResolvedValue([]),
-		});
-
-		const outcome = await reloadBanListsOnce(ports, fakeLogger(), "fp-old");
-
-		expect(outcome.changed).toBe(false);
-		// old fingerprint retained so the next cycle retries
-		expect(outcome.fingerprint).toBe("fp-old");
-		expect(recorder.edoproReplaced).toBeNull();
-		expect(recorder.ygoproReplaced).toBeNull();
-	});
-
-	it("keeps previous lists and does NOT swap when ygopro rebuild is empty", async () => {
+	it("keeps previous lists and does NOT swap when the rebuild is empty", async () => {
 		const { ports, recorder } = makePorts({
 			loadYgopro: jest.fn().mockResolvedValue([]),
 		});
@@ -147,7 +107,8 @@ describe("reloadBanListsOnce — empty-result safety", () => {
 		const outcome = await reloadBanListsOnce(ports, fakeLogger(), "fp-old");
 
 		expect(outcome.changed).toBe(false);
-		expect(recorder.edoproReplaced).toBeNull();
+		// old fingerprint retained so the next cycle retries
+		expect(outcome.fingerprint).toBe("fp-old");
 		expect(recorder.ygoproReplaced).toBeNull();
 	});
 });
@@ -155,7 +116,7 @@ describe("reloadBanListsOnce — empty-result safety", () => {
 describe("reloadBanListsOnce — error propagation", () => {
 	it("propagates loader errors so the scheduler can keep previous lists", async () => {
 		const { ports } = makePorts({
-			loadEdopro: jest.fn().mockRejectedValue(new Error("parse boom")),
+			loadYgopro: jest.fn().mockRejectedValue(new Error("parse boom")),
 		});
 
 		await expect(reloadBanListsOnce(ports, fakeLogger(), "fp-old")).rejects.toThrow("parse boom");

@@ -1,6 +1,6 @@
 import { EventEmitter } from "stream";
 
-import { PlayerInfoMessage } from "@edopro/messages/client-to-server/PlayerInfoMessage";
+import { PlayerInfoMessage } from "@ygopro/messages/client-to-server/PlayerInfoMessage";
 
 import { Commands } from "@shared/messages/Commands";
 import { ClientMessage } from "@shared/messages/MessageProcessor";
@@ -71,7 +71,14 @@ export class YGOProWaitingState extends YGOProRoomState {
 	): Promise<void> {
 		this.logger.info(`handleJoin: ${message.data.toString("hex")}`);
 
-		this.validateVersion(message.data, socket);
+		try {
+			this.validateVersion(message.data, socket);
+		} catch {
+			// The version rejection frame is already flushed; close so the
+			// client is not left hanging on a connection that can never join.
+			socket.close();
+			return;
+		}
 
 		const playerInfoMessage = new PlayerInfoMessage(message.previousMessage, message.data.length);
 		if (isNameTaken(room.players, playerInfoMessage.name)) {

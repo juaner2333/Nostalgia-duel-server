@@ -3,10 +3,10 @@ import net, { Socket } from "net";
 import { config } from "src/config";
 import { EventEmitter } from "stream";
 
-import { MessageEmitter } from "../edopro/MessageEmitter";
+import { MessageEmitter } from "@ygopro/messages/MessageEmitter";
 import { Logger } from "../shared/logger/domain/Logger";
-import { DisconnectHandler } from "../shared/room/application/DisconnectHandler";
-import { RoomFinder } from "../shared/room/application/RoomFinder";
+import { YGOProDisconnectHandler } from "@ygopro/room/application/YGOProDisconnectHandler";
+import { YGOProRoomFinder } from "@ygopro/room/application/YGOProRoomFinder";
 import { TCPClientSocket } from "../shared/socket/domain/TCPClientSocket";
 import { YGOProGameCreatorHandler } from "@ygopro/room/application/YGOProGameCreatorHandler";
 import { YGOProJoinHandler } from "@ygopro/room/application/YGOProJoinHandler";
@@ -15,17 +15,25 @@ import { YGOProMessageRepository } from "@ygopro/room/infrastructure/YGOProMessa
 export class YGOProServer {
 	private readonly server: net.Server;
 	private readonly logger: Logger;
-	private readonly roomFinder: RoomFinder;
+	private readonly roomFinder: YGOProRoomFinder;
 	private address?: string;
 
 	constructor(logger: Logger) {
 		this.logger = logger;
-		this.roomFinder = new RoomFinder();
+		this.roomFinder = new YGOProRoomFinder();
 		this.server = net.createServer({ keepAlive: true });
 	}
 
-	initialize(): void {
-		this.server.listen(config.servers.mercury.port);
+	get boundAddress(): net.AddressInfo | string | null {
+		return this.server.address();
+	}
+
+	close(): void {
+		this.server.close();
+	}
+
+	initialize(port?: number): void {
+		this.server.listen(port ?? config.servers.mercury.port);
 
 		this.server.on("connection", (socket: Socket) => {
 			this.address = socket.remoteAddress;
@@ -62,6 +70,11 @@ export class YGOProServer {
 					`Incoming message handle by Mercury Server: ${data.toString("hex")}`,
 				);
 				messageEmitter.handleMessage(data);
+
+				if (messageEmitter.isInvalid) {
+					connectionLogger.info("Closing connection: invalid frame length");
+					socket.destroy();
+				}
 			});
 
 			// Cleanup runs only on `close` (via onClose), like the other servers.
@@ -70,8 +83,8 @@ export class YGOProServer {
 			// `end`/`error` below are logging only — do not re-add cleanup there.
 			ygoClientSocket.onClose(() => {
 				connectionLogger.info(`${socket.remoteAddress} left in close event`);
-				const disconnectHandler = new DisconnectHandler(ygoClientSocket, this.roomFinder);
-				disconnectHandler.run(this.address);
+				const disconnectHandler = new YGOProDisconnectHandler(ygoClientSocket, this.roomFinder);
+				disconnectHandler.run();
 			});
 
 			socket.on("end", () => {

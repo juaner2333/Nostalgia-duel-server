@@ -32,7 +32,7 @@ export class GetDatabaseCardsController {
 		const limit = parsePositive(request.query.limit, DEFAULT_LIMIT, MAX_LIMIT);
 		const offset = parsePositive(request.query.offset, 0, Number.MAX_SAFE_INTEGER);
 
-		const page = await cardRepositories[engine].findBySource(source, limit, offset);
+		const page = await cardRepositories.ygopro.findBySource(source, limit, offset);
 		response.status(200).json({ engine, source, ...page });
 	}
 }

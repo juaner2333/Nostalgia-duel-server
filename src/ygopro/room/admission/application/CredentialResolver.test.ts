@@ -1,9 +1,9 @@
-import { PlayerInfoMessage } from "@edopro/messages/client-to-server/PlayerInfoMessage";
+import { PlayerInfoMessage } from "@ygopro/messages/client-to-server/PlayerInfoMessage";
 import { ISocket } from "@shared/socket/domain/ISocket";
 import { UserAuth } from "@shared/user-auth/application/UserAuth";
+import { AuthFailureReason } from "@shared/user-auth/domain/AuthResult";
 import { UserProfile } from "@shared/user-profile/domain/UserProfile";
 import { UserProfileRepository } from "@shared/user-profile/domain/UserProfileRepository";
-import { ServerErrorClientMessage } from "@edopro/messages/server-to-client/ServerErrorMessageClientMessage";
 
 import { CredentialResolver } from "./CredentialResolver";
 
@@ -62,7 +62,7 @@ describe("CredentialResolver", () => {
 
 	describe("PIN (nickname) → external", () => {
 		it("resolves an external credential when UserAuth accepts the PIN", async () => {
-			userAuth.run.mockResolvedValue(profile("u-2"));
+			userAuth.run.mockResolvedValue({ ok: true, profile: profile("u-2") });
 
 			const credential = await resolver.resolve(socketWith(null), playerInfo("Player", "1234"));
 
@@ -70,7 +70,7 @@ describe("CredentialResolver", () => {
 		});
 
 		it("falls back to guest when the PIN is invalid", async () => {
-			userAuth.run.mockResolvedValue({} as ServerErrorClientMessage);
+			userAuth.run.mockResolvedValue({ ok: false, reason: AuthFailureReason.INVALID_PASSWORD });
 
 			const credential = await resolver.resolve(socketWith(null), playerInfo("Player", "9999"));
 

@@ -1,6 +1,6 @@
 import EventEmitter from "events";
 
-import { PlayerInfoMessage } from "@edopro/messages/client-to-server/PlayerInfoMessage";
+import { PlayerInfoMessage } from "@ygopro/messages/client-to-server/PlayerInfoMessage";
 import { RoomLeague } from "@shared/room/admission/domain/RoomLeague";
 import { YGOProRoom } from "@ygopro/room/domain/YGOProRoom";
 

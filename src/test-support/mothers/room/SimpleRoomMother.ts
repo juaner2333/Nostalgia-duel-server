@@ -37,7 +37,7 @@ export class SimpleRoomMother {
 			startLp: params?.startLp ?? 8000,
 			id: params?.id ?? faker.number.int({ min: 1, max: 9999 }),
 			notes: params?.notes ?? faker.lorem.sentence(),
-			roomType: params?.roomType ?? RoomType.EDO,
+			roomType: params?.roomType ?? RoomType.MERCURY,
 		});
 	}
 }

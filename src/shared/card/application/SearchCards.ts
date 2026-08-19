@@ -1,14 +1,11 @@
 import { CardSearchRepository, CardSearchResult } from "../domain/CardSearchRepository";
 
-export type CardEngine = "edopro" | "ygopro";
-
 export interface CardSearchResultWithEngine extends CardSearchResult {
-	engine: CardEngine;
+	engine: "ygopro";
 }
 
 export interface SearchCardsParams {
 	query: string;
-	engine?: CardEngine;
 	limit?: number;
 }
 
@@ -16,7 +13,7 @@ const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 100;
 
 export class SearchCards {
-	constructor(private readonly repositories: Record<CardEngine, CardSearchRepository>) {}
+	constructor(private readonly repository: CardSearchRepository) {}
 
 	async run(params: SearchCardsParams): Promise<CardSearchResultWithEngine[]> {
 		const query = params.query.trim();
@@ -25,17 +22,9 @@ export class SearchCards {
 		}
 
 		const limit = this.normalizeLimit(params.limit);
-		const engines = params.engine
-			? [params.engine]
-			: (Object.keys(this.repositories) as CardEngine[]);
+		const found = await this.searchOne(this.repository, query, limit);
 
-		const results: CardSearchResultWithEngine[] = [];
-		for (const engine of engines) {
-			const found = await this.searchOne(this.repositories[engine], query, limit);
-			results.push(...found.map((card) => ({ ...card, engine })));
-		}
-
-		return results;
+		return found.map((card) => ({ ...card, engine: "ygopro" as const }));
 	}
 
 	private async searchOne(

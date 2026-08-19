@@ -2,19 +2,8 @@
 	"comment": "Declarative resource manifest. Edit this file to add, remove, or change sources. See docs for schema.",
 	"sources": [
 		{
-			"id": "edopro-cdbs",
-			"type": "git",
-			"url": "https://github.com/ProjectIgnis/BabelCDB.git",
-			"branch": "master"
-		},
-		{
-			"id": "edopro-scripts",
-			"type": "git",
-			"url": "https://github.com/ProjectIgnis/CardScripts.git",
-			"branch": "master"
-		},
-		{
-			"id": "edopro-lflists",
+			"comment": "ProjectIgnis LFLists — renamed from edopro-lflists (remove-edopro-support); serves ygopro format lflists",
+			"id": "project-ignis-lflists",
 			"type": "git",
 			"url": "https://github.com/ProjectIgnis/LFLists",
 			"branch": "master"
@@ -70,26 +59,6 @@
 	],
 	"assembly": [
 		{
-			"comment": "EDOPro lflists",
-			"target": "edopro/lflists",
-			"from": "edopro-lflists"
-		},
-		{
-			"comment": "EDOPro evolution lflists",
-			"target": "edopro/evolution-lflists",
-			"from": "evolution-lflists"
-		},
-		{
-			"comment": "EDOPro databases",
-			"target": "edopro/databases",
-			"from": "edopro-cdbs"
-		},
-		{
-			"comment": "EDOPro card scripts",
-			"target": "edopro/scripts",
-			"from": "edopro-scripts"
-		},
-		{
 			"comment": "YGOPro base lflist",
 			"target": "ygopro/base/lflist.conf",
 			"from": "moecube-lflist",
@@ -132,7 +101,7 @@
 		},
 		{
 			"target": "ygopro/formats/world/lflist.conf",
-			"from": "edopro-lflists",
+			"from": "project-ignis-lflists",
 			"file": "World.lflist.conf"
 		},
 		{
@@ -141,23 +110,29 @@
 			"file": "Tengu.Plant.lflist.conf"
 		},
 		{
+			"comment": "HAT format legality via whitelist (pairs with classic pre-errata cards)",
+			"target": "ygopro/formats/hat/lflist.conf",
+			"from": "evolution-lflists",
+			"file": "2014.04 HAT (Pre Errata).lflist.conf"
+		},
+		{
 			"target": "ygopro/formats/speed/lflist.conf",
-			"from": "edopro-lflists",
+			"from": "project-ignis-lflists",
 			"file": "Speed.lflist.conf"
 		},
 		{
 			"target": "ygopro/formats/rush/lflist.conf",
-			"from": "edopro-lflists",
+			"from": "project-ignis-lflists",
 			"file": "Rush.lflist.conf"
 		},
 		{
 			"target": "ygopro/formats/goat/lflist.conf",
-			"from": "edopro-lflists",
+			"from": "project-ignis-lflists",
 			"file": "GOAT.lflist.conf"
 		},
 		{
 			"target": "ygopro/formats/ocg/lflist.conf",
-			"from": "edopro-lflists",
+			"from": "project-ignis-lflists",
 			"file": "OCG.lflist.conf"
 		},
 		{
@@ -195,7 +170,7 @@
 		}
 	],
 	"runtime": {
-		"comment": "TS loader pool membership. standard = base + served formats (load order; base first for FIRST-occurrence dedup). extended = extra members appended after standard. Formats assembled but omitted here (goat, rush, speed, gx, mdc) are assembled-but-not-served by design.",
+		"comment": "TS loader pool membership. standard = base + served formats (load order; base first for FIRST-occurrence dedup). extended = extra members appended after standard. Formats assembled but omitted here (goat, rush, speed) are assembled-but-not-served by design.",
 		"ygopro": {
 			"standard": [
 				"base",

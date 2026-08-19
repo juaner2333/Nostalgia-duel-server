@@ -4,12 +4,12 @@ import { YgoClient } from "@shared/client/domain/YgoClient";
 import { TokenIndex } from "@shared/room/domain/TokenIndex";
 import { ReconnectionTokenClientMessage } from "@shared/messages/server-to-client/ReconnectionTokenClientMessage";
 
-// Shared, transport-agnostic reconnection-token logic consumed by BOTH subtrees
-// (edopro/TCP and ygopro/WS). The orchestration here is common; the per-phase
-// board/scene re-sync is intentionally NOT shared (it is core-specific).
+// Transport-agnostic reconnection-token logic consumed by the ygopro server
+// (TCP and WS). The orchestration here is common; the per-phase board/scene
+// re-sync is intentionally NOT shared (it is core-specific).
 //
 // CAVEAT: TokenIndex is an in-memory singleton, so every issued token is lost if
-// the process restarts. This matches the pre-existing edopro behavior; no
+// the process restarts. This matches the pre-existing behavior; no
 // persistence layer is introduced on purpose.
 export class ReconnectionTokenIssuer {
 	// Mint a fresh token for `client`, store it on the client, register it in the

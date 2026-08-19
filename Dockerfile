@@ -21,28 +21,7 @@ COPY resources.manifest*.json ./
 RUN bash scripts/clone_repositories.sh && bash scripts/setup_resources.sh
 
 
-# Stage 2: Build CoreIntegrator (C++)
-FROM public.ecr.aws/docker/library/node:24.11.0-bullseye-slim AS core-builder
-
-RUN apt-get update -y && \
-    apt-get install -y --no-install-recommends \
-    g++ make cmake pkg-config \
-    libboost-system-dev \
-    libsqlite3-dev \
-    libjsoncpp-dev \
-    nlohmann-json3-dev \
-    libcurl4-openssl-dev && \
-    rm -rf /var/lib/apt/lists/*
-
-WORKDIR /app
-
-COPY ./core .
-
-RUN cmake -B build -S . -DCMAKE_BUILD_TYPE=Release && \
-    cmake --build build
-
-
-# Stage 3: Build Node.js server
+# Stage 2: Build Node.js server
 FROM public.ecr.aws/docker/library/node:24.11.0-bullseye AS server-builder
 
 WORKDIR /server
@@ -58,11 +37,14 @@ RUN npm run build && \
     npm prune --production
 
 
-# Stage 4: Final image
+# Stage 3: Final image
 FROM public.ecr.aws/docker/library/node:24.11.0-slim
 
+# The YGOPro engine runs as WASM (koishipro-core.js) with SQLite/Lua compiled
+# in (sql.js parses .cdb in-process), and WindBot runs in its own image — the
+# runtime needs none of the native C++ core's system libraries.
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends curl wget git ca-certificates jq liblua5.3-dev libsqlite3-dev libevent-dev dumb-init && \
+    apt-get install -y --no-install-recommends curl wget git ca-certificates jq dumb-init && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -77,10 +59,6 @@ COPY --from=server-builder /server/node_modules ./node_modules
 # at boot with ENOENT when windbot is enabled. Replace botlist.example.json with a
 # curated botlist whose deck names match the WindBot image's bots.json.
 COPY --from=server-builder /server/config ./config
-
-# CoreIntegrator binaries
-COPY --from=core-builder /app/libocgcore.so ./core/libocgcore.so
-COPY --from=core-builder /app/CoreIntegrator ./core/CoreIntegrator
 
 # All resources (assembled in Stage 1): releases/<id> + current symlink — the
 # baked seed so the server boots immediately. The entrypoint's background loop

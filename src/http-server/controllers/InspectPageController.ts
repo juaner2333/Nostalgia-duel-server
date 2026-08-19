@@ -65,7 +65,6 @@ const PAGE = `<!DOCTYPE html>
 		.nav-label { flex: 1; font-size: .86rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 		.nav-sub { font-size: .72rem; color: var(--muted); }
 		.dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
-		.dot-edopro { background: var(--gold); box-shadow: 0 0 6px var(--gold); }
 		.dot-ygopro { background: var(--violet); box-shadow: 0 0 6px var(--violet); }
 		.empty { padding: .3rem .55rem; }
 
@@ -86,7 +85,6 @@ const PAGE = `<!DOCTYPE html>
 		.src { font-size: .72rem; color: var(--muted); background: rgba(255,255,255,.05); padding: .12rem .5rem; border-radius: 6px; }
 		.pts { font-size: .72rem; color: var(--gold-soft); background: rgba(230,192,116,.12); border: 1px solid var(--border); padding: .12rem .5rem; border-radius: 6px; font-variant-numeric: tabular-nums; }
 		.tag { font-size: .66rem; text-transform: uppercase; letter-spacing: .05em; padding: .14rem .5rem; border-radius: 6px; font-weight: 600; }
-		.tag-edopro { color: #1a1206; background: var(--gold); }
 		.tag-ygopro { color: #0b1220; background: var(--violet); }
 		.ban-sec { margin: 1.3rem 0; border-left: 3px solid var(--border); padding-left: .9rem; }
 		.ban-sec h4 { margin: .2rem 0 .5rem; font-size: .9rem; letter-spacing: .05em; }
@@ -119,11 +117,6 @@ const PAGE = `<!DOCTYPE html>
 			<div class="brand">&#10022; Arcane Library &#10022;</div>
 			<div class="filters">
 				<input id="q" placeholder="Search card name or passcode" />
-				<select id="engine">
-					<option value="">Both engines</option>
-					<option value="edopro">EDOPro</option>
-					<option value="ygopro">YGOPro</option>
-				</select>
 				<button id="search" class="btn-primary">Search</button>
 			</div>
 			<div class="nav-section">
@@ -149,7 +142,7 @@ const PAGE = `<!DOCTYPE html>
 	<script>
 		var $ = function (id) { return document.getElementById(id); };
 		var PAGE_SIZE = 60;
-		var state = { engineFilter: "", banlists: {}, databases: {} };
+		var state = { banlists: [], databases: [] };
 
 		function el(tag, className, text) {
 			var node = document.createElement(tag);
@@ -158,15 +151,12 @@ const PAGE = `<!DOCTYPE html>
 			return node;
 		}
 
-		function engineTag(engine) { return el("span", "tag tag-" + engine, engine); }
-
 		function cardRow(card) {
 			var row = el("div", "card-row");
 			row.appendChild(el("span", "mono", card.id));
 			row.appendChild(el("span", "cname", card.name));
 			if (card.points != null) row.appendChild(el("span", "pts", card.points + " pts"));
 			if (card.source) row.appendChild(el("span", "src", card.source));
-			if (card.engine) row.appendChild(engineTag(card.engine));
 			return row;
 		}
 
@@ -183,9 +173,9 @@ const PAGE = `<!DOCTYPE html>
 			if (item) item.classList.add("active");
 		}
 
-		function navItem(engine, label, sub, onClick) {
+		function navItem(label, sub, onClick) {
 			var button = el("button", "nav-item");
-			button.appendChild(el("span", "dot dot-" + engine));
+			button.appendChild(el("span", "dot dot-ygopro"));
 			button.appendChild(el("span", "nav-label", label));
 			button.appendChild(el("span", "nav-sub", sub));
 			button.addEventListener("click", function () { setActive(button); onClick(); });
@@ -197,15 +187,12 @@ const PAGE = `<!DOCTYPE html>
 			var databases = $("nav-databases");
 			banlists.innerHTML = "";
 			databases.innerHTML = "";
-			["edopro", "ygopro"].forEach(function (engine) {
-				if (state.engineFilter && state.engineFilter !== engine) return;
-				(state.banlists[engine] || []).forEach(function (b) {
-					var count = b.forbidden + b.limited + b.semiLimited + b.whitelisted;
-					banlists.appendChild(navItem(engine, b.name, String(count), function () { selectBanlist(engine, b.name); }));
-				});
-				(state.databases[engine] || []).forEach(function (s) {
-					databases.appendChild(navItem(engine, s.source, String(s.count), function () { selectDatabase(engine, s.source, 0); }));
-				});
+			state.banlists.forEach(function (b) {
+				var count = b.forbidden + b.limited + b.semiLimited + b.whitelisted;
+				banlists.appendChild(navItem(b.name, String(count), function () { selectBanlist(b.name); }));
+			});
+			state.databases.forEach(function (s) {
+				databases.appendChild(navItem(s.source, String(s.count), function () { selectDatabase(s.source, 0); }));
 			});
 			if (!banlists.children.length) banlists.appendChild(el("p", "muted empty", "No ban lists."));
 			if (!databases.children.length) databases.appendChild(el("p", "muted empty", "No databases."));
@@ -213,25 +200,24 @@ const PAGE = `<!DOCTYPE html>
 
 		function loadBanlists() {
 			fetch("/api/banlists").then(function (r) { return r.json(); }).then(function (data) {
-				state.banlists = data;
+				state.banlists = data.ygopro || [];
 				renderNav();
 			});
 		}
 
 		function loadDatabases() {
 			fetch("/api/databases").then(function (r) { return r.json(); }).then(function (data) {
-				state.databases = data;
+				state.databases = data.ygopro || [];
 				renderNav();
 			});
 		}
 
 		function doSearch() {
 			var q = $("q").value.trim();
-			var engine = state.engineFilter;
 			setActive(null);
 			if (!q) { setMain("Search", "Type a card name or passcode."); return; }
 			setMain("Search \\u00b7 " + q, "Searching\\u2026");
-			var url = "/api/cards?q=" + encodeURIComponent(q) + (engine ? "&engine=" + engine : "");
+			var url = "/api/cards?q=" + encodeURIComponent(q);
 			fetch(url).then(function (r) { return r.json(); }).then(function (data) {
 				var results = data.results || [];
 				$("main-sub").textContent = results.length ? results.length + " result(s)" : "Not found on the server.";
@@ -248,13 +234,13 @@ const PAGE = `<!DOCTYPE html>
 			return sec;
 		}
 
-		function selectBanlist(engine, name) {
-			setMain("Ban list \\u00b7 " + name, engine.toUpperCase() + " \\u2014 loading\\u2026");
-			fetch("/api/banlists/" + engine + "/" + encodeURIComponent(name)).then(function (r) { return r.json(); }).then(function (data) {
+		function selectBanlist(name) {
+			setMain("Ban list \\u00b7 " + name, "loading\\u2026");
+			fetch("/api/banlists/ygopro/" + encodeURIComponent(name)).then(function (r) { return r.json(); }).then(function (data) {
 				var list = $("main-list");
 				var total = (data.forbidden || []).length + (data.limited || []).length +
 					(data.semiLimited || []).length + (data.whitelisted || []).length;
-				$("main-sub").textContent = engine.toUpperCase() + " \\u00b7 " + total + " cards";
+				$("main-sub").textContent = total + " cards";
 				var sections = [
 					banSection("Forbidden", "sec-forbidden", data.forbidden),
 					banSection("Limited", "sec-limited", data.limited),
@@ -266,30 +252,29 @@ const PAGE = `<!DOCTYPE html>
 			});
 		}
 
-		function selectDatabase(engine, source, offset) {
-			setMain("Database \\u00b7 " + source, engine.toUpperCase() + " \\u2014 loading\\u2026");
-			var url = "/api/databases/cards?engine=" + engine + "&source=" + encodeURIComponent(source) +
+		function selectDatabase(source, offset) {
+			setMain("Database \\u00b7 " + source, "loading\\u2026");
+			var url = "/api/databases/cards?engine=ygopro&source=" + encodeURIComponent(source) +
 				"&limit=" + PAGE_SIZE + "&offset=" + offset;
 			fetch(url).then(function (r) { return r.json(); }).then(function (data) {
 				var total = data.total || 0;
 				var from = total ? offset + 1 : 0;
 				var to = Math.min(offset + PAGE_SIZE, total);
-				$("main-sub").textContent = engine.toUpperCase() + " \\u00b7 " + total + " cards \\u00b7 showing " + from + "\\u2013" + to;
+				$("main-sub").textContent = total + " cards \\u00b7 showing " + from + "\\u2013" + to;
 				var list = $("main-list");
 				(data.cards || []).forEach(function (c) { list.appendChild(cardRow(c)); });
 				var pager = $("main-pager");
 				var prev = el("button", null, "\\u2039 Prev");
 				prev.disabled = offset <= 0;
-				prev.addEventListener("click", function () { selectDatabase(engine, source, Math.max(0, offset - PAGE_SIZE)); });
+				prev.addEventListener("click", function () { selectDatabase(source, Math.max(0, offset - PAGE_SIZE)); });
 				var next = el("button", null, "Next \\u203a");
 				next.disabled = offset + PAGE_SIZE >= total;
-				next.addEventListener("click", function () { selectDatabase(engine, source, offset + PAGE_SIZE); });
+				next.addEventListener("click", function () { selectDatabase(source, offset + PAGE_SIZE); });
 				pager.appendChild(prev);
 				pager.appendChild(next);
 			});
 		}
 
-		$("engine").addEventListener("change", function () { state.engineFilter = this.value; renderNav(); });
 		$("search").addEventListener("click", doSearch);
 		$("q").addEventListener("keydown", function (e) { if (e.key === "Enter") doSearch(); });
 		loadBanlists();

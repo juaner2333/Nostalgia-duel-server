@@ -23,75 +23,59 @@ class FakeCardSearchRepository implements CardSearchRepository {
 }
 
 const buildService = () => {
-	const edopro = new FakeCardSearchRepository([
+	const repository = new FakeCardSearchRepository([
 		{ id: 46986414, name: "Dark Magician", source: "cards.cdb" },
-		{ id: 38033121, name: "Dark Magician Girl", source: "cards.cdb" },
-	]);
-	const ygopro = new FakeCardSearchRepository([
 		{ id: 89631139, name: "Blue-Eyes White Dragon", source: "cards.cdb" },
 	]);
-	const service = new SearchCards({ edopro, ygopro });
+	const service = new SearchCards(repository);
 
-	return { service, edopro, ygopro };
+	return { service, repository };
 };
 
 describe("SearchCards", () => {
-	it("returns an empty array for a blank query without hitting repositories", async () => {
-		const { service, edopro, ygopro } = buildService();
+	it("returns an empty array for a blank query without hitting the repository", async () => {
+		const { service, repository } = buildService();
 
 		expect(await service.run({ query: "   " })).toEqual([]);
-		expect(edopro.searchByNameCalls).toHaveLength(0);
-		expect(ygopro.findByIdCalls).toHaveLength(0);
+		expect(repository.searchByNameCalls).toHaveLength(0);
+		expect(repository.findByIdCalls).toHaveLength(0);
 	});
 
-	it("searches by name across every engine when none is specified", async () => {
+	it("searches by name and tags every result with the ygopro engine", async () => {
 		const { service } = buildService();
 
 		const results = await service.run({ query: "dark" });
 
 		expect(results).toEqual([
-			{ engine: "edopro", id: 46986414, name: "Dark Magician", source: "cards.cdb" },
-			{ engine: "edopro", id: 38033121, name: "Dark Magician Girl", source: "cards.cdb" },
+			{ engine: "ygopro", id: 46986414, name: "Dark Magician", source: "cards.cdb" },
 		]);
 	});
 
-	it("restricts the search to the requested engine", async () => {
-		const { service, edopro } = buildService();
+	it("looks up by id when the query is numeric", async () => {
+		const { service, repository } = buildService();
 
-		const results = await service.run({ query: "blue", engine: "ygopro" });
+		const results = await service.run({ query: "89631139" });
 
 		expect(results).toEqual([
 			{ engine: "ygopro", id: 89631139, name: "Blue-Eyes White Dragon", source: "cards.cdb" },
 		]);
-		expect(edopro.searchByNameCalls).toHaveLength(0);
-	});
-
-	it("looks up by id when the query is numeric", async () => {
-		const { service, edopro, ygopro } = buildService();
-
-		const results = await service.run({ query: "46986414" });
-
-		expect(results).toEqual([
-			{ engine: "edopro", id: 46986414, name: "Dark Magician", source: "cards.cdb" },
-		]);
-		expect(edopro.findByIdCalls).toEqual([46986414]);
-		expect(edopro.searchByNameCalls).toHaveLength(0);
-		expect(ygopro.findByIdCalls).toEqual([46986414]);
+		expect(repository.findByIdCalls).toEqual([89631139]);
+		expect(repository.searchByNameCalls).toHaveLength(0);
 	});
 
 	it("clamps the limit to the maximum allowed", async () => {
-		const { service, edopro } = buildService();
+		const { service, repository } = buildService();
 
-		await service.run({ query: "dark", engine: "edopro", limit: 9999 });
+		await service.run({ query: "dark", limit: 9999 });
 
-		expect(edopro.searchByNameCalls[0].limit).toBe(100);
+		expect(repository.searchByNameCalls[0].limit).toBe(100);
 	});
 
 	it("falls back to the default limit when none is provided", async () => {
-		const { service, edopro } = buildService();
+		const { service, repository } = buildService();
 
-		await service.run({ query: "dark", engine: "edopro" });
+		await service.run({ query: "dark" });
 
-		expect(edopro.searchByNameCalls[0].limit).toBe(50);
+		expect(repository.searchByNameCalls[0].limit).toBe(50);
 	});
 });

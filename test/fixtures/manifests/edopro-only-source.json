@@ -1,0 +1,15 @@
+{
+	"sources": [
+		{
+			"id": "legacy-pool",
+			"type": "git",
+			"url": "https://example.com/legacy.git"
+		}
+	],
+	"assembly": [
+		{
+			"target": "edopro/databases",
+			"from": "legacy-pool"
+		}
+	]
+}

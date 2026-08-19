@@ -37,16 +37,6 @@ postgres_data/
 # Qoder IDE (local settings)
 .qoder/
 
-# Core (C++)
-core/Makefile
-core/src/Makefile
-core/premake5
-core/CoreIntegrator
-core/example.so
-core/libluasocket.so
-core/vcpkg/
-core/vcpkg_installed/
-
 # Mercury
 mercury/script/
 mercury/scripts/
@@ -64,8 +54,6 @@ mercury/pre-releases/tcg/*
 scripts/
 
 # Miscellaneous Directories
-core/dependencies/
-core/build/
 dependencies/
 build/
 

@@ -1,9 +1,8 @@
-import { PlayerInfoMessage } from "@edopro/messages/client-to-server/PlayerInfoMessage";
+import { PlayerInfoMessage } from "@ygopro/messages/client-to-server/PlayerInfoMessage";
 import { Logger } from "@shared/logger/domain/Logger";
 import { PlayerCredential } from "@shared/room/admission/domain/PlayerCredential";
 import { ISocket } from "@shared/socket/domain/ISocket";
 import { UserAuth } from "@shared/user-auth/application/UserAuth";
-import { UserProfile } from "@shared/user-profile/domain/UserProfile";
 import { UserProfileRepository } from "@shared/user-profile/domain/UserProfileRepository";
 
 /**
@@ -44,12 +43,12 @@ export class CredentialResolver {
 		}
 
 		if (playerInfo.password) {
-			const user = await this.userAuth.run(playerInfo);
-			if (user instanceof UserProfile) {
+			const result = await this.userAuth.run(playerInfo);
+			if (result.ok) {
 				this.logger?.debug(
-					`admission/credential: resolved=external name="${playerInfo.name}" userId=${user.id}`,
+					`admission/credential: resolved=external name="${playerInfo.name}" userId=${result.profile.id}`,
 				);
-				return { kind: "external", userId: user.id };
+				return { kind: "external", userId: result.profile.id };
 			}
 			// PIN was present but UserAuth did NOT return a profile (user-not-found,
 			// banned, or invalid PIN). Identity degrades to guest — which a ranked

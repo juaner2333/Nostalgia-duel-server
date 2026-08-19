@@ -25,9 +25,6 @@ export const config = {
 		window: Number(process.env.RATE_LIMIT_WINDOW),
 	},
 	servers: {
-		host: {
-			port: Number(process.env.HOST_PORT),
-		},
 		mercury: {
 			port: Number(process.env.YGOPRO_PORT),
 			wsPort: Number(process.env.YGOPRO_WEBSOCKET_PORT) || 4002,
@@ -38,7 +35,6 @@ export const config = {
 		},
 		websocket: {
 			port: Number(process.env.WEBSOCKET_PORT),
-			duelPort: Number(process.env.WEBSOCKET_DUEL_PORT) || 4001,
 		},
 	},
 	resources: {

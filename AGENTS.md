@@ -2,7 +2,7 @@
 
 ## How to Use This Guide
 
-- **Start here**: This file defines the rules, patterns, and workflows for the `EDOpro-server-ts` project.
+- **Start here**: This file defines the rules, patterns, and workflows for the `Nostalgia-duel-server` project.
 - **Strict Adherence**: You must follow the "Prime Directives" and "Auto-invoke Skills" without exception.
 - **Context**: This is a high-performance Hexagonal/DDD architecture.
 
@@ -10,11 +10,11 @@
 
 | Component       | Location                                | Tech Stack       | Description                                      |
 | --------------- | --------------------------------------- | ---------------- | ------------------------------------------------ |
-| **Core Domain** | `src/edopro/`, `src/shared/`            | TypeScript, DDD  | Business logic, Entities, Value Objects          |
+| **Core Domain** | `src/ygopro/`, `src/shared/`            | TypeScript, DDD  | Business logic, Entities, Value Objects          |
 | **API**         | `src/http-server/`                      | Express, Diod    | REST endpoints for management                    |
 | **Realtime**    | `src/socket-server/`                    | WS, Net          | WebSocket & TCP socket handling                  |
-| **Persistence** | `src/shared/infrastructure/persistence` | TypeORM, Redis   | PostgreSQL (Users), SQLite (Game), Redis (Cache) |
-| **Clients**     | `src/edopro/`, `src/ygopro/`            | Custom Protocols | Implementations for EDOPro and YGOPro clients    |
+| **Persistence** | `src/shared/infrastructure/persistence` | TypeORM, Redis   | PostgreSQL (Users), Redis (Cache)                |
+| **Clients**     | `src/ygopro/`                           | Custom Protocol  | Implementation for YGOPro-compatible clients    |
 
 ---
 
@@ -36,7 +36,7 @@ As an AI agent, you must strictly adhere to these rules. **Violation of these ru
 - **No Console Logs**: Use `Logger` domain service.
 - **Naming**: `PascalCase` for classes, `camelCase` for vars, `UPPER_SNAKE_CASE` for constants.
 - **Conventional Commits**: Commit messages must follow the [Conventional Commits](https://www.conventionalcommits.org/) specification (e.g., `feat: add user login`, `fix: resolve room crash`).
-- **Path Aliases**: Always use `@edopro/*` for imports from `src/edopro/` when possible.
+- **Path Aliases**: Always use `@ygopro/*` for imports from `src/ygopro/` when possible.
 
 ### 3. Operational Safety
 
@@ -166,16 +166,15 @@ When performing these actions, **ALWAYS** follow the corresponding Standard Oper
 
 ### Path Aliases
 
-- `@edopro/*` → `src/edopro/*`
+- `@ygopro/*` → `src/ygopro/*`
 - `@shared/*` → `src/shared/*`
-- `@http/*` → `src/http-server/*`
+- `@test-support/*` → `src/test-support/*`
 
-### Multi-Client Architecture
+### Architecture
 
-The server acts as a bridge between different client protocols and the C++ Duel Engine:
+The server speaks the YGOPro protocol (srvpro2-compatible) for Koishi, YGO Mobile, and YGOPro clients:
 
-- **EDOPro**: Binary TCP protocol.
-- **YGOPro**: Binary TCP protocol (srvpro2-compatible) for Koishi, YGO Mobile, and YGOPro clients.
-- **Engine**: C++ ocgcore via worker threads (WASM).
+- **YGOPro**: Binary TCP protocol plus a WebSocket transport.
+- **Engine**: ocgcore compiled to WASM (`koishipro-core.js`), run in worker threads.
 
-Ensure changes in `shared/` do not break protocol-specific implementations in `edopro/` or `ygopro/`.
+Ensure changes in `shared/` do not break the protocol-specific implementations in `ygopro/`.

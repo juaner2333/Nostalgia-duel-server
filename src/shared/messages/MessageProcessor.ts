@@ -10,6 +10,12 @@ export interface ClientMessage {
 }
 
 export class MessageProcessor {
+	/**
+	 * Largest accepted frame length. The biggest legitimate CTOS message is
+	 * UPDATE_DECK (~430 bytes); anything beyond this is protocol abuse.
+	 */
+	public static readonly MAX_MESSAGE_SIZE = 4096;
+
 	private buffer: Buffer;
 	private _size: number;
 	private _command: number;
@@ -25,6 +31,19 @@ export class MessageProcessor {
 
 	read(data: Buffer): void {
 		this.buffer = Buffer.concat([this.buffer, data]);
+	}
+
+	/**
+	 * True once the buffered prefix declares a frame that can never be valid
+	 * (zero length, or longer than MAX_MESSAGE_SIZE). Callers must reject the
+	 * connection instead of processing further.
+	 */
+	isMessageInvalid(): boolean {
+		if (this.buffer.length < 2) {
+			return false;
+		}
+		const messageSize = this.buffer.readUInt16LE(0);
+		return messageSize === 0 || messageSize > MessageProcessor.MAX_MESSAGE_SIZE;
 	}
 
 	process(): void {

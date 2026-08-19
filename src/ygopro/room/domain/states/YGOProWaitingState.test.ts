@@ -329,7 +329,7 @@ describe("YGOProWaitingState.handleJoin", () => {
 
 		expect(mockAdmitToRoom.run).not.toHaveBeenCalled();
 		expect(mockSocket.send).toHaveBeenCalled();
-		expect(mockSocket.destroy).toHaveBeenCalled();
+		expect(mockSocket.close).toHaveBeenCalled();
 	});
 });
 

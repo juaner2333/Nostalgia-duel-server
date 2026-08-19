@@ -1,7 +1,7 @@
 import { EventEmitter } from "events";
 
-import { PlayerInfoMessage } from "@edopro/messages/client-to-server/PlayerInfoMessage";
-import { RoomState } from "@edopro/room/domain/RoomState";
+import { PlayerInfoMessage } from "@ygopro/messages/client-to-server/PlayerInfoMessage";
+import { YGOProRoomState } from "../YGOProRoomState";
 
 import { OCGCore } from "@ygopro/ocgcore-worker/ocgcore";
 
@@ -43,7 +43,7 @@ import { EvrpSerializer } from "../replay/EvrpSerializer";
 import { GameOverDomainEvent } from "@shared/room/domain/match/domain/domain-events/GameOverDomainEvent";
 import WebSocketSingleton from "src/web-socket-server/WebSocketSingleton";
 
-export class YGOProDuelingState extends RoomState {
+export class YGOProDuelingState extends YGOProRoomState {
 	private readonly eventBus: EventBus;
 	private readonly ocgCore: OCGCore;
 	private readonly pendingSurrenders = new Set<number>();
@@ -640,7 +640,7 @@ export class YGOProDuelingState extends RoomState {
 				bestOf: this.room.bestOf,
 				players: this.room.matchPlayersHistory,
 				date: new Date(),
-				banListHash: this.room.edoBanListHash,
+				banListHash: this.room.banListHash,
 				banListName: this.room.banListName ?? "N/A",
 				ranked: this.room.ranked,
 			}),
