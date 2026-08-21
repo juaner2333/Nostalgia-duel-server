@@ -61,7 +61,7 @@ describe("bootstrapMatchmaking — spawnBot roster identity-pair wiring", () => 
 		return captured.spawnBot;
 	}
 
-	it("requests a TCG bot with explicit name and deckOverride from the TCG roster", () => {
+	it("requests a 1103 bot with explicit name and deckOverride from its roster", () => {
 		const requestBot = jest
 			.fn()
 			.mockResolvedValue({ bot: { name: "Salamangreat", deck: "Salamangreat" } });
@@ -77,7 +77,7 @@ describe("bootstrapMatchmaking — spawnBot roster identity-pair wiring", () => 
 			>);
 
 		const spawnBot = captureSpawnBot();
-		spawnBot(123, "tcg");
+		spawnBot(123, "1103");
 
 		expect(requestBot).toHaveBeenCalledTimes(1);
 		const [roomId, botName, isFinalizing, deckOverride] = requestBot.mock.calls[0];
@@ -86,17 +86,16 @@ describe("bootstrapMatchmaking — spawnBot roster identity-pair wiring", () => 
 		expect(typeof botName).toBe("string");
 		expect(botName.length).toBeGreaterThan(0);
 		expect(typeof isFinalizing).toBe("function");
-		// deckOverride must be from the TCG roster
-		const tcgDecks = MATCHMAKING_BOT_ROSTER.tcg.map((p) => p.deck);
-		expect(tcgDecks).toContain(deckOverride);
+		const formatDecks = MATCHMAKING_BOT_ROSTER["1103"].map((p) => p.deck);
+		expect(formatDecks).toContain(deckOverride);
 		// name and deck must come from the SAME pair
-		const pair = MATCHMAKING_BOT_ROSTER.tcg.find((p) => p.name === botName);
+		const pair = MATCHMAKING_BOT_ROSTER["1103"].find((p) => p.name === botName);
 		expect(pair).toBeDefined();
 		expect(pair?.deck).toBe(deckOverride);
 	});
 
-	it("requests a JTP bot with explicit name and deckOverride from the JTP roster", () => {
-		const requestBot = jest.fn().mockResolvedValue({ bot: { name: "Joey", deck: "JTP" } });
+	it("requests a 1109 bot with explicit name and deckOverride from its roster", () => {
+		const requestBot = jest.fn().mockResolvedValue({ bot: { name: "Joey", deck: "Joey" } });
 		jest.spyOn(WindbotModule, "isInitialized").mockReturnValue(true);
 		jest.spyOn(WindbotModule, "getInstance").mockReturnValue({
 			isEnabled: () => true,
@@ -109,18 +108,17 @@ describe("bootstrapMatchmaking — spawnBot roster identity-pair wiring", () => 
 			>);
 
 		const spawnBot = captureSpawnBot();
-		spawnBot(456, "jtp");
+		spawnBot(456, "1109");
 
 		expect(requestBot).toHaveBeenCalledTimes(1);
 		const [roomId, botName, isFinalizing, deckOverride] = requestBot.mock.calls[0];
 		expect(roomId).toBe(456);
 		expect(typeof botName).toBe("string");
 		expect(typeof isFinalizing).toBe("function");
-		// deckOverride must be from the JTP roster
-		const jtpDecks = MATCHMAKING_BOT_ROSTER.jtp.map((p) => p.deck);
-		expect(jtpDecks).toContain(deckOverride);
+		const formatDecks = MATCHMAKING_BOT_ROSTER["1109"].map((p) => p.deck);
+		expect(formatDecks).toContain(deckOverride);
 		// name and deck must come from the SAME pair
-		const pair = MATCHMAKING_BOT_ROSTER.jtp.find((p) => p.name === botName);
+		const pair = MATCHMAKING_BOT_ROSTER["1109"].find((p) => p.name === botName);
 		expect(pair).toBeDefined();
 		expect(pair?.deck).toBe(deckOverride);
 	});
@@ -130,7 +128,7 @@ describe("bootstrapMatchmaking — spawnBot roster identity-pair wiring", () => 
 		const getInstance = jest.spyOn(WindbotModule, "getInstance");
 
 		const spawnBot = captureSpawnBot();
-		spawnBot(123, "tcg");
+		spawnBot(123, "1103");
 
 		expect(getInstance).not.toHaveBeenCalled();
 	});

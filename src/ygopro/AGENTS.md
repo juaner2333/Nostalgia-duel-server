@@ -1,61 +1,25 @@
 # YGOPro Module Guidelines
 
-## Context
+## Fixed nostalgia boundary
 
-This module implements the srvpro2-compatible server for YGOPro clients (Koishi, YGO Mobile, YGOPro). It handles binary TCP connections using the YGOPro protocol. srvpro2 is the source of truth for protocol behavior.
+- The only public room identifiers are `1103#<decimalRoomId>` and
+  `1109#<decimalRoomId>`.
+- Both formats use OCG rule `0`, Master Rule 2, MATCH mode, 8000 LP and
+  best-of-3. Their names, pool, LFList hash and script path are immutable after
+  room creation.
+- Resource loading is fixed to one base CDB/script tree plus
+  `formats/1103` and `formats/1109`. Each duel searches only its format script
+  directory, then `base/script`.
+- Do not introduce dynamic format commands, secondary card pools, external
+  script paths or network resource refreshes.
 
-## Key Responsibilities
+## Module rules
 
-- **Protocol**: Binary TCP protocol compatible with srvpro2.
-- **Room**: `YGOProRoom` with format-based configuration (TCG, OCG, PRE, Edison, GOAT, etc.).
-- **Duel**: ocgcore execution via worker threads using `yuzuthread` and `koishipro-core.js`.
-- **Card Storage**: Dual card pool (standard + extended) loaded from `.cdb` files via `YGOProResourceLoader`.
-
-## Module-Specific Rules
-
-### 1. Binary Protocol Handling
-
-- Use `ygopro-msg-encode` for message encoding/decoding.
-- **Packet Structure**: Same as YGOPro/srvpro2 binary protocol.
-- **Strict Typing**: Validate all client input. Do not trust client data.
-
-### 2. Room Management (`src/ygopro/room/`)
-
-- `YGOProRoom` is the central entity.
-- **Format Commands**: Parsed via `RuleMappings.ts` (ruleMappings, formatRuleMappings, priorityRuleMappings).
-- **Card Pool**: `useExtendedCardPool` flag determines standard vs extended card storage.
-- **State Machine**: Room states (Waiting, RPS, ChoosingOrder, Dueling, SideDecking) via `YGOProRoomState`.
-
-### 3. Card Database Architecture
-
-- `YGOProResourceLoader` (singleton) loads two `CardStorage` instances at startup.
-- **Standard pool** (`runtime.ygopro.standard` in manifest): Available to all rooms.
-- **Extended pool** (standard + `runtime.ygopro.extended` in manifest): Only for PRE/ART formats.
-- `CardYGOProRepository` resolves the correct pool based on the room's `useExtendedCardPool` flag.
-- Unknown cards return `UnknownCardError` — never silently ignored.
-
-### 4. Deck Validation
-
-- `MercuryDeckValidator` uses Chain of Responsibility pattern.
-- `CardAvailabilityValidationHandler` uses srvpro2's bitwise scope check: `(cardOt & availFlag) === availFlag`.
-- Rule values follow srvpro2 protocol (0=OCG, 1=TCG, 5=ALL), not the shared `Rule` enum.
-
-### 5. Source of Truth
-
-- **srvpro2** is the reference for protocol behavior and message handling.
-- **Multirole** is the reference for the EDOPro module — do NOT mix their patterns.
-
-## Common Tasks (SOPs)
-
-### [SOP-YGO-001] Adding a New Room Format
-
-1. Add the format to `formatRuleMappings` in `RuleMappings.ts` with correct `rule`, `duel_rule`, `lflist`, `time_limit`.
-2. If it needs pre-release/art cards, add the format name to `extendedCardPoolFormats`.
-3. Add a banlist `lflist.conf` to the corresponding `resources/ygopro/formats/<format>/` directory.
-4. Add tests in `YGOProRoom.test.ts`.
-
-### [SOP-YGO-002] Adding a New Message Handler
-
-1. Identify the command code in `Commands.ts`.
-2. Create the handler in the appropriate room state (`YGOProWaitingState`, `YGOProDuelingState`, etc.).
-3. Compare behavior with srvpro2 source code.
+- Keep room business rules in `room/domain`; resource access goes through a
+  port supplied by infrastructure.
+- Use `ygopro-msg-encode` for protocol framing and preserve existing room-state
+  admission, reconnect and spectator behavior.
+- Validate all client input. Invalid fixed-format identifiers must be rejected
+  rather than falling back to legacy room-name or password semantics.
+- Tests are co-located and must cover both formats whenever behavior depends on
+  cards, scripts, ban lists or room identity.

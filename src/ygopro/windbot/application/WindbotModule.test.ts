@@ -112,7 +112,7 @@ describe("WindbotModule", () => {
 			const provider = makeProvider();
 			// pickRandom returns a non-TCG bot; the override must replace its deck.
 			const repo = makeRepo({
-				pickRandom: jest.fn().mockReturnValue(makeBot({ name: "Joey", deck: "JTP" })),
+				pickRandom: jest.fn().mockReturnValue(makeBot({ name: "Joey", deck: "Joey" })),
 			});
 			const mod = WindbotModule.createForTests(
 				makeDeps({ provider: provider as unknown as WindbotModuleDeps["provider"], repo }),
@@ -130,7 +130,7 @@ describe("WindbotModule", () => {
 		it("uses the bot's own deck when no deckOverride is given", async () => {
 			const provider = makeProvider();
 			const repo = makeRepo({
-				pickRandom: jest.fn().mockReturnValue(makeBot({ name: "Joey", deck: "JTP" })),
+				pickRandom: jest.fn().mockReturnValue(makeBot({ name: "Joey", deck: "Joey" })),
 			});
 			const mod = WindbotModule.createForTests(
 				makeDeps({ provider: provider as unknown as WindbotModuleDeps["provider"], repo }),
@@ -139,8 +139,8 @@ describe("WindbotModule", () => {
 			const result = await mod.requestBot(7, null, () => false);
 
 			const call = provider.requestJoin.mock.calls[0][0];
-			expect(call.bot.deck).toBe("JTP");
-			expect(result.bot.deck).toBe("JTP");
+			expect(call.bot.deck).toBe("Joey");
+			expect(result.bot.deck).toBe("Joey");
 		});
 
 		it("selects random bot when botNameOrNull is null", async () => {

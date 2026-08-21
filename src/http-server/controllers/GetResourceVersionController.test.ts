@@ -2,12 +2,28 @@ import type { Request, Response } from "express";
 
 const loaderState = {
 	isInitialized: true,
-	standardSha512Hex: null as string | null,
-	extendedSha512Hex: null as string | null,
+	baseSha512Hex: null as string | null,
 };
 const banlistState = {
 	ygopro: [] as Array<{ name: string | null; hash: number }>,
-	reloadedAt: null as string | null,
+};
+const lockState = {
+	text: JSON.stringify({
+		schemaVersion: 1,
+		inputs: {
+			baseDatabase: { count: 5120, cardIdsSha256: "base-pool" },
+		},
+		formats: {
+			"1103": {
+				cardPool: { count: 5002, cardIdsSha256: "pool-1103" },
+				lflist: { hash: 1103, sha256: "lflist-1103" },
+			},
+			"1109": {
+				cardPool: { count: 5120, cardIdsSha256: "pool-1109" },
+				lflist: { hash: 1109, sha256: "lflist-1109" },
+			},
+		},
+	}),
 };
 
 jest.mock("@ygopro/ygopro/YGOProResourceLoader", () => ({
@@ -22,8 +38,11 @@ jest.mock("@ygopro/ban-list/infrastructure/YGOProBanListMemoryRepository", () =>
 	__esModule: true,
 	default: { get: () => banlistState.ygopro },
 }));
-jest.mock("src/bootstrap/bootstrapBanListReloader", () => ({
-	getBanListReloadedAt: () => banlistState.reloadedAt,
+jest.mock("node:fs", () => ({
+	readFileSync: () => lockState.text,
+}));
+jest.mock("src/config", () => ({
+	config: { resources: { dir: "/fixed/resources" } },
 }));
 
 import { GetResourceVersionController } from "./GetResourceVersionController";
@@ -53,10 +72,8 @@ function run(): ReturnType<typeof fakeResponse> {
 describe("GetResourceVersionController", () => {
 	beforeEach(() => {
 		loaderState.isInitialized = true;
-		loaderState.standardSha512Hex = null;
-		loaderState.extendedSha512Hex = null;
+		loaderState.baseSha512Hex = null;
 		banlistState.ygopro = [];
-		banlistState.reloadedAt = null;
 	});
 
 	it("returns schemaVersion 1 and the ygopro sections with a 200 status", () => {
@@ -73,37 +90,32 @@ describe("GetResourceVersionController", () => {
 		expect(body.banlists).not.toHaveProperty("edopro");
 	});
 
-	it("reports the ygopro sha512 hexes when the loader has them", () => {
-		loaderState.standardSha512Hex = "abc123";
-		loaderState.extendedSha512Hex = "def456";
+	it("reports the fixed base database sha512 when the loader has it", () => {
+		loaderState.baseSha512Hex = "abc123";
 
-		const body = run().body() as { ygopro: { standardSha512: string; extendedSha512: string } };
+		const body = run().body() as { ygopro: { baseSha512: string } };
 
-		expect(body.ygopro.standardSha512).toBe("abc123");
-		expect(body.ygopro.extendedSha512).toBe("def456");
+		expect(body.ygopro.baseSha512).toBe("abc123");
 	});
 
 	it("reports null ygopro hashes before the loader is initialized", () => {
 		loaderState.isInitialized = false;
 
-		const body = run().body() as { ygopro: { standardSha512: string | null } };
+		const body = run().body() as { ygopro: { baseSha512: string | null } };
 
-		expect(body.ygopro.standardSha512).toBeNull();
+		expect(body.ygopro.baseSha512).toBeNull();
 	});
 
-	it("maps banlists to name+hash and passes through reloadedAt", () => {
+	it("maps banlists to name and hash", () => {
 		banlistState.ygopro = [{ name: "2026.04", hash: 222 }];
-		banlistState.reloadedAt = "2026-07-14T12:00:00.000Z";
 
 		const body = run().body() as {
 			banlists: {
 				ygopro: Array<{ name: string; hash: number }>;
-				reloadedAt: string;
 			};
 		};
 
 		expect(body.banlists.ygopro).toEqual([{ name: "2026.04", hash: 222 }]);
-		expect(body.banlists.reloadedAt).toBe("2026-07-14T12:00:00.000Z");
 	});
 
 	it("skips unnamed banlists", () => {
@@ -115,5 +127,22 @@ describe("GetResourceVersionController", () => {
 		const body = run().body() as { banlists: { ygopro: Array<{ name: string; hash: number }> } };
 
 		expect(body.banlists.ygopro).toEqual([{ name: "Named", hash: 2 }]);
+	});
+
+	it("reports fixed resource lock and two format summaries", () => {
+		const body = run().body() as {
+			fixedNostalgia: {
+				schemaVersion: number;
+				lock: { sha256: string };
+				baseDatabase: { count: number; cardIdsSha256: string };
+				formats: Record<string, { cardPool: { count: number }; lflist: { hash: number } }>;
+			};
+		};
+
+		expect(body.fixedNostalgia.schemaVersion).toBe(1);
+		expect(body.fixedNostalgia.lock.sha256).toHaveLength(64);
+		expect(body.fixedNostalgia.baseDatabase).toEqual({ count: 5120, cardIdsSha256: "base-pool" });
+		expect(body.fixedNostalgia.formats["1103"].cardPool.count).toBe(5002);
+		expect(body.fixedNostalgia.formats["1109"].lflist.hash).toBe(1109);
 	});
 });

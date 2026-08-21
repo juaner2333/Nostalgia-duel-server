@@ -28,8 +28,8 @@ function makeTokenStore(): WindbotTokenStore {
 }
 
 describe("deckOverride boundary — roster pair clears deckcode in RequestWindBotJoin", () => {
-	it("deckOverride set to pair.deck clears deckcode (TCG pair)", () => {
-		const pair = pickBotFromRoster("tcg", () => 0); // Salamangreat
+	it("deckOverride set to pair.deck clears deckcode (1103 pair)", () => {
+		const pair = pickBotFromRoster("1103", () => 0);
 		// Simulate a source bot that has a deckcode field (e.g. from botlist.json)
 		const sourceBot: WindbotData = { name: pair.name, deck: pair.deck, deckcode: "some-code-123" };
 
@@ -45,9 +45,9 @@ describe("deckOverride boundary — roster pair clears deckcode in RequestWindBo
 		expect(bot.deckcode).toBeUndefined();
 	});
 
-	it("deckOverride set to pair.deck clears deckcode (JTP pair — Joey)", () => {
-		const pair = pickBotFromRoster("jtp", () => 0); // Joey
-		const sourceBot: WindbotData = { name: pair.name, deck: pair.deck, deckcode: "jtp-code" };
+	it("deckOverride set to pair.deck clears deckcode (1109 pair — Joey)", () => {
+		const pair = pickBotFromRoster("1109", () => 0); // Joey
+		const sourceBot: WindbotData = { name: pair.name, deck: pair.deck, deckcode: "1109-code" };
 
 		const repo = makeRepo(sourceBot);
 		const tokenStore = makeTokenStore();
@@ -55,13 +55,13 @@ describe("deckOverride boundary — roster pair clears deckcode in RequestWindBo
 
 		const { bot } = useCase.execute(2, pair.name, pair.deck);
 
-		expect(bot.deck).toBe("JTP");
+		expect(bot.deck).toBe(pair.deck);
 		expect(bot.name).toBe("Joey");
 		expect(bot.deckcode).toBeUndefined();
 	});
 
 	it("without deckOverride, deckcode is preserved (control case)", () => {
-		const sourceBot: WindbotData = { name: "Joey", deck: "JTP", deckcode: "original-code" };
+		const sourceBot: WindbotData = { name: "Joey", deck: "Joey", deckcode: "original-code" };
 
 		const repo = makeRepo(sourceBot);
 		const tokenStore = makeTokenStore();

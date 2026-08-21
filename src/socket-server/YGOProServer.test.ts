@@ -14,7 +14,6 @@ import net from "net";
 
 import {
 	JOIN_GAME_FRAME_HEX,
-	JOIN_GAME_PAYLOAD_HEX,
 	PLAYER_INFO_FRAME_HEX,
 	YGOPRO_FIRST_PACKET,
 } from "@test-support/fixtures/ygopro-first-packet";
@@ -22,6 +21,7 @@ import { LoggerMock } from "@test-support/mocks/logger/LoggerMock";
 import { DefaultJoinStrategy } from "@ygopro/room/application/join-strategies/DefaultJoinStrategy";
 import { JoinContext, JoinStrategy } from "@ygopro/room/application/join-strategies/JoinStrategy";
 import { JoinStrategyRegistry } from "@ygopro/room/application/join-strategies/JoinStrategyRegistry";
+import { NostalgiaJoinStrategy } from "@ygopro/room/application/join-strategies/NostalgiaJoinStrategy";
 import YGOProRoomList from "@ygopro/room/infrastructure/YGOProRoomList";
 import {
 	YGOProStocHsPlayerEnter,
@@ -136,6 +136,7 @@ const splitFrames = (data: Buffer): Buffer[] => {
 };
 
 describe("YGOProServer · TCP admission contract", () => {
+	const roomPass = "1109#1001";
 	let server: YGOProServer;
 	let recording: RecordingJoinStrategy;
 	let trap: TrapJoinStrategy;
@@ -195,7 +196,7 @@ describe("YGOProServer · TCP admission contract", () => {
 		});
 
 	/** Creates + admits the room host and waits for its three join responses. */
-	const hostRoom = async (port: number, pass = "room1"): Promise<net.Socket> => {
+	const hostRoom = async (port: number, pass = roomPass): Promise<net.Socket> => {
 		const socket = await connect(port);
 		const framesPromise = receiveFrames(socket, 3);
 		socket.write(buildFirstPacket("Jaden", pass));
@@ -209,14 +210,16 @@ describe("YGOProServer · TCP admission contract", () => {
 		const framesPromise = receiveFrames(socket, 3);
 		socket.write(buildFirstPacket(name, pass));
 		const frames = await framesPromise;
-		expect(new YGOProStocJoinGame().fromFullPayload(frames[0]).info.duel_rule).toBe(5);
+		expect(new YGOProStocJoinGame().fromFullPayload(frames[0]).info.duel_rule).toBe(2);
 		socket.destroy();
 	};
 
 	beforeEach(() => {
-		recording = new RecordingJoinStrategy(new DefaultJoinStrategy());
+		recording = new RecordingJoinStrategy(
+			new NostalgiaJoinStrategy({ getBanListHash: () => 1109 }),
+		);
 		trap = new TrapJoinStrategy();
-		JoinStrategyRegistry.setStrategies([recording, trap]);
+		JoinStrategyRegistry.setStrategies([recording, new DefaultJoinStrategy(), trap]);
 		server = new YGOProServer(new LoggerMock());
 		server.initialize(0);
 	});
@@ -225,7 +228,7 @@ describe("YGOProServer · TCP admission contract", () => {
 		for (const room of [...YGOProRoomList.getRooms()]) {
 			YGOProRoomList.deleteRoom(room);
 		}
-		JoinStrategyRegistry.setStrategies([new DefaultJoinStrategy()]);
+		JoinStrategyRegistry.reset();
 		server.close();
 	});
 
@@ -234,20 +237,19 @@ describe("YGOProServer · TCP admission contract", () => {
 		const socket = await connect(port);
 		const framesPromise = receiveFrames(socket, 3);
 
-		socket.write(YGOPRO_FIRST_PACKET);
+		socket.write(buildFirstPacket("Jaden", roomPass));
 		const frames = await framesPromise;
 
 		expect(recording.contexts).toHaveLength(1);
 		const context = recording.contexts[0];
 		expect(context.playerInfo.name).toBe("Jaden");
-		expect(context.rawPass).toBe("room1");
-		expect(context.command).toBe("room1");
-		expect(context.password).toBe("");
-		expect(context.message.data).toEqual(Buffer.from(JOIN_GAME_PAYLOAD_HEX, "hex"));
+		expect(context.rawPass).toBe(roomPass);
+		expect(context.command).toBe("1109");
+		expect(context.password).toBe("1001");
 
 		const joinGame = new YGOProStocJoinGame().fromFullPayload(frames[0]);
-		expect(joinGame.info.duel_rule).toBe(5);
-		expect(joinGame.info.rule).toBe(1);
+		expect(joinGame.info.duel_rule).toBe(2);
+		expect(joinGame.info.rule).toBe(0);
 
 		const typeChange = new YGOProStocTypeChange().fromFullPayload(frames[1]);
 		expect(typeChange.isHost).toBe(true);
@@ -273,40 +275,41 @@ describe("YGOProServer · TCP admission contract", () => {
 			const client = await connect(port);
 			const framesPromise = receiveFrames(client, 1);
 			const closedPromise = waitForClose(client);
-			client.write(buildFirstPacket("Chazz", "room1", 0x1361));
+			client.write(buildFirstPacket("Chazz", roomPass, 0x1361));
 
 			const frames = await framesPromise;
 			await closedPromise;
 
 			expect(frames[0].toString("hex")).toBe(VERSION_ERROR_FRAME_HEX);
 
-			// exactly one strategy invocation for the rejected join, no fallthrough
+			// Both valid-format packets reach the fixed-format strategy; version
+			// validation rejects the second one before room admission.
 			expect(recording.contexts).toHaveLength(2);
 			expect(trap.handled).toHaveLength(0);
 
 			// the room and its host are unaffected
-			const room = YGOProRoomList.findByName("room1");
+			const room = YGOProRoomList.findByAdmissionKey(roomPass);
 			expect(room).not.toBeNull();
 			expect(room?.players).toHaveLength(1);
 
 			host.destroy();
 		});
 
-		it("silently destroys a wrong-password join without falling through to other strategies", async () => {
+		it("silently rejects a legacy room identifier without falling through to other strategies", async () => {
 			const { port } = await waitForListening();
-			const host = await hostRoom(port, "room1#secret");
+			const host = await hostRoom(port);
 
 			const client = await connect(port);
 			const dataPromise = collectUntilClose(client);
-			client.write(buildFirstPacket("Chazz", "room1#wrong"));
+			client.write(buildFirstPacket("Chazz", "legacy-room"));
 
 			const received = await dataPromise;
 			expect(Buffer.concat(received)).toHaveLength(0);
 
-			expect(recording.contexts).toHaveLength(2);
+			expect(recording.contexts).toHaveLength(1);
 			expect(trap.handled).toHaveLength(0);
 
-			const room = YGOProRoomList.findByName("room1");
+			const room = YGOProRoomList.findByAdmissionKey(roomPass);
 			expect(room).not.toBeNull();
 			expect(room?.players).toHaveLength(1);
 
@@ -320,7 +323,7 @@ describe("YGOProServer · TCP admission contract", () => {
 			const client = await connect(port);
 			const framesPromise = receiveFrames(client, 2);
 			const closedPromise = waitForClose(client);
-			client.write(buildFirstPacket("Jaden", "room1"));
+			client.write(buildFirstPacket("Jaden", roomPass));
 
 			const frames = await framesPromise;
 			await closedPromise;
@@ -338,7 +341,7 @@ describe("YGOProServer · TCP admission contract", () => {
 			expect(recording.contexts).toHaveLength(2);
 			expect(trap.handled).toHaveLength(0);
 
-			const room = YGOProRoomList.findByName("room1");
+			const room = YGOProRoomList.findByAdmissionKey(roomPass);
 			expect(room).not.toBeNull();
 			expect(room?.players).toHaveLength(1);
 
@@ -351,12 +354,12 @@ describe("YGOProServer · TCP admission contract", () => {
 			const framesPromise = receiveFrames(client, 3);
 
 			client.write(buildFrame(0x99, Buffer.from([0x01, 0x02, 0x03, 0x04])));
-			client.write(buildFirstPacket("Jaden", "room1"));
+			client.write(buildFirstPacket("Jaden", roomPass));
 			const frames = await framesPromise;
 
-			expect(new YGOProStocJoinGame().fromFullPayload(frames[0]).info.duel_rule).toBe(5);
+			expect(new YGOProStocJoinGame().fromFullPayload(frames[0]).info.duel_rule).toBe(2);
 			expect(recording.contexts).toHaveLength(1);
-			expect(YGOProRoomList.findByName("room1")).not.toBeNull();
+			expect(YGOProRoomList.findByAdmissionKey(roomPass)).not.toBeNull();
 
 			client.destroy();
 		});
@@ -372,7 +375,7 @@ describe("YGOProServer · TCP admission contract", () => {
 				Buffer.concat([
 					buildPlayerInfoFrame("Jaden"),
 					Buffer.from([0x00, 0x00]),
-					buildJoinGameFrame("room1"),
+					buildJoinGameFrame(roomPass),
 				]),
 			);
 			const received = await dataPromise;
@@ -381,7 +384,7 @@ describe("YGOProServer · TCP admission contract", () => {
 			expect(recording.contexts).toHaveLength(0);
 			expect(YGOProRoomList.getRooms()).toHaveLength(0);
 
-			await joinSuccessfully(port, "Jaden", "room1");
+			await joinSuccessfully(port, "Jaden", roomPass);
 			expect(recording.contexts).toHaveLength(1);
 		});
 
@@ -394,7 +397,7 @@ describe("YGOProServer · TCP admission contract", () => {
 				Buffer.concat([
 					buildPlayerInfoFrame("Jaden"),
 					Buffer.from([0xff, 0xff]),
-					buildJoinGameFrame("room1"),
+					buildJoinGameFrame(roomPass),
 				]),
 			);
 			const received = await dataPromise;
@@ -403,7 +406,7 @@ describe("YGOProServer · TCP admission contract", () => {
 			expect(recording.contexts).toHaveLength(0);
 			expect(YGOProRoomList.getRooms()).toHaveLength(0);
 
-			await joinSuccessfully(port, "Jaden", "room1");
+			await joinSuccessfully(port, "Jaden", roomPass);
 		});
 
 		it("leaves no room behind when the client disconnects mid-frame", async () => {
@@ -421,7 +424,7 @@ describe("YGOProServer · TCP admission contract", () => {
 			expect(YGOProRoomList.getRooms()).toHaveLength(0);
 
 			// the server keeps admitting new connections
-			await joinSuccessfully(port, "Jaden", "room1");
+			await joinSuccessfully(port, "Jaden", roomPass);
 			expect(recording.contexts).toHaveLength(1);
 		});
 
@@ -438,7 +441,7 @@ describe("YGOProServer · TCP admission contract", () => {
 			expect(recording.contexts).toHaveLength(0);
 			expect(YGOProRoomList.getRooms()).toHaveLength(0);
 
-			await joinSuccessfully(port, "Jaden", "room1");
+			await joinSuccessfully(port, "Jaden", roomPass);
 			expect(recording.contexts).toHaveLength(1);
 		});
 	});

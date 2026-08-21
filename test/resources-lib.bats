@@ -197,6 +197,167 @@ teardown() {
 }
 
 # ============================================================
+# RSM-013 — local fixed sources
+# ============================================================
+
+@test "RSM-013: relative local source resolves inside the configured repository root" {
+  mkdir -p "$WORK/nostalgia-resources"
+  local manifest="$WORK/local.json"
+  cat > "$manifest" <<'MANIFEST'
+{
+  "sources": [{ "id": "nostalgia-fixed", "type": "local", "path": "nostalgia-resources" }],
+  "assembly": [{ "target": "ygopro/base", "from": "nostalgia-fixed" }]
+}
+MANIFEST
+
+  RESOURCE_REPO_ROOT="$WORK" run validate_manifest "$manifest"
+  [ "$status" -eq 0 ]
+  RESOURCE_REPO_ROOT="$WORK" run local_source_dir "nostalgia-fixed" "$manifest"
+  [ "$status" -eq 0 ]
+  [ "$output" = "$WORK/nostalgia-resources" ]
+}
+
+@test "RSM-013: absolute local source path is rejected" {
+  local manifest="$WORK/absolute-local.json"
+  cat > "$manifest" <<'MANIFEST'
+{
+  "sources": [{ "id": "nostalgia-fixed", "type": "local", "path": "/tmp/nostalgia-resources" }],
+  "assembly": []
+}
+MANIFEST
+
+  RESOURCE_REPO_ROOT="$WORK" run validate_manifest "$manifest"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"absolute"* ]]
+}
+
+@test "RSM-013: parent traversal in local source path is rejected" {
+  local manifest="$WORK/parent-local.json"
+  cat > "$manifest" <<'MANIFEST'
+{
+  "sources": [{ "id": "nostalgia-fixed", "type": "local", "path": "../nostalgia-resources" }],
+  "assembly": []
+}
+MANIFEST
+
+  RESOURCE_REPO_ROOT="$WORK" run validate_manifest "$manifest"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *".."* ]]
+}
+
+@test "RSM-013: local source symlink escape is rejected" {
+  local outside
+  outside="$(mktemp -d)"
+  ln -s "$outside" "$WORK/escaped-source"
+  local manifest="$WORK/symlink-local.json"
+  cat > "$manifest" <<'MANIFEST'
+{
+  "sources": [{ "id": "nostalgia-fixed", "type": "local", "path": "escaped-source" }],
+  "assembly": []
+}
+MANIFEST
+
+  RESOURCE_REPO_ROOT="$WORK" run local_source_dir "nostalgia-fixed" "$manifest"
+  rm -rf "$outside"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"escapes"* ]]
+}
+
+@test "RSM-013: fetch skips local sources without invoking git or wget" {
+  mkdir -p "$WORK/nostalgia-resources"
+  local manifest="$WORK/local-fetch.json"
+  cat > "$manifest" <<'MANIFEST'
+{
+  "sources": [{ "id": "nostalgia-fixed", "type": "local", "path": "nostalgia-resources" }],
+  "assembly": []
+}
+MANIFEST
+  local stub_dir="$WORK/stubs"
+  mkdir -p "$stub_dir"
+  printf '#!/bin/sh\nexit 99\n' > "$stub_dir/git"
+  printf '#!/bin/sh\nexit 99\n' > "$stub_dir/wget"
+  chmod +x "$stub_dir/git" "$stub_dir/wget"
+
+  MANIFEST_PATH="$manifest" RESOURCE_REPO_ROOT="$WORK" REPOS_ROOT="$WORK/repositories" PATH="$stub_dir:$PATH" \
+    run bash "$REPO_ROOT/scripts/clone_repositories.sh"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"[local] nostalgia-fixed"* ]]
+}
+
+@test "RSM-013: assembly copies explicit local files and directories" {
+  mkdir -p "$WORK/nostalgia-resources/script"
+  printf 'cards' > "$WORK/nostalgia-resources/cards.cdb"
+  printf 'script' > "$WORK/nostalgia-resources/script/c1.lua"
+  local manifest="$WORK/local-assembly.json"
+  cat > "$manifest" <<'MANIFEST'
+{
+  "sources": [{ "id": "nostalgia-fixed", "type": "local", "path": "nostalgia-resources" }],
+  "assembly": [
+    { "target": "ygopro/base/cards.cdb", "from": "nostalgia-fixed", "file": "cards.cdb" },
+    { "target": "ygopro/base/script", "from": "nostalgia-fixed", "dir": "script" }
+  ]
+}
+MANIFEST
+
+  MANIFEST_PATH="$manifest" RESOURCE_REPO_ROOT="$WORK" REPOS_ROOT="$WORK/repositories" \
+  RELEASES_ROOT="$WORK/resources/releases" RESOURCES_KEEP_RELEASES=2 \
+    run bash "$REPO_ROOT/scripts/setup_resources.sh"
+  [ "$status" -eq 0 ]
+  [ -f "$WORK/resources/current/ygopro/base/cards.cdb" ]
+  [ -f "$WORK/resources/current/ygopro/base/script/c1.lua" ]
+}
+
+@test "RSM-014: nostalgia lock validation failure keeps the current release unchanged" {
+  mkdir -p "$WORK/nostalgia-resources"
+  printf '{}' > "$WORK/nostalgia-resources/lock.json"
+  mkdir -p "$WORK/resources/releases/previous"
+  ln -s "releases/previous" "$WORK/resources/current"
+  local manifest="$WORK/local-lock.json"
+  cat > "$manifest" <<'MANIFEST'
+{
+  "sources": [{ "id": "nostalgia-fixed", "type": "local", "path": "nostalgia-resources" }],
+  "assembly": [{ "target": "lock.json", "from": "nostalgia-fixed", "file": "lock.json" }],
+  "runtime": {
+    "ygopro": {
+      "base": "base",
+      "formats": { "1103": "formats/1103", "1109": "formats/1109" }
+    }
+  }
+}
+MANIFEST
+  local stub_dir="$WORK/stubs"
+  mkdir -p "$stub_dir"
+  printf '#!/bin/sh\nexit 0\n' > "$stub_dir/npm"
+  printf '#!/bin/sh\nexit 1\n' > "$stub_dir/node"
+  chmod +x "$stub_dir/npm" "$stub_dir/node"
+
+  MANIFEST_PATH="$manifest" RESOURCE_REPO_ROOT="$WORK" REPOS_ROOT="$WORK/repositories" \
+  RELEASES_ROOT="$WORK/resources/releases" PATH="$stub_dir:$PATH" \
+    run bash "$REPO_ROOT/scripts/setup_resources.sh"
+  [ "$status" -eq 1 ]
+  [ "$(readlink "$WORK/resources/current")" = "releases/previous" ]
+}
+
+@test "RSM-015: fixed manifest and published tree contain no external resource graph" {
+  local source_types
+  source_types="$(jq -r '[.sources[] | .type] | unique | join(",")' "$REPO_ROOT/resources.manifest.json")"
+  [ "$source_types" = "local" ]
+  [ "$(jq -r '.sources | length' "$REPO_ROOT/resources.manifest.json")" -eq 1 ]
+  [ "$(jq -r '.sources[0].id' "$REPO_ROOT/resources.manifest.json")" = "nostalgia-fixed" ]
+  [ "$(jq -r '[.assembly[] | select(.target == "sources" or .dir == "sources")] | length' "$REPO_ROOT/resources.manifest.json")" -eq 0 ]
+  [ ! -d "$REPO_ROOT/nostalgia-resources/sources" ]
+
+  run find -L "$REPO_ROOT/resources/current" \( -name .git -o -name repositories -o -name extensions \) -print
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+  [ -f "$REPO_ROOT/resources/current/lock.json" ]
+  [ -f "$REPO_ROOT/resources/current/ygopro/base/cards.cdb" ]
+  [ -f "$REPO_ROOT/resources/current/ygopro/formats/1103/lflist.conf" ]
+  [ -f "$REPO_ROOT/resources/current/ygopro/formats/1109/lflist.conf" ]
+  [ ! -d "$REPO_ROOT/resources/current/sources" ]
+}
+
+# ============================================================
 # RSM-006 — HTTP integrity check
 # ============================================================
 

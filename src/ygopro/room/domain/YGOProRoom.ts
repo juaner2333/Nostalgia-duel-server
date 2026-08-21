@@ -21,12 +21,6 @@ import { Deck } from "@shared/deck/domain/Deck";
 
 import MercuryBanListMemoryRepository from "../../ban-list/infrastructure/YGOProBanListMemoryRepository";
 import { YGOProClient } from "../../client/domain/YGOProClient";
-import {
-	extendedCardPoolFormats,
-	formatRuleMappings,
-	priorityRuleMappings,
-	ruleMappings,
-} from "./RuleMappings";
 import { YGOProChoosingOrderState } from "./states/YGOProChoosingOrderState";
 import { YGOProDuelingState } from "./states/YGOProDuelingState";
 import { YGOProRockPaperScissorState } from "./states/YGOProRockPaperScissorState";
@@ -52,20 +46,29 @@ import { YGOProDeckCreator } from "@ygopro/deck/application/YGOProDeckCreator";
 import { YGOProDeckValidator } from "@ygopro/deck/domain/YGOProDeckValidator";
 import { CardYGOProRepository } from "@ygopro/card/infrastructure/CardYGOProRepository";
 import { YGOProBanList } from "@ygopro/ban-list/domain/YGOProBanList";
+import { getNostalgiaFormat, type NostalgiaFormatId } from "@ygopro/room/domain/NostalgiaFormat";
 
-const BEST_OF = {
-	[GameMode.SINGLE]: 1,
-	[GameMode.MATCH]: 3,
-	[GameMode.TAG]: 1,
-};
+export interface NostalgiaRoomCreationOptions {
+	id: number;
+	formatId: NostalgiaFormatId;
+	roomId: string;
+	logger: Logger;
+	emitter: EventEmitter;
+	createdBySocketId: string;
+	messageRepository: MessageRepository;
+	banListHash: number;
+	rankedOverride?: boolean;
+}
 
 export class YGOProRoom extends YgoRoom {
 	readonly name: string;
 	readonly password: string;
+	readonly formatId: NostalgiaFormatId;
+	readonly externalRoomId: string;
+	readonly admissionKey: string;
 	readonly league: RoomLeague;
 	readonly createdBySocketId: string;
 	readonly banListHash: number;
-	readonly useExtendedCardPool: boolean;
 	private _logger: Logger;
 	private _roomState: YGOProRoomState | null = null;
 	private _isPositionSwapped: boolean = false;
@@ -101,7 +104,8 @@ export class YGOProRoom extends YgoRoom {
 		startLp,
 		messageRepository,
 		banListHash,
-		useExtendedCardPool,
+		formatId,
+		externalRoomId,
 	}: {
 		id: number;
 		password: string;
@@ -115,7 +119,8 @@ export class YGOProRoom extends YgoRoom {
 		startLp: number;
 		messageRepository: MessageRepository;
 		banListHash: number;
-		useExtendedCardPool: boolean;
+		formatId: NostalgiaFormatId;
+		externalRoomId: string;
 	}) {
 		super({
 			team0,
@@ -129,15 +134,17 @@ export class YGOProRoom extends YgoRoom {
 		});
 		this.name = name;
 		this.password = password;
+		this.formatId = formatId;
+		this.externalRoomId = externalRoomId;
+		this.admissionKey = `${formatId}#${externalRoomId}`;
 		this.league = league;
 		this._players = [];
 		this._hostInfo = hostInfo;
 		this._state = DuelState.WAITING;
 		this.banListHash = banListHash;
-		this.useExtendedCardPool = useExtendedCardPool;
 		this.createdBySocketId = createdBySocketId;
 		this._messageRepository = messageRepository;
-		this._cardRepository = new CardYGOProRepository(this.useExtendedCardPool);
+		this._cardRepository = new CardYGOProRepository(this.formatId);
 		this._deckRules = new DeckRules({
 			mainMin: 40,
 			mainMax: 60,
@@ -160,102 +167,93 @@ export class YGOProRoom extends YgoRoom {
 		messageRepository: MessageRepository,
 		rankedOverride?: boolean,
 	): YGOProRoom {
-		let hostInfo: HostInfo = {
-			lflist: MercuryBanListMemoryRepository.getFirstTCGIndex(),
-			rule: 1,
-			mode: GameMode.SINGLE,
-			duel_rule: 5,
+		const [configuration, password = ""] = command.split("#");
+		const format = getNostalgiaFormat("1109")!;
+		const banListHash = MercuryBanListMemoryRepository.findByName(format.banListName)?.hash ?? 0;
+		const hostInfo: HostInfo = {
+			lflist: banListHash,
+			rule: format.rule,
+			mode: format.mode,
+			duel_rule: format.duelRule,
 			no_check_deck: 0,
 			no_shuffle_deck: 0,
-			start_lp: 8000,
+			start_lp: format.startLp,
 			start_hand: 5,
 			draw_count: 1,
 			time_limit: 450,
 			max_deck_points: 100,
-			best_of: BEST_OF[GameMode.SINGLE],
+			best_of: format.bestOf,
 		};
-
-		const [configuration, password = ""] = command.split("#");
-		const options = configuration
-			.toLowerCase()
-			.split(",")
-			.map((_) => _.trim());
-
-		const mappingKeys = Object.keys(ruleMappings);
-		const formatMappingKeys = Object.keys(formatRuleMappings);
-		const priorityMappingKeys = Object.keys(priorityRuleMappings);
-		const mappings = mappingKeys.map((key) => ruleMappings[key]);
-		const formatMappings = formatMappingKeys.map((key) => formatRuleMappings[key]);
-		const priorityMappings = priorityMappingKeys.map((key) => priorityRuleMappings[key]);
-
-		options.forEach((option) => {
-			const items = mappings.filter((item) => item.validate(option));
-			if (items.length > 1) {
-				throw new Error(`Error: param match with two rules.`);
-			}
-
-			const mapping = items.shift();
-			if (mapping) {
-				const rule = mapping.get(option);
-				hostInfo = { ...hostInfo, ...rule };
-			}
-		});
-
-		options.forEach((option) => {
-			const items = formatMappings.filter((item) => item.validate(option));
-			if (items.length > 1) {
-				throw new Error(`Error: param match with two rules.`);
-			}
-			const mapping = items.shift();
-			if (mapping) {
-				const rule = mapping.get(option);
-				hostInfo = { ...hostInfo, ...rule };
-			}
-		});
-
-		options.forEach((option) => {
-			const items = priorityMappings.filter((item) => item.validate(option));
-			if (items.length > 1) {
-				throw new Error(`Error: param match with two rules.`);
-			}
-			const mapping = items.shift();
-			if (mapping) {
-				const rule = mapping.get(option);
-				hostInfo = { ...hostInfo, ...rule };
-			}
-		});
-
-		const teamCount = hostInfo.mode === GameMode.TAG ? 2 : 1;
-		// The host's explicit "casual" token wins over any ranked default — a
-		// ticket-authenticated user must be able to host unranked rooms.
-		const casual = options.includes("casual");
 		const league = RoomLeague.determine({
-			casual,
+			casual: false,
 			rankedOverride,
 			hasPin: Boolean(playerInfo.password),
 		});
-		const useExtendedCardPool = options.some((opt) => extendedCardPoolFormats.has(opt));
-		const banList = MercuryBanListMemoryRepository.findLFListByIndex(hostInfo.lflist);
-		const banListHash = banList?.hash ?? 0;
 
 		const room = new YGOProRoom({
 			id,
 			hostInfo,
 			name: configuration,
 			password,
-			team0: teamCount,
-			team1: teamCount,
+			team0: 1,
+			team1: 1,
 			league,
 			createdBySocketId,
 			bestOf: hostInfo.best_of,
 			startLp: hostInfo.start_lp,
 			messageRepository,
 			banListHash,
-			useExtendedCardPool,
+			formatId: format.id,
+			externalRoomId: configuration,
 		});
 
 		room._logger = logger.child({ file: "MercuryRoom" });
 		room.emitter = emitter;
+
+		return room;
+	}
+
+	static createNostalgia(options: NostalgiaRoomCreationOptions): YGOProRoom {
+		const format = getNostalgiaFormat(options.formatId);
+		if (!format) {
+			throw new Error(`Unsupported nostalgia format: ${options.formatId}`);
+		}
+		const room = new YGOProRoom({
+			id: options.id,
+			name: `${format.id}#${options.roomId}`,
+			password: "",
+			hostInfo: {
+				lflist: options.banListHash,
+				rule: format.rule,
+				mode: format.mode,
+				duel_rule: format.duelRule,
+				no_check_deck: 0,
+				no_shuffle_deck: 0,
+				start_lp: format.startLp,
+				start_hand: 5,
+				draw_count: 1,
+				time_limit: 450,
+				max_deck_points: 100,
+				best_of: format.bestOf,
+			},
+			team0: 1,
+			team1: 1,
+			league: RoomLeague.determine({
+				casual: false,
+				rankedOverride: options.rankedOverride,
+				hasPin: false,
+			}),
+			createdBySocketId: options.createdBySocketId,
+			bestOf: format.bestOf,
+			startLp: format.startLp,
+			messageRepository: options.messageRepository,
+			banListHash: options.banListHash,
+			formatId: format.id,
+			externalRoomId: options.roomId,
+		});
+
+		room._logger = options.logger.child({ file: "NostalgiaRoom" });
+		room.emitter = options.emitter;
 
 		return room;
 	}
@@ -720,6 +718,9 @@ export class YGOProRoom extends YgoRoom {
 		return {
 			roomid: this.id,
 			roomname: this.name,
+			formatId: this.formatId,
+			externalRoomId: this.externalRoomId,
+			admissionKey: this.admissionKey,
 			roomnotes: this.ranked ? "(Mercury-Ranked)" : "(Mercury)",
 			roommode: this._hostInfo.mode,
 			needpass: this.password.length > 0,
@@ -752,15 +753,6 @@ export class YGOProRoom extends YgoRoom {
 	}
 
 	toRoomListDTO(): { [key: string]: unknown } {
-		const RULE_LABELS: Record<number, string> = {
-			0: "OCG",
-			1: "TCG",
-			2: "OCG/TCG",
-			3: "Pre-release",
-			4: "Anything Goes",
-			5: "Anything Goes",
-		};
-
 		const started = this.duelState !== DuelState.WAITING;
 		const maxPlayers = this.team0 + this.team1;
 		const banList = MercuryBanListMemoryRepository.findByHash(this.banListHash);
@@ -768,13 +760,17 @@ export class YGOProRoom extends YgoRoom {
 		return {
 			id: this.id,
 			command: this.name,
+			formatId: this.formatId,
+			externalRoomId: this.externalRoomId,
+			admissionKey: this.admissionKey,
 			status: this.duelState,
 			started,
 			private: this.password.length > 0,
 			canPlay: !started && this._players.length < maxPlayers,
 			canWatch: true,
 			banlist: banList?.name ?? "No banlist",
-			rule: RULE_LABELS[this._hostInfo.rule] ?? "Anything Goes",
+			banListHash: this.banListHash,
+			rule: "OCG",
 			mode: this._hostInfo.mode,
 			bestOf: this.bestOf,
 			duelRule: this._hostInfo.duel_rule,
@@ -797,6 +793,10 @@ export class YGOProRoom extends YgoRoom {
 	override toRealTimePresentation(): { [key: string]: unknown } {
 		return {
 			...super.toRealTimePresentation(),
+			formatId: this.formatId,
+			externalRoomId: this.externalRoomId,
+			admissionKey: this.admissionKey,
+			banListHash: this.banListHash,
 			league: this.league.type,
 		};
 	}

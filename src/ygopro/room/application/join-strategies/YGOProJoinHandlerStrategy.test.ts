@@ -12,6 +12,8 @@ import { EventEmitter } from "stream";
 import { YGOProJoinHandler } from "../YGOProJoinHandler";
 import { JoinStrategyRegistry } from "./JoinStrategyRegistry";
 import { JoinContext, JoinStrategy } from "./JoinStrategy";
+import { DefaultJoinStrategy } from "./DefaultJoinStrategy";
+import { NostalgiaJoinStrategy } from "./NostalgiaJoinStrategy";
 
 import YGOProRoomList from "../../infrastructure/YGOProRoomList";
 import { YGOProRoom } from "../../domain/YGOProRoom";
@@ -86,7 +88,10 @@ describe("YGOProJoinHandler — strategy chain integration", () => {
 
 	beforeEach(() => {
 		emitter = new EventEmitter();
-		JoinStrategyRegistry.reset();
+		JoinStrategyRegistry.setStrategies([
+			new NostalgiaJoinStrategy({ getBanListHash: () => 1109 }),
+			new DefaultJoinStrategy(),
+		]);
 		const rooms = YGOProRoomList.getRooms();
 		while (rooms.length) {
 			YGOProRoomList.deleteRoom(rooms[0]);
@@ -102,7 +107,7 @@ describe("YGOProJoinHandler — strategy chain integration", () => {
 		roomEmitSpy.mockRestore();
 	});
 
-	it("still creates a normal room for a non-AI join (DefaultJoinStrategy regression)", async () => {
+	it("creates a fixed-format room for a valid environment identifier", async () => {
 		// Listen for the JOIN emit that WaitingState would handle
 		emitter.on("JOIN", jest.fn());
 
@@ -112,13 +117,13 @@ describe("YGOProJoinHandler — strategy chain integration", () => {
 
 		new YGOProJoinHandler(emitter, logger as never, socket as never, messageRepo as never);
 
-		const { data, previousMessage } = makeJoinMessage("NORMALROOM");
+		const { data, previousMessage } = makeJoinMessage("1109#1001");
 		emitter.emit(18 as unknown as string, { data, previousMessage });
 
 		// Allow async ops to complete
 		await new Promise((r) => setImmediate(r));
 
-		const room = YGOProRoomList.findByName("NORMALROOM");
+		const room = YGOProRoomList.findByAdmissionKey("1109#1001");
 		expect(room).not.toBeNull();
 	});
 

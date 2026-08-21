@@ -21,7 +21,7 @@ const makeDeps = (overrides: Partial<MatchmakingQueueDeps> = {}): MatchmakingQue
 };
 
 const enqueue = (queue: MatchmakingQueue, ticketId: string, userId: string) =>
-	queue.enqueue({ ticketId, userId, format: "tcg" });
+	queue.enqueue({ ticketId, userId, format: "1103" });
 
 describe("MatchmakingQueue", () => {
 	afterEach(() => {
@@ -197,14 +197,14 @@ describe("MatchmakingQueue", () => {
 			expect(queue.get("t1")?.state).toBe("searching");
 		});
 
-		it("never pairs entries of different formats (tcg and jtp stay isolated)", () => {
-			// Cross-format isolation: a tcg entry and a jtp entry must NOT be paired
+		it("never pairs entries of different formats (1103 and 1109 stay isolated)", () => {
+			// Cross-format isolation: a 1103 entry and a 1109 entry must NOT be paired
 			// with each other. Pairing buckets by format, so one lone entry per format
 			// leaves both searching and no room is created.
 			const createRankedRoom = jest.fn();
 			const queue = MatchmakingQueue.createForTests(makeDeps({ createRankedRoom }));
-			queue.enqueue({ ticketId: "t1", userId: "user-tcg", format: "tcg" });
-			queue.enqueue({ ticketId: "t2", userId: "user-jtp", format: "jtp" });
+			queue.enqueue({ ticketId: "t1", userId: "user-1103", format: "1103" });
+			queue.enqueue({ ticketId: "t2", userId: "user-1109", format: "1109" });
 
 			queue.tick();
 
@@ -238,7 +238,7 @@ describe("MatchmakingQueue", () => {
 			expect(e1?.opponentType).toBe("bot");
 			expect(e1?.rated).toBe(false);
 			expect(e1?.roomPassword).toBe("to,mm-b1#pw1");
-			expect(spawnBot).toHaveBeenCalledWith(4242, "tcg");
+			expect(spawnBot).toHaveBeenCalledWith(4242, "1103");
 		});
 
 		it("does not trigger bot fallback before the window elapses", () => {
@@ -405,7 +405,7 @@ describe("MatchmakingQueue", () => {
 			// Second tick: port recovers, entry now matches to a bot.
 			expect(() => queue.tick()).not.toThrow();
 			expect(queue.get("t1")?.state).toBe("matched");
-			expect(spawnBot).toHaveBeenCalledWith(5000 + call, "tcg");
+			expect(spawnBot).toHaveBeenCalledWith(5000 + call, "1103");
 		});
 	});
 

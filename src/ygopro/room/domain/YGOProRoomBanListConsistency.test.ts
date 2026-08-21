@@ -1,17 +1,20 @@
 import "reflect-metadata";
 
+import EventEmitter from "events";
 import { gunzipSync } from "node:zlib";
 
-import { YGOProRoomMother } from "@test-support/mothers/room/YGOProRoomMother";
-import YGOProBanListMemoryRepository from "@ygopro/ban-list/infrastructure/YGOProBanListMemoryRepository";
 import { YGOProBanList } from "@ygopro/ban-list/domain/YGOProBanList";
+import YGOProBanListMemoryRepository from "@ygopro/ban-list/infrastructure/YGOProBanListMemoryRepository";
+import { LoggerMock } from "@test-support/mocks/logger/LoggerMock";
+import { MessageRepositoryMock } from "@test-support/mocks/MessageRepositoryMock";
 import { GameOverDomainEvent } from "@shared/room/domain/match/domain/domain-events/GameOverDomainEvent";
 import { DuelRecord } from "./DuelRecord";
+import { type NostalgiaFormatId } from "./NostalgiaFormat";
+import { YGOProRoom } from "./YGOProRoom";
 import { EvrpSerializer } from "./replay/EvrpSerializer";
 
-// Same content hashes YGOProBanListLoader.test.ts pins for its fixtures.
-const NORMAL_HASH = 3948153423;
-const GENESYS_HASH = 342330484;
+const OCG_1103_HASH = 3_163_254_096;
+const OCG_1109_HASH = 3_935_183_130;
 
 function createBanList(name: string, hash: number): YGOProBanList {
 	const banList = new YGOProBanList();
@@ -20,9 +23,20 @@ function createBanList(name: string, hash: number): YGOProBanList {
 	return banList;
 }
 
-const replayEnvelope = (
-	room: ReturnType<typeof YGOProRoomMother.create>,
-): { meta: { hostInfo: { lflist: number } } } =>
+function createRoom(formatId: NostalgiaFormatId, banListHash: number): YGOProRoom {
+	return YGOProRoom.createNostalgia({
+		id: 1,
+		formatId,
+		roomId: "1001",
+		logger: new LoggerMock(),
+		emitter: new EventEmitter(),
+		createdBySocketId: "socket-id",
+		messageRepository: new MessageRepositoryMock(),
+		banListHash,
+	});
+}
+
+const replayEnvelope = (room: YGOProRoom): { meta: { hostInfo: { lflist: number } } } =>
 	JSON.parse(
 		gunzipSync(
 			EvrpSerializer.serialize({ players: room.players, hostInfo: room.hostInfo }, [
@@ -31,8 +45,7 @@ const replayEnvelope = (
 		).toString("utf8"),
 	);
 
-/** Mirrors YGOProDuelingState.dispatchGameOverDomainEvent field-for-field. */
-const gameOverEvent = (room: ReturnType<typeof YGOProRoomMother.create>): GameOverDomainEvent =>
+const gameOverEvent = (room: YGOProRoom): GameOverDomainEvent =>
 	new GameOverDomainEvent({
 		bestOf: room.bestOf,
 		players: room.matchPlayersHistory,
@@ -40,13 +53,16 @@ const gameOverEvent = (room: ReturnType<typeof YGOProRoomMother.create>): GameOv
 		banListHash: room.banListHash,
 		banListName: room.banListName ?? "N/A",
 		ranked: room.ranked,
+		formatId: room.formatId,
+		externalRoomId: room.externalRoomId,
+		admissionKey: room.admissionKey,
 	});
 
 describe("YGOProRoom ban-list hash and name consistency", () => {
 	beforeEach(() => {
 		YGOProBanListMemoryRepository.replaceAll([
-			createBanList("2026.01 OCG", NORMAL_HASH),
-			createBanList("Genesys", GENESYS_HASH),
+			createBanList("OCG 1103", OCG_1103_HASH),
+			createBanList("OCG 1109", OCG_1109_HASH),
 		]);
 	});
 
@@ -54,44 +70,29 @@ describe("YGOProRoom ban-list hash and name consistency", () => {
 		YGOProBanListMemoryRepository.replaceAll([]);
 	});
 
-	it("exposes one consistent hash and name for a normal list across room display, replay metadata and the game-over event", () => {
-		const room = YGOProRoomMother.create({ command: "m#123" });
+	it.each([
+		["1103", "OCG 1103", OCG_1103_HASH],
+		["1109", "OCG 1109", OCG_1109_HASH],
+	] as const)("keeps %s hash and name consistent across room, replay and event", (formatId, name, hash) => {
+		const room = createRoom(formatId, hash);
 
-		expect(room.banListName).toBe("2026.01 OCG");
-		expect(room.toRoomListDTO().banlist).toBe("2026.01 OCG");
-		expect(room.hostInfo.lflist).toBe(NORMAL_HASH);
-		expect(replayEnvelope(room).meta.hostInfo.lflist).toBe(NORMAL_HASH);
-
-		const event = gameOverEvent(room);
-		expect(event.data.banListName).toBe("2026.01 OCG");
-		expect(event.data.banListHash).toBe(NORMAL_HASH);
-
-		expect(YGOProBanListMemoryRepository.findByHash(NORMAL_HASH)?.name).toBe("2026.01 OCG");
-	});
-
-	it("exposes one consistent hash and name for the Genesys points list", () => {
-		const room = YGOProRoomMother.create({ command: "genesys#123" });
-
-		expect(room.banListName).toBe("Genesys");
-		expect(room.toRoomListDTO().banlist).toBe("Genesys");
-		expect(room.hostInfo.lflist).toBe(GENESYS_HASH);
-		expect(replayEnvelope(room).meta.hostInfo.lflist).toBe(GENESYS_HASH);
-		expect(room.hostInfo.max_deck_points).toBe(100);
+		expect(room.banListName).toBe(name);
+		expect(room.toRoomListDTO().banlist).toBe(name);
+		expect(room.hostInfo.lflist).toBe(hash);
+		expect(replayEnvelope(room).meta.hostInfo.lflist).toBe(hash);
 
 		const event = gameOverEvent(room);
-		expect(event.data.banListName).toBe("Genesys");
-		expect(event.data.banListHash).toBe(GENESYS_HASH);
-
-		expect(YGOProBanListMemoryRepository.findByHash(GENESYS_HASH)?.name).toBe("Genesys");
+		expect(event.data.banListName).toBe(name);
+		expect(event.data.banListHash).toBe(hash);
+		expect(event.data.formatId).toBe(formatId);
+		expect(YGOProBanListMemoryRepository.findByHash(hash)?.name).toBe(name);
 	});
 
-	it("falls back to N/A and zero in the game-over event when no list matches", () => {
+	it("falls back to N/A when the selected list is unavailable", () => {
 		YGOProBanListMemoryRepository.replaceAll([]);
+		const event = gameOverEvent(createRoom("1109", OCG_1109_HASH));
 
-		const room = YGOProRoomMother.create({ command: "m#123" });
-
-		const event = gameOverEvent(room);
 		expect(event.data.banListName).toBe("N/A");
-		expect(event.data.banListHash).toBe(0);
+		expect(event.data.banListHash).toBe(OCG_1109_HASH);
 	});
 });

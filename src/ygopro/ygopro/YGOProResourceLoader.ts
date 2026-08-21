@@ -1,293 +1,120 @@
 import type { CardReaderFn } from "koishipro-core.js";
-import { searchYGOProResource } from "koishipro-core.js";
 import { YGOProLFList } from "ygopro-lflist-encode";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { runInWorker } from "yuzuthread";
 import BetterLock from "better-lock";
-import { CardStorage } from "./card-storage";
-import { CardLoadWorker } from "./card-load-worker";
+import { config } from "src/config";
 import { Logger } from "src/shared/logger/domain/Logger";
 import LoggerFactory from "src/shared/logger/infrastructure/LoggerFactory";
-import { config } from "src/config";
-import { resolvePools } from "./ResourcePoolResolver";
-import { resolveForkCorePath } from "./ocgcoreFork";
+import { CardStorage } from "./card-storage";
+import { CardLoadWorker } from "./card-load-worker";
+import { resolveFormatPath, resolvePools } from "./ResourcePoolResolver";
 
-const CARD_STORAGE_RELOAD_INTERVAL_MS = 10 * 60 * 1000;
-
-let _sharedInstance: YGOProResourceLoader | null = null;
+let sharedInstance: YGOProResourceLoader | null = null;
 
 export class YGOProResourceLoader {
 	private readonly logger: Logger;
-	private forkCorePath: string | undefined;
-	private forkCoreResolved = false;
-
-	constructor() {
-		this.logger = LoggerFactory.getLogger();
-		this.registerReloadTimer();
-	}
-
-	static getShared(): YGOProResourceLoader {
-		if (!_sharedInstance) {
-			throw new Error("YGOProResourceLoader not initialized. Call initShared() in index.ts first.");
-		}
-		return _sharedInstance;
-	}
-
-	static async start(): Promise<void> {
-		const loader = YGOProResourceLoader.get();
-		await loader.loadYGOProCdbs();
-	}
-
-	static get(): YGOProResourceLoader {
-		if (_sharedInstance) {
-			return _sharedInstance;
-		}
-		_sharedInstance = new YGOProResourceLoader();
-		return _sharedInstance;
-	}
-
-	static get isInitialized(): boolean {
-		return _sharedInstance !== null;
-	}
-
+	private readonly loadingLock = new BetterLock();
 	private readonly resolvedPools = resolvePools({
 		manifestPath: config.resources.manifestPath,
 		resourcesDir: config.resources.dir,
 		logger: LoggerFactory.getLogger(),
 	});
+	private baseLoadingPromise?: Promise<CardStorage>;
+	private baseCardStorage?: CardStorage;
+	private baseSha512?: Buffer;
+	private readonly formatCardStorages = new Map<string, CardStorage>();
+	private readonly formatCardStoragePromises = new Map<string, Promise<CardStorage>>();
+	private readonly formatBanListHashes = new Map<string, number>();
 
-	ygoproPaths = this.resolvedPools.standard;
-
-	extraFolderPaths = (() => {
-		const { standard, extended } = this.resolvedPools;
-		// extraFolderPaths = extensions delta only (extended minus standard)
-		return extended.slice(standard.length);
-	})();
-
-	extraScriptPaths = config.resources.ygopro.extraScripts;
-
-	private loadingLock = new BetterLock();
-
-	private standardLoadingPromise?: Promise<CardStorage>;
-	private standardCardStorage?: CardStorage;
-	private standardSha512?: Buffer;
-
-	private extendedLoadingPromise?: Promise<CardStorage>;
-	private extendedCardStorage?: CardStorage;
-	private extendedSha512?: Buffer;
-
-	private reloadTimerRegistered = false;
-
-	// Hex of the SHA-512 over the loaded standard/extended card pools, or null before a
-	// pool has been loaded. Read by the resource-version endpoint to report what the
-	// server has loaded so clients can detect drift.
-	get standardSha512Hex(): string | null {
-		return this.standardSha512?.toString("hex") ?? null;
+	constructor() {
+		this.logger = LoggerFactory.getLogger();
 	}
 
-	get extendedSha512Hex(): string | null {
-		return this.extendedSha512?.toString("hex") ?? null;
-	}
-
-	get hasExtraFolderPaths(): boolean {
-		return this.extraFolderPaths.length > 0;
-	}
-
-	async getCardStorage() {
-		return this.getStandardCardStorage();
-	}
-
-	async getStandardCardStorage(): Promise<CardStorage> {
-		if (this.standardCardStorage) {
-			return this.standardCardStorage;
+	static getShared(): YGOProResourceLoader {
+		if (!sharedInstance) {
+			throw new Error("YGOProResourceLoader not initialized. Call initShared() in index.ts first.");
 		}
-		if (this.standardLoadingPromise) {
-			return this.standardLoadingPromise;
-		}
-		return this.loadStandardCdbs();
+		return sharedInstance;
 	}
 
-	async getExtendedCardStorage(): Promise<CardStorage> {
-		if (!this.hasExtraFolderPaths) {
-			return this.getStandardCardStorage();
-		}
-		if (this.extendedCardStorage) {
-			return this.extendedCardStorage;
-		}
-		if (this.extendedLoadingPromise) {
-			return this.extendedLoadingPromise;
-		}
-		return this.loadExtendedCdbs();
+	static async start(): Promise<void> {
+		await YGOProResourceLoader.get().loadBaseCdb();
 	}
 
-	async getCardReader(): Promise<CardReaderFn> {
-		const storage = await this.getStandardCardStorage();
-		return storage.toCardReader();
-	}
-
-	async getExtendedCardReader(): Promise<CardReaderFn> {
-		const storage = await this.getExtendedCardStorage();
-		return storage.toCardReader();
-	}
-
-	async getOcgcoreWasmBinary() {
-		const storage = await this.getStandardCardStorage();
-		return storage.ocgcoreWasmBinary;
-	}
-
-	async loadYGOProCdbs() {
-		await this.loadStandardCdbs();
-		if (this.hasExtraFolderPaths) {
-			await this.loadExtendedCdbs();
+	static get(): YGOProResourceLoader {
+		if (!sharedInstance) {
+			sharedInstance = new YGOProResourceLoader();
 		}
+		return sharedInstance;
 	}
 
-	private async loadStandardCdbs(): Promise<CardStorage> {
-		if (this.standardLoadingPromise) {
-			return this.standardLoadingPromise;
+	static get isInitialized(): boolean {
+		return sharedInstance !== null;
+	}
+
+	get baseSha512Hex(): string | null {
+		return this.baseSha512?.toString("hex") ?? null;
+	}
+
+	async getFormatCardStorage(formatId: string): Promise<CardStorage> {
+		const existing = this.formatCardStorages.get(formatId);
+		if (existing) {
+			return existing;
 		}
-		const loading = this.loadingLock.acquire(async () => {
-			const { cardStorage, sha512 } = await this.loadCardStorageFromPaths(
-				this.ygoproPaths,
-				"standard",
-			);
-			this.standardCardStorage = cardStorage;
-			this.standardSha512 = sha512;
-			return cardStorage;
-		});
-		this.standardLoadingPromise = loading;
+		const loading = this.formatCardStoragePromises.get(formatId);
+		if (loading) {
+			return loading;
+		}
+		const promise = this.loadFormatCardStorage(formatId);
+		this.formatCardStoragePromises.set(formatId, promise);
 		try {
-			return await loading;
+			return await promise;
 		} finally {
-			if (this.standardLoadingPromise === loading) {
-				this.standardLoadingPromise = undefined;
+			if (this.formatCardStoragePromises.get(formatId) === promise) {
+				this.formatCardStoragePromises.delete(formatId);
 			}
 		}
 	}
 
-	private async loadExtendedCdbs(): Promise<CardStorage> {
-		if (this.extendedLoadingPromise) {
-			return this.extendedLoadingPromise;
-		}
-		const loading = this.loadingLock.acquire(async () => {
-			const allPaths = [...this.ygoproPaths, ...this.extraFolderPaths];
-			const { cardStorage, sha512 } = await this.loadCardStorageFromPaths(allPaths, "extended");
-			this.extendedCardStorage = cardStorage;
-			this.extendedSha512 = sha512;
-			return cardStorage;
-		});
-		this.extendedLoadingPromise = loading;
-		try {
-			return await loading;
-		} finally {
-			if (this.extendedLoadingPromise === loading) {
-				this.extendedLoadingPromise = undefined;
-			}
-		}
+	async getFormatCardReader(formatId: string): Promise<CardReaderFn> {
+		return (await this.getFormatCardStorage(formatId)).toCardReader();
 	}
 
-	private registerReloadTimer() {
-		if (this.reloadTimerRegistered) {
-			return;
-		}
-		this.reloadTimerRegistered = true;
-		setInterval(() => {
-			this.reloadIfChanged().catch((error) => {
-				this.logger.error("Failed reloading card storage by periodic refresh");
-				this.logger.error(error);
-			});
-		}, CARD_STORAGE_RELOAD_INTERVAL_MS);
+	getFormatScriptPaths(formatId: string): string[] {
+		return [resolveFormatPath(this.resolvedPools, formatId), this.basePath()];
 	}
 
-	private async reloadIfChanged() {
-		await this.reloadStorageIfChanged(
-			this.ygoproPaths,
-			"standard",
-			this.standardCardStorage,
-			this.standardSha512,
-			(storage, sha512) => {
-				this.standardCardStorage = storage;
-				this.standardSha512 = sha512;
-			},
+	async getFormatBanListHash(formatId: string): Promise<number> {
+		const existing = this.formatBanListHashes.get(formatId);
+		if (existing !== undefined) {
+			return existing;
+		}
+		const text = await readFile(
+			path.join(resolveFormatPath(this.resolvedPools, formatId), "lflist.conf"),
+			"utf-8",
 		);
+		const item = new YGOProLFList().fromText(text).items[0];
+		if (!item) {
+			throw new Error(`Format ${formatId} has no LFList`);
+		}
+		const hash = item.getHash();
+		this.formatBanListHashes.set(formatId, hash);
+		return hash;
+	}
 
-		if (this.hasExtraFolderPaths) {
-			const allPaths = [...this.ygoproPaths, ...this.extraFolderPaths];
-			await this.reloadStorageIfChanged(
-				allPaths,
-				"extended",
-				this.extendedCardStorage,
-				this.extendedSha512,
-				(storage, sha512) => {
-					this.extendedCardStorage = storage;
-					this.extendedSha512 = sha512;
-				},
+	async getOcgcoreWasmBinary(): Promise<Buffer | undefined> {
+		return (await this.loadBaseCdb()).ocgcoreWasmBinary;
+	}
+
+	async *getLFLists(): AsyncGenerator<{ item: YGOProLFList["items"][number]; text: string }> {
+		for (const formatId of Object.keys(this.resolvedPools.formats).sort()) {
+			const text = await readFile(
+				path.join(resolveFormatPath(this.resolvedPools, formatId), "lflist.conf"),
+				"utf-8",
 			);
-		}
-	}
-
-	private async reloadStorageIfChanged(
-		paths: string[],
-		label: string,
-		currentStorage: CardStorage | undefined,
-		currentSha512: Buffer | undefined,
-		setter: (storage: CardStorage, sha512: Buffer) => void,
-	) {
-		if (!currentStorage) {
-			return;
-		}
-		await this.loadingLock.acquire(async () => {
-			const { cardStorage, sha512 } = await this.loadCardStorageFromPaths(paths, label);
-			if (currentSha512?.equals(sha512)) {
-				this.logger.debug(`Card storage (${label}) hash unchanged, keeping current data`);
-				return;
-			}
-			setter(cardStorage, sha512);
-			this.logger.info(`Card storage (${label}) hash changed, replaced current data`);
-		});
-	}
-
-	// Resolve the fork-vs-stock core path once (logged once); the card-load worker
-	// still re-reads the binary on each (re)load to pick up a refreshed fork.
-	private resolvedForkCorePath(): string | undefined {
-		if (!this.forkCoreResolved) {
-			this.forkCorePath = resolveForkCorePath(this.logger);
-			this.forkCoreResolved = true;
-		}
-		return this.forkCorePath;
-	}
-
-	private async loadCardStorageFromPaths(paths: string[], label: string) {
-		const ocgcoreWasmPath = this.resolvedForkCorePath();
-		const { cardStorage, dbCount, failedFiles, sha512 } = await runInWorker(
-			CardLoadWorker,
-			(worker) => worker.load(),
-			paths,
-			ocgcoreWasmPath,
-		);
-
-		for (const failedFile of failedFiles) {
-			this.logger.error(`Failed to read ${failedFile}`);
-		}
-		this.logger.info(
-			`Merged ${label} database from ${dbCount} databases with ${cardStorage.size} cards`,
-		);
-		return {
-			cardStorage,
-			sha512,
-		};
-	}
-
-	async *getLFLists() {
-		for await (const file of searchYGOProResource(...this.ygoproPaths)) {
-			const filename = path.basename(file.path);
-			if (filename !== "lflist.conf") {
-				continue;
-			}
-			const buf = await file.read();
-			const text = Buffer.from(buf).toString("utf-8");
-			const lflist = new YGOProLFList().fromText(text);
-			for (const item of lflist.items) {
+			for (const item of new YGOProLFList().fromText(text).items) {
 				yield { item, text };
 			}
 		}
@@ -301,9 +128,95 @@ export class YGOProResourceLoader {
 			index++;
 		}
 		if (index === 0) {
-			this.logger.error("No lflist.conf found in ygoproPaths");
-		} else {
-			this.logger.info(`Total LFLists loaded: ${index}`);
+			this.logger.error("No fixed nostalgia lflist.conf found");
+			return;
+		}
+		this.logger.info(`Total LFLists loaded: ${index}`);
+	}
+
+	private basePath(): string {
+		if (!this.resolvedPools.base) {
+			throw new Error("Fixed nostalgia base resource is unavailable");
+		}
+		return this.resolvedPools.base;
+	}
+
+	private async loadBaseCdb(): Promise<CardStorage> {
+		if (this.baseCardStorage) {
+			return this.baseCardStorage;
+		}
+		if (this.baseLoadingPromise) {
+			return this.baseLoadingPromise;
+		}
+		const loading = this.loadingLock.acquire(async () => {
+			const { cardStorage, sha512 } = await this.loadCardStorageFromPaths(
+				[this.basePath()],
+				"base",
+			);
+			this.baseCardStorage = cardStorage;
+			this.baseSha512 = sha512;
+			return cardStorage;
+		});
+		this.baseLoadingPromise = loading;
+		try {
+			return await loading;
+		} finally {
+			if (this.baseLoadingPromise === loading) {
+				this.baseLoadingPromise = undefined;
+			}
 		}
 	}
+
+	private async loadFormatCardStorage(formatId: string): Promise<CardStorage> {
+		const formatPath = resolveFormatPath(this.resolvedPools, formatId);
+		const cardIds = await readWhitelistCardIds(path.join(formatPath, "lflist.conf"));
+		const storage = (await this.loadBaseCdb()).filterByCardIds(cardIds);
+		if (storage.size !== cardIds.size) {
+			throw new Error(`Format ${formatId} whitelist references cards outside base/cards.cdb`);
+		}
+		this.formatCardStorages.set(formatId, storage);
+		return storage;
+	}
+
+	private async loadCardStorageFromPaths(paths: string[], label: string) {
+		const { cardStorage, dbCount, failedFiles, sha512 } = await runInWorker(
+			CardLoadWorker,
+			(worker) => worker.load(),
+			paths,
+			undefined,
+		);
+
+		for (const failedFile of failedFiles) {
+			this.logger.error(`Failed to read ${failedFile}`);
+		}
+		this.logger.info(
+			`Loaded ${label} database from ${dbCount} database with ${cardStorage.size} cards`,
+		);
+		return { cardStorage, sha512 };
+	}
+}
+
+export async function readWhitelistCardIds(lflistPath: string): Promise<Set<number>> {
+	const lines = (await readFile(lflistPath, "utf-8")).split(/\r?\n/);
+	const whitelistIndex = lines.findIndex((line) => line.trim() === "$whitelist");
+	if (whitelistIndex === -1) {
+		throw new Error(`Whitelist marker missing: ${lflistPath}`);
+	}
+
+	const cardIds = new Set<number>();
+	for (const rawLine of lines.slice(whitelistIndex + 1)) {
+		const match = /^(\d+)\s+([0-3])(?:\s|$)/.exec(rawLine.trim());
+		if (!match) {
+			continue;
+		}
+		const cardId = Number(match[1]);
+		if (!Number.isInteger(cardId) || cardId < 1 || cardId > 0x7fffffff || cardIds.has(cardId)) {
+			throw new Error(`Invalid whitelist card ID in ${lflistPath}: ${match[1]}`);
+		}
+		cardIds.add(cardId);
+	}
+	if (cardIds.size === 0) {
+		throw new Error(`Whitelist has no cards: ${lflistPath}`);
+	}
+	return cardIds;
 }

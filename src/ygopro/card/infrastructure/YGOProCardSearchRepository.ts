@@ -10,13 +10,16 @@ import LoggerFactory from "src/shared/logger/infrastructure/LoggerFactory";
 
 export class YGOProCardSearchRepository extends CdbCardSearchRepository {
 	protected async *cdbFiles(): AsyncIterable<CdbFile> {
-		const { extended } = resolvePools({
+		const { base } = resolvePools({
 			manifestPath: config.resources.manifestPath,
 			resourcesDir: config.resources.dir,
 			logger: LoggerFactory.getLogger(),
 		});
 
-		for await (const file of searchYGOProResource(...extended)) {
+		if (!base) {
+			return;
+		}
+		for await (const file of searchYGOProResource(base)) {
 			yield { path: file.path, read: () => file.read() };
 		}
 	}

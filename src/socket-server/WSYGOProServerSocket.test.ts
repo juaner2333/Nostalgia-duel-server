@@ -53,8 +53,8 @@ jest.mock("@ygopro/card/infrastructure/CardYGOProRepository", () => {
 // hitting TypeORM (no entity metadata exists inside jest).
 jest.mock("@shared/user-profile/infrastructure/postgres/UserProfilePostgresRepository", () => ({
 	UserProfilePostgresRepository: class {
-		async findById(_userId: string) {
-			return null;
+		async findById(userId: string) {
+			return { id: userId };
 		}
 
 		async isBanned(_userId: string) {
@@ -71,6 +71,7 @@ import { TokenIndex } from "@shared/room/domain/TokenIndex";
 import { LoggerMock } from "@test-support/mocks/logger/LoggerMock";
 import { DefaultJoinStrategy } from "@ygopro/room/application/join-strategies/DefaultJoinStrategy";
 import { JoinStrategyRegistry } from "@ygopro/room/application/join-strategies/JoinStrategyRegistry";
+import { NostalgiaJoinStrategy } from "@ygopro/room/application/join-strategies/NostalgiaJoinStrategy";
 import YGOProRoomList from "@ygopro/room/infrastructure/YGOProRoomList";
 
 import { HandshakeTicketAuthenticator } from "./HandshakeTicketAuthenticator";
@@ -261,7 +262,10 @@ describe("WSYGOProServer · real WebSocket contract", () => {
 	};
 
 	beforeEach(() => {
-		JoinStrategyRegistry.setStrategies([new DefaultJoinStrategy()]);
+		JoinStrategyRegistry.setStrategies([
+			new NostalgiaJoinStrategy({ getBanListHash: () => 1109 }),
+			new DefaultJoinStrategy(),
+		]);
 		tickets = new FakeTicketRepository();
 		server = new WSYGOProServer(
 			new LoggerMock(),
@@ -276,7 +280,7 @@ describe("WSYGOProServer · real WebSocket contract", () => {
 			YGOProRoomList.deleteRoom(room);
 		}
 		TokenIndex.getInstance().clear();
-		JoinStrategyRegistry.setStrategies([new DefaultJoinStrategy()]);
+		JoinStrategyRegistry.reset();
 		server.close();
 	});
 
@@ -286,7 +290,7 @@ describe("WSYGOProServer · real WebSocket contract", () => {
 
 		// join frames racing the ticket check must never be dispatched
 		ws.send(buildPlayerInfoFrame("Jaden"));
-		ws.send(buildJoinGameFrame("room1"));
+		ws.send(buildJoinGameFrame("1109#1001"));
 		await waitForCloseOn(ws);
 
 		expect(tickets.consumeCalls).toEqual(["stale"]);
@@ -299,11 +303,11 @@ describe("WSYGOProServer · real WebSocket contract", () => {
 		const { ws, tap } = await connectWs(port);
 
 		ws.send(buildPlayerInfoFrame("Jaden"));
-		ws.send(buildJoinGameFrame("room1"));
+		ws.send(buildJoinGameFrame("1109#1001"));
 		await tap.waitFor((frames) => hasCommand(frames, 0x12) && hasCommand(frames, 0x13));
 
 		expect(tickets.consumeCalls).toHaveLength(0);
-		expect(YGOProRoomList.findByName("room1")?.players).toHaveLength(1);
+		expect(YGOProRoomList.findByName("1109#1001")?.players).toHaveLength(1);
 		ws.close();
 	});
 
@@ -314,7 +318,7 @@ describe("WSYGOProServer · real WebSocket contract", () => {
 
 		const { ws, tap } = await connectWs(port, "?ticket=valid-ticket");
 		ws.send(buildPlayerInfoFrame("Jaden"));
-		ws.send(buildJoinGameFrame("room1"));
+		ws.send(buildJoinGameFrame("1109#1001"));
 
 		// while the ticket check is still in flight, no frame is dispatched
 		await new Promise((resolve) => setTimeout(resolve, 100));
@@ -323,7 +327,7 @@ describe("WSYGOProServer · real WebSocket contract", () => {
 		// once authentication resolves, the buffered frames are dispatched
 		await tap.waitFor((frames) => hasCommand(frames, 0x12) && hasCommand(frames, 0x13));
 		expect(tickets.consumeCalls).toEqual(["valid-ticket"]);
-		expect(YGOProRoomList.findByName("room1")?.players).toHaveLength(1);
+		expect(YGOProRoomList.findByName("1109#1001")?.players).toHaveLength(1);
 		expect(ws.readyState).toBe(WebSocket.OPEN);
 		ws.close();
 	});
@@ -345,8 +349,8 @@ describe("WSYGOProServer · real WebSocket contract", () => {
 
 	it("re-admits a dropped player via a token reconnect on a fresh WebSocket", async () => {
 		const port = await waitForListening();
-		const host = await joinRoom(port, "Jaden", "room1");
-		const guest = await joinRoom(port, "Chazz", "room1");
+		const host = await joinRoom(port, "Jaden", "1109#1001");
+		const guest = await joinRoom(port, "Chazz", "1109#1001");
 
 		await submitDeck(host.ws, host.tap);
 		await submitDeck(guest.ws, guest.tap);
@@ -364,7 +368,7 @@ describe("WSYGOProServer · real WebSocket contract", () => {
 		// the guest drops; the room survives with both players
 		guest.ws.close();
 		await new Promise((resolve) => setTimeout(resolve, 150));
-		expect(YGOProRoomList.findByName("room1")?.players).toHaveLength(2);
+		expect(YGOProRoomList.findByName("1109#1001")?.players).toHaveLength(2);
 
 		// a fresh anonymous WebSocket reconnects with the token
 		const rejoined = await connectWs(port);
@@ -380,7 +384,7 @@ describe("WSYGOProServer · real WebSocket contract", () => {
 		expect(rotated).toMatch(/^[0-9a-f]{32}$/);
 		expect(rotated).not.toBe(token);
 
-		expect(YGOProRoomList.findByName("room1")?.players).toHaveLength(2);
+		expect(YGOProRoomList.findByName("1109#1001")?.players).toHaveLength(2);
 		host.ws.close();
 		rejoined.ws.close();
 	});

@@ -154,9 +154,9 @@ describe("WindBotJoinStrategy", () => {
 		});
 
 		// Multi-token AI command tests
-		it("returns true for 'ai,jtp#Joey' (ai token present, not first)", () => {
+		it("returns true for 'ai,1109#Joey' (ai token present, not first)", () => {
 			const strategy = new WindBotJoinStrategy(makeModule());
-			expect(strategy.matches(makeCtx("ai,jtp#Joey"))).toBe(true);
+			expect(strategy.matches(makeCtx("ai,1109#Joey"))).toBe(true);
 		});
 
 		it("returns true for 'nc,ns,ai#joey' (ai not first among tokens)", () => {
@@ -164,9 +164,9 @@ describe("WindBotJoinStrategy", () => {
 			expect(strategy.matches(makeCtx("nc,ns,ai#joey"))).toBe(true);
 		});
 
-		it("returns true for 'jtp,ai' (ai token present, no bot name)", () => {
+		it("returns true for '1109,ai' (ai token present, no bot name)", () => {
 			const strategy = new WindBotJoinStrategy(makeModule());
-			expect(strategy.matches(makeCtx("jtp,ai"))).toBe(true);
+			expect(strategy.matches(makeCtx("1109,ai"))).toBe(true);
 		});
 
 		it("returns true for lowercase 'ai' (case-insensitive token match)", () => {
@@ -174,9 +174,9 @@ describe("WindBotJoinStrategy", () => {
 			expect(strategy.matches(makeCtx("ai"))).toBe(true);
 		});
 
-		it("returns false for 'jtp#pass' (no ai token)", () => {
+		it("returns false for '1109#pass' (no ai token)", () => {
 			const strategy = new WindBotJoinStrategy(makeModule());
-			expect(strategy.matches(makeCtx("jtp#pass"))).toBe(false);
+			expect(strategy.matches(makeCtx("1109#pass"))).toBe(false);
 		});
 
 		it("returns false for 'nc,ns#pass' (no ai token)", () => {
@@ -197,9 +197,9 @@ describe("WindBotJoinStrategy", () => {
 				provider: makeProvider() as never,
 			});
 			const strategy = new WindBotJoinStrategy(mod);
-			expect(strategy.matches(makeCtx("ai,jtp#Joey"))).toBe(false);
+			expect(strategy.matches(makeCtx("ai,1109#Joey"))).toBe(false);
 			expect(strategy.matches(makeCtx("nc,ns,ai"))).toBe(false);
-			expect(strategy.matches(makeCtx("jtp,ai"))).toBe(false);
+			expect(strategy.matches(makeCtx("1109,ai"))).toBe(false);
 		});
 	});
 
@@ -317,12 +317,12 @@ describe("WindBotJoinStrategy", () => {
 			});
 
 			// Multi-token bot-name parsing tests
-			it("parses bot name from 'ai,jtp#Joey' → findByName('Joey')", async () => {
+			it("parses bot name from 'ai,1109#Joey' → findByName('Joey')", async () => {
 				const repo = makeRepo();
 				const mod = makeModule({ repo });
 				const strategy = new WindBotJoinStrategy(mod);
 
-				const ctx = makeCtx("ai,jtp#Joey");
+				const ctx = makeCtx("ai,1109#Joey");
 
 				await strategy.handle(ctx);
 

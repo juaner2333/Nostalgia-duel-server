@@ -138,20 +138,9 @@ export class OCGCore {
 	async init(): Promise<DuelRecord> {
 		const duelRecord = this.generateDuelRecord();
 
-		const extraScriptPaths = [
-			"./script/patches/entry.lua",
-			"./script/special.lua",
-			"./script/init.lua",
-			...YGOProResourceLoader.get().extraScriptPaths,
-		];
-
 		const loader = YGOProResourceLoader.get();
-		const cardStorage = this.room.useExtendedCardPool
-			? await loader.getExtendedCardStorage()
-			: await loader.getStandardCardStorage();
-		const scriptSearchPaths = this.room.useExtendedCardPool
-			? [...loader.ygoproPaths, ...loader.extraFolderPaths]
-			: loader.ygoproPaths;
+		const cardStorage = await loader.getFormatCardStorage(this.room.formatId);
+		const scriptSearchPaths = loader.getFormatScriptPaths(this.room.formatId);
 		const ocgcoreWasmBinary = await loader.getOcgcoreWasmBinary();
 
 		const registry: Record<string, string> = {
@@ -167,9 +156,7 @@ export class OCGCore {
 			registry[`player_name_${index}`] = player.name;
 		});
 
-		const cardReader = this.room.useExtendedCardPool
-			? await loader.getExtendedCardReader()
-			: await loader.getCardReader();
+		const cardReader = await loader.getFormatCardReader(this.room.formatId);
 
 		const decks = duelRecord
 			.toSwappedPlayers()
@@ -180,7 +167,7 @@ export class OCGCore {
 				seed: duelRecord.seed,
 				hostinfo: this.room.hostInfo,
 				ygoproPaths: scriptSearchPaths,
-				extraScriptPaths,
+				extraScriptPaths: [],
 				cardStorage,
 				ocgcoreWasmBinary,
 				registry,

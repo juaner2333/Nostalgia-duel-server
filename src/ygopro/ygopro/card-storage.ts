@@ -121,6 +121,17 @@ export class CardStorage {
 		};
 	}
 
+	filterByCardIds(cardIds: Set<number>): CardStorage {
+		const cards: CardDataWithOt[] = [];
+		for (const cardId of cardIds) {
+			const card = this.readCard(cardId);
+			if (card) {
+				cards.push(card);
+			}
+		}
+		return CardStorage.fromCards(cards, this.ocgcoreWasmBinary);
+	}
+
 	private static computeHashCapacity(cardCount: number) {
 		const required = Math.max(1, Math.ceil(cardCount / HASH_LOAD_FACTOR));
 		let capacity = HASH_MIN_CAPACITY;

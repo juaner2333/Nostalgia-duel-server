@@ -32,7 +32,7 @@ export class WindBotJoinStrategy implements JoinStrategy {
 		// Extract config segment (everything before the first "#"), split by comma,
 		// trim and lowercase — check if "ai" is among the tokens.
 		// This is ORDER-INDEPENDENT and CASE-INSENSITIVE.
-		// Examples: "AI#Anna", "ai,jtp#Joey", "nc,ns,ai#joey", "jtp,ai", "ai"
+		// Examples: "AI#Anna", "ai,1109#Joey", "nc,ns,ai#joey", "1109,ai", "ai"
 		const configSegment = ctx.rawPass.split("#")[0];
 		const tokens = configSegment.split(",").map((t) => t.trim().toLowerCase());
 		return tokens.includes("ai");
@@ -41,7 +41,7 @@ export class WindBotJoinStrategy implements JoinStrategy {
 	async handle(ctx: JoinContext): Promise<void> {
 		// Determine bot name from the segment AFTER the first "#"
 		// ctx.password is rawPass.split("#")[1] ?? "" (set by YGOProJoinHandler)
-		// "ai,jtp#Joey" → botName = "Joey"
+		// "ai,1109#Joey" → botName = "Joey"
 		// "nc,ns,ai#joey" → botName = "joey"
 		// "ai" / "nc,ai" (no "#") → botName = null (random)
 		const botNameOrNull = ctx.password !== "" ? ctx.password : null;

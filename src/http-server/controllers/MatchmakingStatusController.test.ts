@@ -54,7 +54,7 @@ describe("MatchmakingStatusController", () => {
 		MatchmakingQueue.getInstance().enqueue({
 			ticketId: "t1",
 			userId: "user-1",
-			format: "tcg",
+			format: "1103",
 		});
 
 		const out = run({ ticketId: "t1" });
@@ -64,8 +64,8 @@ describe("MatchmakingStatusController", () => {
 
 	it("returns 200 matched once paired", () => {
 		const q = MatchmakingQueue.getInstance();
-		q.enqueue({ ticketId: "t1", userId: "user-1", format: "tcg" });
-		q.enqueue({ ticketId: "t2", userId: "user-2", format: "tcg" });
+		q.enqueue({ ticketId: "t1", userId: "user-1", format: "1103" });
+		q.enqueue({ ticketId: "t2", userId: "user-2", format: "1103" });
 
 		const out = run({ ticketId: "t1" });
 		expect(out.status()).toBe(200);

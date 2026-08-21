@@ -643,6 +643,9 @@ export class YGOProDuelingState extends YGOProRoomState {
 				banListHash: this.room.banListHash,
 				banListName: this.room.banListName ?? "N/A",
 				ranked: this.room.ranked,
+				formatId: this.room.formatId,
+				externalRoomId: this.room.externalRoomId,
+				admissionKey: this.room.admissionKey,
 			}),
 		);
 	}

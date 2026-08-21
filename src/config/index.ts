@@ -40,9 +40,6 @@ export const config = {
 	resources: {
 		dir: process.env.RESOURCES_DIR ?? "./resources/current",
 		manifestPath: process.env.MANIFEST_PATH ?? "./resources.manifest.json",
-		ygopro: {
-			extraScripts: process.env?.YGOPRO_EXTRA_SCRIPTS?.split(",") ?? [],
-		},
 	},
 	sideTimeoutMinutes: Number(process.env.SIDE_TIMEOUT_MINUTES) || 3,
 	windbot: parseWindbotConfig(process.env),

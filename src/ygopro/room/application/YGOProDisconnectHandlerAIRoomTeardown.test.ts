@@ -187,8 +187,8 @@ describe("YGOProDisconnectHandler — AI room teardown", () => {
 				spawnBot: jest.fn(),
 			});
 			const queue = MatchmakingQueue.getInstance();
-			queue.enqueue({ ticketId: "ticket-a", userId: "user-a", format: "tcg" });
-			queue.enqueue({ ticketId: "ticket-b", userId: "user-b", format: "tcg" });
+			queue.enqueue({ ticketId: "ticket-a", userId: "user-a", format: "1103" });
+			queue.enqueue({ ticketId: "ticket-b", userId: "user-b", format: "1103" });
 
 			runDisconnect(room, leaverId);
 

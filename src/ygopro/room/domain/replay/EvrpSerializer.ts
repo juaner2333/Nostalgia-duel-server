@@ -18,6 +18,10 @@ import { EVRP_CHUNK_BYTES, EVRP_VERSION, STOC_EVRP_EXPORT } from "./evrp-constan
 export interface EvrpRoomContext {
 	players: ReadonlyArray<{ name: string }>;
 	hostInfo: object;
+	formatId?: string;
+	externalRoomId?: string;
+	admissionKey?: string;
+	banListHash?: number;
 }
 
 /**
@@ -29,6 +33,10 @@ export interface EvrpEnvelope {
 	meta: {
 		players: Array<{ name: string }>;
 		hostInfo: object;
+		formatId?: string;
+		externalRoomId?: string;
+		admissionKey?: string;
+		banListHash?: number;
 		startTime: string;
 		endTime: string;
 	};
@@ -58,6 +66,10 @@ export class EvrpSerializer {
 			meta: {
 				players: room.players.map((p) => ({ name: p.name })),
 				hostInfo: room.hostInfo,
+				formatId: room.formatId,
+				externalRoomId: room.externalRoomId,
+				admissionKey: room.admissionKey,
+				banListHash: room.banListHash,
 				startTime: records[0]?.startTime.toISOString() ?? now,
 				endTime: records[records.length - 1]?.endTime?.toISOString() ?? now,
 			},

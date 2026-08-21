@@ -1,5 +1,6 @@
 import { JoinContext, JoinStrategy } from "./JoinStrategy";
 import { DefaultJoinStrategy } from "./DefaultJoinStrategy";
+import { NostalgiaJoinStrategy } from "./NostalgiaJoinStrategy";
 
 /**
  * JoinStrategyRegistry — ordered resolver for join strategies.
@@ -7,7 +8,8 @@ import { DefaultJoinStrategy } from "./DefaultJoinStrategy";
  * Priority order (highest to lowest):
  *   1. AIJoinTokenStrategy  — catches reverse-connecting bot first (AIJOIN# prefix)
  *   2. WindBotJoinStrategy  — matches the explicit "ai" token (AI / AI#name) when windbot enabled
- *   3. DefaultJoinStrategy  — terminal fallback, always matches (blank password lands here)
+ *   3. NostalgiaJoinStrategy — accepts the fixed 1103/1109 room identifiers
+ *   4. DefaultJoinStrategy  — terminal rejection of unsupported input
  *
  * Mirrors the YGOProRoomList module-level singleton pattern.
  *
@@ -35,12 +37,14 @@ export class JoinStrategyRegistry {
 
 	/**
 	 * Returns the module-level singleton.
-	 * Lazily constructed with a DefaultJoinStrategy-only chain on first call
-	 * (windbot strategies are added when WindbotModule is initialized).
+	 * Lazily constructed with the fixed-format chain on first call.
 	 */
 	static getInstance(): JoinStrategyRegistry {
 		if (!JoinStrategyRegistry._instance) {
-			JoinStrategyRegistry._instance = new JoinStrategyRegistry([new DefaultJoinStrategy()]);
+			JoinStrategyRegistry._instance = new JoinStrategyRegistry([
+				new NostalgiaJoinStrategy(),
+				new DefaultJoinStrategy(),
+			]);
 		}
 		return JoinStrategyRegistry._instance;
 	}

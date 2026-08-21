@@ -1,38 +1,10 @@
 [
 	{
 		"name": "Joey",
-		"deck": "JTP"
+		"deck": "Joey"
 	},
 	{
 		"name": "Yugi",
 		"deck": "Yugi"
-	},
-	{
-		"name": "Salamangreat",
-		"deck": "Salamangreat"
-	},
-	{
-		"name": "Sky Striker",
-		"deck": "SkyStriker"
-	},
-	{
-		"name": "Labrynth",
-		"deck": "Labrynth"
-	},
-	{
-		"name": "Yubel",
-		"deck": "Yubel"
-	},
-	{
-		"name": "Swordsoul",
-		"deck": "Swordsoul"
-	},
-	{
-		"name": "Ryzeal",
-		"deck": "Ryzeal"
-	},
-	{
-		"name": "Maliss",
-		"deck": "Maliss"
 	}
 ]

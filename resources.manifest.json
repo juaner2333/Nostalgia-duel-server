@@ -1,190 +1,56 @@
 {
-	"comment": "Declarative resource manifest. Edit this file to add, remove, or change sources. See docs for schema.",
+	"comment": "Fixed, reviewed YGOPro nostalgia resources. No external source is fetched at runtime.",
 	"sources": [
 		{
-			"comment": "ProjectIgnis LFLists — renamed from edopro-lflists (remove-edopro-support); serves ygopro format lflists",
-			"id": "project-ignis-lflists",
-			"type": "git",
-			"url": "https://github.com/ProjectIgnis/LFLists",
-			"branch": "master"
-		},
-		{
-			"id": "evolution-lflists",
-			"type": "git",
-			"url": "https://github.com/termitaklk/lflist",
-			"branch": "main"
-		},
-		{
-			"id": "evolution-assets",
-			"type": "git",
-			"url": "https://github.com/diangogav/evolution-assets",
-			"branch": "main"
-		},
-		{
-			"id": "ygopro-moecube-cdb",
-			"type": "http",
-			"url": "https://cdntx.moecube.com/ygopro-database/zh-CN/cards.cdb",
-			"filename": "ygopro-moecube-cards.cdb"
-		},
-		{
-			"id": "ygopro-fluorohydride-scripts",
-			"type": "git",
-			"url": "https://github.com/Fluorohydride/ygopro-scripts"
-		},
-		{
-			"id": "moecube-lflist",
-			"type": "http",
-			"url": "https://cdntx.moecube.com/ygopro-database/zh-CN/lflist.conf",
-			"filename": "moecube-lflist.conf"
-		},
-		{
-			"id": "ygopro-moecube-prereleases",
-			"type": "git",
-			"url": "https://github.com/evolutionygo/pre-release-database-cdb",
-			"branch": "master"
-		},
-		{
-			"id": "custom-cards",
-			"type": "git",
-			"url": "https://github.com/evolutionygo/cards-art-server",
-			"branch": "main"
-		},
-		{
-			"comment": "ocgcore fork WASM — runtime add-on; the loader logs whether the fork or the stock core is active",
-			"id": "edison-core",
-			"type": "http",
-			"url": "https://github.com/diangogav/evolution-ygopro-core/releases/download/v1.0.0-edison/libocgcore-edison-fork.wasm",
-			"filename": "ocgcore-worker"
+			"id": "nostalgia-fixed",
+			"type": "local",
+			"path": "nostalgia-resources"
 		}
 	],
 	"assembly": [
 		{
-			"comment": "YGOPro base lflist",
-			"target": "ygopro/base/lflist.conf",
-			"from": "moecube-lflist",
-			"file": "moecube-lflist.conf"
+			"target": "lock.json",
+			"from": "nostalgia-fixed",
+			"file": "lock.json"
 		},
 		{
-			"comment": "JTP lflist from evolution-assets",
-			"target": "ygopro/formats/jtp/lflist.conf",
-			"from": "evolution-assets",
-			"file": "lflist/jtp.lflist.conf"
-		},
-		{
-			"comment": "JTP Advanced March 2007 lflist from evolution-assets",
-			"target": "ygopro/formats/jtp-adv-2007-03/lflist.conf",
-			"from": "evolution-assets",
-			"file": "lflist/jtp-advanced-marzo-2007.lflist.conf"
-		},
-		{
-			"comment": "Genesys lflist from evolution-assets",
-			"target": "ygopro/formats/genesys/lflist.conf",
-			"from": "evolution-assets",
-			"file": "lflist/genesys.lflist.conf"
-		},
-		{
-			"comment": "Edison lflist from evolution-assets",
-			"target": "ygopro/formats/edison/lflist.conf",
-			"from": "evolution-assets",
-			"file": "lflist/edison.lflist.conf"
-		},
-		{
-			"comment": "ocgcore fork WASM — placed at ygopro/core/ocgcore-worker; read by the card-load worker when (re)building card storage",
-			"target": "ygopro/core/ocgcore-worker",
-			"from": "edison-core",
-			"file": "ocgcore-worker"
-		},
-		{
-			"target": "ygopro/formats/md/lflist.conf",
-			"from": "evolution-lflists",
-			"file": "MD.2025.03.lflist.conf"
-		},
-		{
-			"target": "ygopro/formats/world/lflist.conf",
-			"from": "project-ignis-lflists",
-			"file": "World.lflist.conf"
-		},
-		{
-			"target": "ygopro/formats/tengu/lflist.conf",
-			"from": "evolution-lflists",
-			"file": "Tengu.Plant.lflist.conf"
-		},
-		{
-			"comment": "HAT format legality via whitelist (pairs with classic pre-errata cards)",
-			"target": "ygopro/formats/hat/lflist.conf",
-			"from": "evolution-lflists",
-			"file": "2014.04 HAT (Pre Errata).lflist.conf"
-		},
-		{
-			"target": "ygopro/formats/speed/lflist.conf",
-			"from": "project-ignis-lflists",
-			"file": "Speed.lflist.conf"
-		},
-		{
-			"target": "ygopro/formats/rush/lflist.conf",
-			"from": "project-ignis-lflists",
-			"file": "Rush.lflist.conf"
-		},
-		{
-			"target": "ygopro/formats/goat/lflist.conf",
-			"from": "project-ignis-lflists",
-			"file": "GOAT.lflist.conf"
-		},
-		{
-			"target": "ygopro/formats/ocg/lflist.conf",
-			"from": "project-ignis-lflists",
-			"file": "OCG.lflist.conf"
-		},
-		{
-			"comment": "YGOPro base cards.cdb",
 			"target": "ygopro/base/cards.cdb",
-			"from": "ygopro-moecube-cdb",
-			"file": "ygopro-moecube-cards.cdb"
+			"from": "nostalgia-fixed",
+			"file": "ygopro/base/cards.cdb"
 		},
 		{
-			"comment": "YGOPro base scripts",
 			"target": "ygopro/base/script",
-			"from": "ygopro-fluorohydride-scripts"
+			"from": "nostalgia-fixed",
+			"dir": "ygopro/base/script"
 		},
 		{
-			"comment": "Classic (pre-errata) variants for edison/hat — alt-coded cards, format legality via lflists",
-			"target": "ygopro/classic/classic.cdb",
-			"from": "evolution-assets",
-			"file": "cdb/classic.cdb"
+			"target": "ygopro/formats/1103/lflist.conf",
+			"from": "nostalgia-fixed",
+			"file": "ygopro/formats/1103/lflist.conf"
 		},
 		{
-			"comment": "Edison pre-errata pool (bilingual .es/.en; server loads .es — engine is language-neutral)",
-			"target": "ygopro/formats/edison/pre-errata.es.cdb",
-			"from": "evolution-assets",
-			"file": "cdb/pre-errata.es.cdb"
+			"target": "ygopro/formats/1103/script",
+			"from": "nostalgia-fixed",
+			"dir": "ygopro/formats/1103/script"
 		},
 		{
-			"comment": "YGOPro Moecube prereleases (extended pool only)",
-			"target": "ygopro/extensions/prereleases",
-			"from": "ygopro-moecube-prereleases"
+			"target": "ygopro/formats/1109/lflist.conf",
+			"from": "nostalgia-fixed",
+			"file": "ygopro/formats/1109/lflist.conf"
 		},
 		{
-			"comment": "YGOPro cards art (extended pool only)",
-			"target": "ygopro/extensions/custom-cards",
-			"from": "custom-cards"
+			"target": "ygopro/formats/1109/script",
+			"from": "nostalgia-fixed",
+			"dir": "ygopro/formats/1109/script"
 		}
 	],
 	"runtime": {
-		"comment": "TS loader pool membership. standard = base + served formats (load order; base first for FIRST-occurrence dedup). extended = extra members appended after standard. Formats assembled but omitted here (goat, rush, speed) are assembled-but-not-served by design.",
 		"ygopro": {
-			"standard": [
-				"base",
-				"formats/jtp",
-				"formats/jtp-adv-2007-03",
-				"formats/genesys",
-				"formats/md",
-				"formats/world",
-				"formats/tengu",
-				"formats/edison",
-				"formats/hat",
-				"formats/ocg"
-			],
-			"extended": ["extensions/prereleases", "extensions/custom-cards"]
+			"base": "base",
+			"formats": {
+				"1103": "formats/1103",
+				"1109": "formats/1109"
+			}
 		}
 	}
 }

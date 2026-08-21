@@ -14,6 +14,8 @@
 		"build": "npm run clean && tsc && tsc-alias -p tsconfig.json",
 		"start": "npm run build && node --env-file=.env ./dist/src/index.js",
 		"lint": "biome lint",
+		"check:nostalgia-resources": "npm run build --silent && node ./dist/src/ygopro/ygopro/NostalgiaResourceGeneratorCli.js --cdb nostalgia-resources/ygopro/base/cards.cdb --lflist nostalgia-resources/ygopro/formats/1103/lflist.conf && node ./dist/src/ygopro/ygopro/NostalgiaResourceGeneratorCli.js --cdb nostalgia-resources/ygopro/base/cards.cdb --lflist nostalgia-resources/ygopro/formats/1109/lflist.conf",
+		"generate:nostalgia-lock": "npm run build --silent && node -e \"require('./dist/src/ygopro/ygopro/NostalgiaResourceGenerator').writeNostalgiaResourceLock('nostalgia-resources', 'nostalgia-resources/lock.json').catch((error) => { process.stderr.write(String(error) + '\\\\n'); process.exitCode = 1; })\"",
 		"lint:fix": "biome check --write",
 		"format": "biome format --write",
 		"check": "biome check",

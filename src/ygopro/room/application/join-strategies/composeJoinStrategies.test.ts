@@ -1,8 +1,8 @@
 import { composeJoinStrategies } from "./composeJoinStrategies";
 import { AIJoinTokenStrategy } from "./AIJoinTokenStrategy";
 import { WindBotJoinStrategy } from "./WindBotJoinStrategy";
-import { TicketJoinStrategy } from "./TicketJoinStrategy";
 import { DefaultJoinStrategy } from "./DefaultJoinStrategy";
+import { NostalgiaJoinStrategy } from "./NostalgiaJoinStrategy";
 import { WindbotModule } from "../../../windbot/application/WindbotModule";
 import { WindbotTokenStore } from "../../../windbot/domain/WindbotTokenStore";
 
@@ -19,11 +19,11 @@ const makeModule = (): WindbotModule =>
 	});
 
 describe("composeJoinStrategies", () => {
-	it("returns the base chain [Ticket, Default] when windbot is absent", () => {
+	it("returns the base chain [Nostalgia, Default] when windbot is absent", () => {
 		const strategies = composeJoinStrategies();
 
 		expect(strategies).toHaveLength(2);
-		expect(strategies[0]).toBeInstanceOf(TicketJoinStrategy);
+		expect(strategies[0]).toBeInstanceOf(NostalgiaJoinStrategy);
 		expect(strategies[1]).toBeInstanceOf(DefaultJoinStrategy);
 	});
 
@@ -33,7 +33,7 @@ describe("composeJoinStrategies", () => {
 		expect(strategies).toHaveLength(4);
 		expect(strategies[0]).toBeInstanceOf(AIJoinTokenStrategy);
 		expect(strategies[1]).toBeInstanceOf(WindBotJoinStrategy);
-		expect(strategies[2]).toBeInstanceOf(TicketJoinStrategy);
+		expect(strategies[2]).toBeInstanceOf(NostalgiaJoinStrategy);
 		expect(strategies[3]).toBeInstanceOf(DefaultJoinStrategy);
 	});
 });

@@ -19,7 +19,7 @@ describe("YGOProBanList", () => {
 		});
 	});
 
-	describe("points (Genesys third column)", () => {
+	describe("optional third-column points", () => {
 		it("should store the point cost when provided", () => {
 			const cardId = 21044178;
 			banList.add(cardId, 3, 100);

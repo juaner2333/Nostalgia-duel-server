@@ -40,8 +40,8 @@ describe("YGOProRoom league", () => {
 		expect(create("ROOM", noPin, true).league).toBe(RoomLeague.Verified);
 	});
 
-	it("the explicit casual flag forces Casual even for a ticket host", () => {
-		expect(create("ROOM,casual", noPin, true).league).toBe(RoomLeague.Casual);
+	it("ignores legacy room-configuration tokens", () => {
+		expect(create("ROOM,casual", noPin, true).league).toBe(RoomLeague.Verified);
 	});
 
 	it("derives `ranked` from the league (unchanged behavior)", () => {

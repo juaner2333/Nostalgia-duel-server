@@ -7,7 +7,6 @@ import { config } from "./config";
 import { bootstrapYgoproResources } from "./bootstrap/bootstrapYgoproResources";
 import { bootstrapPersistence } from "./bootstrap/bootstrapPersistence";
 import { bootstrapStatsSubscriptions } from "./bootstrap/bootstrapStatsSubscriptions";
-import { bootstrapBanListReloader } from "./bootstrap/bootstrapBanListReloader";
 import { bootstrapMatchmaking } from "./bootstrap/bootstrapMatchmaking";
 import { Server } from "./http-server/Server";
 import { YGOProServer } from "./socket-server/YGOProServer";
@@ -39,10 +38,6 @@ async function start(): Promise<void> {
 	// After persistence so Postgres repositories are ready, before any server
 	// accepts traffic so no game-over event can be missed.
 	bootstrapStatsSubscriptions(logger);
-
-	// Keep in-memory ban lists fresh without a restart: re-read them on an interval
-	// when the on-disk .conf files change (see bootstrapBanListReloader).
-	await bootstrapBanListReloader(logger);
 
 	await server.initialize();
 	WebSocketSingleton.getInstance();

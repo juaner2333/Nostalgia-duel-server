@@ -1,9 +1,6 @@
 // Re-callable pure builder for ygopro ban lists.
 //
-// This function parses ban lists into a local temporary array and does NOT touch
-// the live YGOProBanListMemoryRepository. The caller (bootstrapBanListReloader)
-// is responsible for atomically swapping the repo via replaceAll() once the
-// array is successfully built.
+// This function parses the fixed local ban lists into a local temporary array.
 
 import { YGOProBanListLoader } from "@ygopro/ban-list/infrastructure/YGOProBanListLoader";
 import { YGOProBanList } from "@ygopro/ban-list/domain/YGOProBanList";

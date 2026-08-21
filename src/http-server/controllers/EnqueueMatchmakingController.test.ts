@@ -59,7 +59,7 @@ describe("EnqueueMatchmakingController", () => {
 
 	it("returns a ticketId (200) for a valid ticket and queues the user", async () => {
 		const out = await run(
-			{ format: "tcg", queue: "ranked", ticket: "the-ticket" },
+			{ format: "1103", queue: "ranked", ticket: "the-ticket" },
 			makeTickets("user-1"),
 		);
 
@@ -70,7 +70,7 @@ describe("EnqueueMatchmakingController", () => {
 	});
 
 	it("rejects a request with a missing/invalid schema (400)", async () => {
-		const out = await run({ format: "tcg" }, makeTickets("user-1"));
+		const out = await run({ format: "1103" }, makeTickets("user-1"));
 		expect(out.status()).toBe(400);
 	});
 
@@ -82,16 +82,16 @@ describe("EnqueueMatchmakingController", () => {
 		expect(out.status()).toBe(400);
 	});
 
-	it("accepts jtp format (200) — valid JTP enqueue", async () => {
+	it("accepts 1109 format (200) — valid JTP enqueue", async () => {
 		const out = await run(
-			{ format: "jtp", queue: "ranked", ticket: "the-ticket" },
-			makeTickets("user-jtp"),
+			{ format: "1109", queue: "ranked", ticket: "the-ticket" },
+			makeTickets("user-1109"),
 		);
 		expect(out.status()).toBe(200);
 		const body = out.body() as { ticketId: string };
 		expect(typeof body.ticketId).toBe("string");
-		// The queued entry must carry the requested format, not silently fall back to tcg.
-		expect(MatchmakingQueue.getInstance().get(body.ticketId)?.format).toBe("jtp");
+		// The queued entry must carry the requested format, not silently fall back to 1103.
+		expect(MatchmakingQueue.getInstance().get(body.ticketId)?.format).toBe("1109");
 	});
 
 	it("rejects genesys format (400) — Genesys format rejected", async () => {
@@ -112,7 +112,7 @@ describe("EnqueueMatchmakingController", () => {
 
 	it("rejects when the ticket does not resolve to a user (401)", async () => {
 		const out = await run(
-			{ format: "tcg", queue: "ranked", ticket: "bad-ticket" },
+			{ format: "1103", queue: "ranked", ticket: "bad-ticket" },
 			makeTickets(null),
 		);
 		expect(out.status()).toBe(401);
@@ -120,8 +120,8 @@ describe("EnqueueMatchmakingController", () => {
 
 	it("returns the existing ticketId when the same user enqueues twice (409-safe idempotency)", async () => {
 		const tickets = makeTickets("user-1");
-		const first = await run({ format: "tcg", queue: "ranked", ticket: "t-a" }, tickets);
-		const second = await run({ format: "tcg", queue: "ranked", ticket: "t-b" }, tickets);
+		const first = await run({ format: "1103", queue: "ranked", ticket: "t-a" }, tickets);
+		const second = await run({ format: "1103", queue: "ranked", ticket: "t-b" }, tickets);
 
 		expect(first.status()).toBe(200);
 		expect(second.status()).toBe(409);

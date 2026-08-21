@@ -60,6 +60,11 @@ build/
 mycard
 resources/
 
+# Reviewed fixed assets for the two nostalgia formats. Keep the broad generated
+# resource rules above; only these committed inputs and generated outputs escape.
+!nostalgia-resources/**/*.cdb
+!nostalgia-resources/**/*.conf
+
 # Local bats-core installation (not a repo dependency)
 tools/
 resources.manifest.private.json

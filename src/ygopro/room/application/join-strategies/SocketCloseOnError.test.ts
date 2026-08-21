@@ -10,7 +10,7 @@
  *   performs the closing handshake and flushes queued frames first, so the error is
  *   delivered AND the socket is torn down (no live-but-rejected connection the client
  *   keeps reusing). Pure-rejection paths with no message (wrong password) still use
- *   destroy() — see DefaultJoinStrategy / TicketJoinStrategy.
+ *   destroy() — see DefaultJoinStrategy.
  *
  * Covered error paths:
  *   WindBotJoinStrategy:

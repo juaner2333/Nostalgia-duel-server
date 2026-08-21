@@ -68,10 +68,8 @@ export class YGOProBanListLoader {
 	}
 
 	/**
-	 * ygopro-lflist-encode only parses entries with limit 0-2.
-	 * Whitelist and Genesys banlists also list cards with limit >= 3 (Genesys
-	 * cards are always 3 copies) that the library silently discards, along with
-	 * their point costs. We parse them from the raw text.
+	 * ygopro-lflist-encode only parses entries with limit 0-2. The fixed
+	 * whitelist lists also contain limit-3 entries, so recover them from raw text.
 	 */
 	private parseUnrestrictedEntries(text: string, banList: YGOProBanList): void {
 		for (const line of text.split("\n")) {
@@ -103,7 +101,7 @@ export class YGOProBanListLoader {
 
 			lflist.entries.forEach((entry) => banList.add(entry.code, entry.limit));
 
-			if (isWhitelist || banList.isGenesys()) {
+			if (isWhitelist) {
 				this.parseUnrestrictedEntries(text, banList);
 			}
 

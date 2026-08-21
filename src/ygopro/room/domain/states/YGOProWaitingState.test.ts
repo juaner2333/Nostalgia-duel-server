@@ -104,7 +104,6 @@ describe("YGOProWaitingState.handleUpdateDeck", () => {
 				errorMessage: jest.fn().mockReturnValue(Buffer.alloc(0)),
 			},
 			hostInfo: { rule: 0 },
-			useExtendedCardPool: false,
 		} as unknown as jest.Mocked<YGOProRoom>;
 
 		mockPlayer = {

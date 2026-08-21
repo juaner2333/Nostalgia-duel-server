@@ -15,6 +15,10 @@ export default {
 		return rooms.find((room) => room.name === name) ?? null;
 	},
 
+	findByAdmissionKey(admissionKey: string): YGOProRoom | null {
+		return rooms.find((room) => room.admissionKey === admissionKey) ?? null;
+	},
+
 	findById(id: number): YGOProRoom | null {
 		return rooms.find((room) => room.id === id) ?? null;
 	},

@@ -54,7 +54,7 @@ describe("CancelMatchmakingController", () => {
 		MatchmakingQueue.getInstance().enqueue({
 			ticketId: "t1",
 			userId: "user-1",
-			format: "tcg",
+			format: "1103",
 		});
 
 		const out = run({ ticketId: "t1" });

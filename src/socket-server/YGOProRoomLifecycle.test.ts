@@ -130,6 +130,7 @@ import net from "net";
 import { LoggerMock } from "@test-support/mocks/logger/LoggerMock";
 import { DefaultJoinStrategy } from "@ygopro/room/application/join-strategies/DefaultJoinStrategy";
 import { JoinStrategyRegistry } from "@ygopro/room/application/join-strategies/JoinStrategyRegistry";
+import { NostalgiaJoinStrategy } from "@ygopro/room/application/join-strategies/NostalgiaJoinStrategy";
 import YGOProRoomList from "@ygopro/room/infrastructure/YGOProRoomList";
 import {
 	ErrorMessageType,
@@ -139,7 +140,6 @@ import {
 	YGOProStocErrorMsg,
 	YGOProStocHandResult,
 	YGOProStocHsPlayerChange,
-	YGOProStocReplay,
 } from "ygopro-msg-encode";
 
 import { YGOProServer } from "./YGOProServer";
@@ -267,17 +267,6 @@ class FrameTap {
 	}
 }
 
-const waitForCloseOn = (socket: net.Socket, timeoutMs = 5000): Promise<void> =>
-	new Promise((resolve, reject) => {
-		const timer = setTimeout(() => {
-			reject(new Error("timed out waiting for the connection to close"));
-		}, timeoutMs);
-		socket.on("close", () => {
-			clearTimeout(timer);
-			resolve();
-		});
-	});
-
 // ---------- test ----------
 
 describe("YGOProRoom · two-socket lifecycle contract", () => {
@@ -344,8 +333,58 @@ describe("YGOProRoom · two-socket lifecycle contract", () => {
 		]);
 	};
 
+	const createRoomAtPhase = async (
+		port: number,
+		phase: "waiting" | "rps" | "choosing-order" | "dueling" | "side-decking",
+	): Promise<{
+		host: { socket: net.Socket; tap: FrameTap };
+		guest: { socket: net.Socket; tap: FrameTap };
+	}> => {
+		const host = await joinRoom(port, "Jaden", "1109#1001");
+		const guest = await joinRoom(port, "Chazz", "1109#1001");
+		if (phase === "waiting") {
+			return { host, guest };
+		}
+
+		await submitDeck(host.socket, host.tap, VALID_MAIN_DECK());
+		await submitDeck(guest.socket, guest.tap, VALID_MAIN_DECK());
+		host.socket.write(buildTryStartFrame());
+		await Promise.all([
+			host.tap.waitFor((frames) => hasCommand(frames, 0x15)),
+			guest.tap.waitFor((frames) => hasCommand(frames, 0x15)),
+		]);
+		if (phase === "rps") {
+			return { host, guest };
+		}
+
+		await runRps(host.socket, host.tap, guest.socket, guest.tap);
+		await host.tap.waitFor((frames) => hasCommand(frames, 0x04));
+		if (phase === "choosing-order") {
+			return { host, guest };
+		}
+
+		host.socket.write(buildTurnChoiceFrame(1));
+		await Promise.all([
+			host.tap.waitFor((frames) => hasCommand(frames, 0x01)),
+			guest.tap.waitFor((frames) => hasCommand(frames, 0x01)),
+		]);
+		if (phase === "dueling") {
+			return { host, guest };
+		}
+
+		guest.socket.write(buildSurrenderFrame());
+		await Promise.all([
+			host.tap.waitFor((frames) => hasCommand(frames, 0x07)),
+			guest.tap.waitFor((frames) => hasCommand(frames, 0x07)),
+		]);
+		return { host, guest };
+	};
+
 	beforeEach(() => {
-		JoinStrategyRegistry.setStrategies([new DefaultJoinStrategy()]);
+		JoinStrategyRegistry.setStrategies([
+			new NostalgiaJoinStrategy({ getBanListHash: () => 1109 }),
+			new DefaultJoinStrategy(),
+		]);
 		server = new YGOProServer(new LoggerMock());
 		server.initialize(0);
 	});
@@ -354,14 +393,14 @@ describe("YGOProRoom · two-socket lifecycle contract", () => {
 		for (const room of [...YGOProRoomList.getRooms()]) {
 			YGOProRoomList.deleteRoom(room);
 		}
-		JoinStrategyRegistry.setStrategies([new DefaultJoinStrategy()]);
+		JoinStrategyRegistry.reset();
 		server.close();
 	});
 
 	it("creates and joins a room with two players", async () => {
 		const { port } = await waitForListening();
-		const host = await joinRoom(port, "Jaden", "room1");
-		const guest = await joinRoom(port, "Chazz", "room1");
+		const host = await joinRoom(port, "Jaden", "1109#1001");
+		const guest = await joinRoom(port, "Chazz", "1109#1001");
 
 		// both see each other's PLAYER_ENTER
 		const hostEnter = host.tap
@@ -373,17 +412,41 @@ describe("YGOProRoom · two-socket lifecycle contract", () => {
 			.map((frame) => frame.subarray(3).toString("utf16le").split("\0")[0]);
 		expect(guestEnter).toEqual(expect.arrayContaining(["Jaden", "Chazz"]));
 
-		const room = YGOProRoomList.findByName("room1");
+		const room = YGOProRoomList.findByName("1109#1001");
 		expect(room?.players).toHaveLength(2);
 
 		host.socket.destroy();
 		guest.socket.destroy();
 	});
 
+	it.each([
+		"waiting",
+		"rps",
+		"choosing-order",
+		"dueling",
+		"side-decking",
+	] as const)("admits a third client as a spectator during %s without changing player seats", async (phase) => {
+		const { port } = await waitForListening();
+		const { host, guest } = await createRoomAtPhase(port, phase);
+
+		const spectator = await joinRoom(port, `Observer-${phase}`, "1109#1001");
+		const room = YGOProRoomList.findByAdmissionKey("1109#1001");
+
+		expect(room?.players).toHaveLength(2);
+		expect(room?.spectators).toHaveLength(1);
+		expect(room?.players.map((player) => player.name)).toEqual(
+			expect.arrayContaining(["Jaden", "Chazz"]),
+		);
+
+		host.socket.destroy();
+		guest.socket.destroy();
+		spectator.socket.destroy();
+	});
+
 	it("rejects an unknown card and broadcasts ready state to both players", async () => {
 		const { port } = await waitForListening();
-		const host = await joinRoom(port, "Jaden", "room1");
-		const guest = await joinRoom(port, "Chazz", "room1");
+		const host = await joinRoom(port, "Jaden", "1109#1001");
+		const guest = await joinRoom(port, "Chazz", "1109#1001");
 
 		// unknown card -> DECKERROR, player stays not ready
 		guest.socket.write(buildUpdateDeckFrame(Array<number>(40).fill(UNKNOWN_CARD_CODE)));
@@ -416,7 +479,7 @@ describe("YGOProRoom · two-socket lifecycle contract", () => {
 			),
 		]);
 
-		const room = YGOProRoomList.findByName("room1");
+		const room = YGOProRoomList.findByName("1109#1001");
 		expect(room?.allPlayersReady).toBe(true);
 
 		host.socket.destroy();
@@ -425,8 +488,8 @@ describe("YGOProRoom · two-socket lifecycle contract", () => {
 
 	it("broadcasts chat and emotes between the two players", async () => {
 		const { port } = await waitForListening();
-		const host = await joinRoom(port, "Jaden", "room1");
-		const guest = await joinRoom(port, "Chazz", "room1");
+		const host = await joinRoom(port, "Jaden", "1109#1001");
+		const guest = await joinRoom(port, "Chazz", "1109#1001");
 
 		guest.socket.write(buildChatFrame("gg"));
 		await Promise.all([
@@ -458,8 +521,8 @@ describe("YGOProRoom · two-socket lifecycle contract", () => {
 
 	it("starts the duel, resolves RPS and reaches choosing order", async () => {
 		const { port } = await waitForListening();
-		const host = await joinRoom(port, "Jaden", "room1");
-		const guest = await joinRoom(port, "Chazz", "room1");
+		const host = await joinRoom(port, "Jaden", "1109#1001");
+		const guest = await joinRoom(port, "Chazz", "1109#1001");
 
 		await submitDeck(host.socket, host.tap, VALID_MAIN_DECK());
 		await submitDeck(guest.socket, guest.tap, VALID_MAIN_DECK());
@@ -502,7 +565,7 @@ describe("YGOProRoom · two-socket lifecycle contract", () => {
 		await host.tap.waitFor((frames) => hasCommand(frames, 0x04)); // SELECT_TP
 		expect(guest.tap.framesWithCommand(0x04)).toHaveLength(0);
 
-		expect(YGOProRoomList.findByName("room1")).not.toBeNull();
+		expect(YGOProRoomList.findByName("1109#1001")).not.toBeNull();
 
 		host.socket.destroy();
 		guest.socket.destroy();
@@ -510,8 +573,8 @@ describe("YGOProRoom · two-socket lifecycle contract", () => {
 
 	it("keeps the room alive when a player disconnects and re-admits them on rejoin", async () => {
 		const { port } = await waitForListening();
-		const host = await joinRoom(port, "Jaden", "room1");
-		const guest = await joinRoom(port, "Chazz", "room1");
+		const host = await joinRoom(port, "Jaden", "1109#1001");
+		const guest = await joinRoom(port, "Chazz", "1109#1001");
 
 		await submitDeck(host.socket, host.tap, VALID_MAIN_DECK());
 		await submitDeck(guest.socket, guest.tap, VALID_MAIN_DECK());
@@ -527,7 +590,7 @@ describe("YGOProRoom · two-socket lifecycle contract", () => {
 		guest.socket.destroy();
 		await new Promise((resolve) => setTimeout(resolve, 150));
 
-		const room = YGOProRoomList.findByName("room1");
+		const room = YGOProRoomList.findByName("1109#1001");
 		expect(room).not.toBeNull();
 		expect(room?.players).toHaveLength(2);
 		expect(room?.players.map((player) => player.name)).toEqual(
@@ -535,20 +598,20 @@ describe("YGOProRoom · two-socket lifecycle contract", () => {
 		);
 
 		// guest rejoins by re-sending the first packet (TCP name-path reconnect)
-		const rejoined = await joinRoom(port, "Chazz", "room1");
+		const rejoined = await joinRoom(port, "Chazz", "1109#1001");
 		await rejoined.tap.waitFor((frames) => hasCommand(frames, 0x15)); // DUEL_START re-sync
 		expect(rejoined.tap.framesWithCommand(0x09)).toHaveLength(1); // DECK_COUNT re-sync
 
-		expect(YGOProRoomList.findByName("room1")?.players).toHaveLength(2);
+		expect(YGOProRoomList.findByName("1109#1001")?.players).toHaveLength(2);
 
 		host.socket.destroy();
 		rejoined.socket.destroy();
 	});
 
-	it("ends the duel on surrender, delivers the replay and closes both connections", async () => {
+	it("enters side decking after a surrender in the first MATCH game", async () => {
 		const { port } = await waitForListening();
-		const host = await joinRoom(port, "Jaden", "room1");
-		const guest = await joinRoom(port, "Chazz", "room1");
+		const host = await joinRoom(port, "Jaden", "1109#1001");
+		const guest = await joinRoom(port, "Chazz", "1109#1001");
 
 		await submitDeck(host.socket, host.tap, VALID_MAIN_DECK());
 		await submitDeck(guest.socket, guest.tap, VALID_MAIN_DECK());
@@ -568,32 +631,20 @@ describe("YGOProRoom · two-socket lifecycle contract", () => {
 			guest.tap.waitFor((frames) => hasCommand(frames, 0x01)),
 		]);
 
-		// guest surrenders -> win message, replay hint chat, replay, duel end, disconnect
+		// The first result in a best-of-3 match enters side decking; it does not
+		// finalize the room or close either connection.
 		guest.socket.write(buildSurrenderFrame());
 		await Promise.all([
-			host.tap.waitFor(
-				(frames) => hasCommand(frames, 0x17) && hasCommand(frames, 0x16), // REPLAY + DUEL_END
-			),
-			guest.tap.waitFor((frames) => hasCommand(frames, 0x17) && hasCommand(frames, 0x16)),
-			waitForCloseOn(host.socket),
-			waitForCloseOn(guest.socket),
+			host.tap.waitFor((frames) => hasCommand(frames, 0x07)),
+			guest.tap.waitFor((frames) => hasCommand(frames, 0x07)),
 		]);
 
-		const replay = new YGOProStocReplay().fromFullPayload(host.tap.framesWithCommand(0x17)[0]);
-		expect(replay.replay.toYrp().length).toBeGreaterThan(100); // a real yrp payload
+		const room = YGOProRoomList.findByAdmissionKey("1109#1001");
+		expect(room?.isMatchFinished()).toBe(false);
+		expect(room?.players).toHaveLength(2);
 
-		// replay hint chat precedes the replay frame
-		const hintCommands = host.tap
-			.commands()
-			.map((command, index) => ({ command, index }))
-			.filter(({ command }) => command === 0x19)
-			.map(({ index }) => index);
-		const replayIndex = host.tap.commands().indexOf(0x17);
-		expect(replayIndex).toBeGreaterThan(hintCommands[hintCommands.length - 1]);
-
-		// the room is gone once the match is finalized
-		await new Promise((resolve) => setTimeout(resolve, 100));
-		expect(YGOProRoomList.findByName("room1")).toBeNull();
+		host.socket.destroy();
+		guest.socket.destroy();
 	});
 });
 

@@ -7,6 +7,9 @@ export type GameOverData = {
 	banListHash: number;
 	banListName: string;
 	ranked: boolean;
+	formatId?: string;
+	externalRoomId?: string;
+	admissionKey?: string;
 };
 
 export class GameOverDomainEvent {

@@ -22,9 +22,6 @@ jest.mock("@ygopro/room/infrastructure/YGOProRoomList", () => ({
 jest.mock("@ygopro/ygopro/YGOProResourceLoader", () => ({
 	YGOProResourceLoader: { isInitialized: false, get: () => null },
 }));
-jest.mock("src/bootstrap/bootstrapBanListReloader", () => ({
-	getBanListReloadedAt: () => null,
-}));
 
 import type { Request, Response } from "express";
 
