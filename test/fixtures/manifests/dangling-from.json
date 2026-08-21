@@ -1,8 +1,0 @@
-{
-  "sources": [
-    { "id": "src-a", "type": "git", "url": "https://example.com/a" }
-  ],
-  "assembly": [
-    { "target": "out/dir", "from": "missing-src" }
-  ]
-}

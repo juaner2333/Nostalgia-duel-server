@@ -10,6 +10,10 @@
 - Resource loading is fixed to one base CDB/script tree plus
   `formats/1103` and `formats/1109`. Each duel searches only its format script
   directory, then `base/script`.
+- The complete resource tree ships with the app as one version. Startup runs
+  the full `lock.json` validation (same check as CI and the Docker build)
+  before any connection or listener opens; there is no manifest, no hot
+  reload and no resource refresh path.
 - Do not introduce dynamic format commands, secondary card pools, external
   script paths or network resource refreshes.
 

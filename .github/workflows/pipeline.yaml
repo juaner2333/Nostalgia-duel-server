@@ -28,6 +28,9 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Full nostalgia-resources integrity check
+        run: npm run check:nostalgia-resources
+
       - name: Test
         run: npm test
 

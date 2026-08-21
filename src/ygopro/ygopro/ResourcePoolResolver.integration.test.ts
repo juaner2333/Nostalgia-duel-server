@@ -9,7 +9,6 @@ import { readWhitelistCardIds } from "./YGOProResourceLoader";
 
 const PROJECT_ROOT = path.resolve(__dirname, "../../..");
 const RESOURCE_ROOT = path.join(PROJECT_ROOT, "nostalgia-resources");
-const MANIFEST_PATH = path.join(PROJECT_ROOT, "resources.manifest.json");
 
 function sorted(cardIds: Iterable<number>): number[] {
 	return [...cardIds].sort((left, right) => left - right);
@@ -28,7 +27,6 @@ function findCdbFiles(directory: string): string[] {
 describe("fixed nostalgia resource integration", () => {
 	it("loads only the fixed base CDB and derives the two exact format card pools", async () => {
 		const pools = resolvePools({
-			manifestPath: MANIFEST_PATH,
 			resourcesDir: RESOURCE_ROOT,
 			logger: LoggerFactory.getLogger(),
 		});

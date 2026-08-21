@@ -38,8 +38,7 @@ export const config = {
 		},
 	},
 	resources: {
-		dir: process.env.RESOURCES_DIR ?? "./resources/current",
-		manifestPath: process.env.MANIFEST_PATH ?? "./resources.manifest.json",
+		dir: process.env.RESOURCES_DIR ?? "./nostalgia-resources",
 	},
 	sideTimeoutMinutes: Number(process.env.SIDE_TIMEOUT_MINUTES) || 3,
 	windbot: parseWindbotConfig(process.env),

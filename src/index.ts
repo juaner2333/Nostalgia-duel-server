@@ -18,9 +18,11 @@ import { bootstrapWindbot } from "./ygopro/windbot/infrastructure/bootstrapWindb
 import { JoinStrategyRegistry } from "./ygopro/room/application/join-strategies/JoinStrategyRegistry";
 import { composeJoinStrategies } from "./ygopro/room/application/join-strategies/composeJoinStrategies";
 
-void start();
+if (require.main === module) {
+	void start();
+}
 
-async function start(): Promise<void> {
+export async function start(): Promise<void> {
 	const logger = LoggerFactory.getLogger();
 
 	logger.info("🚀 Evolution server starting…");

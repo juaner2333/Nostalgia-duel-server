@@ -1,60 +1,31 @@
 import fs from "node:fs";
 import path from "node:path";
+import { NOSTALGIA_FORMAT_IDS } from "@ygopro/room/domain/NostalgiaFormat";
 import type { Logger } from "src/shared/logger/domain/Logger";
 
-interface Manifest {
-	runtime?: {
-		ygopro?: {
-			base?: unknown;
-			formats?: unknown;
-		};
-	};
-}
-
 export interface ResourcePoolResolverOptions {
-	manifestPath: string;
 	resourcesDir: string;
 	logger: Logger;
 }
 
 export interface ResolvedPools {
-	base: string | null;
+	base: string;
 	formats: Record<string, string>;
 }
 
-/** Resolves the only supported runtime layout: one fixed base and named formats. */
+/**
+ * Resolves the only supported runtime layout: the fixed base tree plus the
+ * 1103/1109 formats registered in the domain layer. No manifest is read; the
+ * resource root is the bundled `nostalgia-resources/` directory itself.
+ */
 export function resolvePools(options: ResourcePoolResolverOptions): ResolvedPools {
-	const manifest = readManifest(options.manifestPath, options.logger);
-	if (!manifest) {
-		return { base: null, formats: {} };
-	}
-
-	const runtime = manifest.runtime?.ygopro;
-	if (typeof runtime?.base !== "string" || runtime.base.length === 0) {
-		options.logger.error(
-			`ResourcePoolResolver: manifest at "${options.manifestPath}" has no runtime.ygopro.base`,
-		);
-		return { base: null, formats: {} };
-	}
-	const base = path.join(path.resolve(options.resourcesDir), "ygopro", runtime.base);
-	if (
-		typeof runtime.formats !== "object" ||
-		runtime.formats === null ||
-		Array.isArray(runtime.formats)
-	) {
-		options.logger.error(
-			`ResourcePoolResolver: manifest at "${options.manifestPath}" has no runtime.ygopro.formats`,
-		);
-		return { base, formats: {} };
-	}
-
+	const root = path.resolve(options.resourcesDir);
+	const base = path.join(root, "ygopro", "base");
 	const formats = Object.fromEntries(
-		Object.entries(runtime.formats)
-			.filter(([, resourcePath]) => typeof resourcePath === "string" && resourcePath.length > 0)
-			.map(([formatId, resourcePath]) => [
-				formatId,
-				path.join(path.resolve(options.resourcesDir), "ygopro", resourcePath),
-			]),
+		NOSTALGIA_FORMAT_IDS.map((formatId) => [
+			formatId,
+			path.join(root, "ygopro", "formats", formatId),
+		]),
 	);
 	warnMissingDirectories([base, ...Object.values(formats)], options.logger);
 	return { base, formats };
@@ -66,17 +37,6 @@ export function resolveFormatPath(resolved: ResolvedPools, formatId: string): st
 		throw new Error(`Unknown YGOPro format: ${formatId}`);
 	}
 	return formatPath;
-}
-
-function readManifest(manifestPath: string, logger: Logger): Manifest | null {
-	try {
-		return JSON.parse(fs.readFileSync(manifestPath, "utf-8")) as Manifest;
-	} catch (error) {
-		logger.error(
-			`ResourcePoolResolver: failed to read or parse manifest at "${manifestPath}": ${String(error)}`,
-		);
-		return null;
-	}
 }
 
 function warnMissingDirectories(paths: string[], logger: Logger): void {

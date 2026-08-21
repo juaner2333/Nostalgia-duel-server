@@ -6,6 +6,14 @@ import { YGOProLFListItem } from "ygopro-lflist-encode";
 
 const MIN_CARD_ID = 1;
 const MAX_CARD_ID = 0x7fffffff;
+const ALLOWED_FORMAT_IDS = new Set(["1103", "1109"]);
+
+/** 固定环境的卡池数量契约：基础数据库与 1103/1109 白名单的唯一规模。 */
+export const EXPECTED_NOSTALGIA_POOL_SIZES: Readonly<Record<string, number>> = Object.freeze({
+	base: 5120,
+	"1103": 5002,
+	"1109": 5120,
+});
 const SCRIPT_SOURCE = {
 	repository: "https://github.com/Fluorohydride/ygopro-scripts",
 	commit: "090e881772f488e1256c456b827d5cbed4facf79",
@@ -144,15 +152,146 @@ export async function checkNostalgiaResourceLock(
 	resourceRoot: string,
 	lockPath: string,
 ): Promise<void> {
+	await checkNostalgiaResourceBoundaries(resourceRoot);
 	let actual: string;
 	try {
 		actual = await readFile(lockPath, "utf-8");
 	} catch (error) {
 		throw new Error(`resource lock missing: ${lockPath}: ${String(error)}`);
 	}
-	const expected = `${JSON.stringify(await buildNostalgiaResourceLock(resourceRoot), null, "\t")}\n`;
+	const built = await buildNostalgiaResourceLock(resourceRoot);
+	const expected = `${JSON.stringify(built, null, "\t")}\n`;
 	if (actual !== expected) {
 		throw new Error(`resource lock drift: ${lockPath}`);
+	}
+	assertFixedPoolSizes(built);
+}
+
+/**
+ * 断言 lock 中的卡池数量与固定环境契约一致（基础 5120、1103 5002、1109 5120），
+ * 防止错误资源配合重新生成的 lock 通过门禁。
+ */
+export function assertFixedPoolSizes(lock: {
+	inputs: { baseDatabase: { count: number } };
+	formats: Record<string, { cardPool: { count: number } }>;
+}): void {
+	if (lock.inputs.baseDatabase.count !== EXPECTED_NOSTALGIA_POOL_SIZES.base) {
+		throw new Error(
+			`base card pool mismatch: expected ${EXPECTED_NOSTALGIA_POOL_SIZES.base}, got ${lock.inputs.baseDatabase.count}`,
+		);
+	}
+	for (const formatId of ALLOWED_FORMAT_IDS) {
+		const actual = lock.formats[formatId]?.cardPool.count;
+		if (actual !== EXPECTED_NOSTALGIA_POOL_SIZES[formatId]) {
+			throw new Error(
+				`format ${formatId} card pool mismatch: expected ${EXPECTED_NOSTALGIA_POOL_SIZES[formatId]}, got ${actual}`,
+			);
+		}
+	}
+}
+
+/**
+ * 校验资源根只包含固定布局（白名单），拒绝任何越界内容：
+		if (actual !== EXPECTED_NOSTALGIA_POOL_SIZES[formatId]) {
+			throw new Error(
+				`format ${formatId} card pool mismatch: expected ${EXPECTED_NOSTALGIA_POOL_SIZES[formatId]}, got ${actual}`,
+			);
+		}
+	}
+}
+
+/**
+ * 校验资源根只包含固定布局（白名单），拒绝任何越界内容：
+ *
+ *   <root>/
+ *   ├── lock.json
+ *   └── ygopro/
+ *       ├── base/{cards.cdb, script/*.lua}
+ *       └── formats/{1103,1109}/{lflist.conf, script/*.lua}
+ *
+ * script 目录只允许 .lua 文件与 .gitkeep（git 空目录占位），不允许子目录；
+ * 其余任何条目（EDOPro 树、未启用赛制、外部脚本树、仓库缓存等）都拒绝。
+ */
+export async function checkNostalgiaResourceBoundaries(resourceRoot: string): Promise<void> {
+	const ygoproDir = path.join(resourceRoot, "ygopro");
+	const baseDir = path.join(ygoproDir, "base");
+	const formatsDir = path.join(ygoproDir, "formats");
+
+	await expectEntries(
+		resourceRoot,
+		new Map([
+			["lock.json", "file"],
+			["ygopro", "dir"],
+		]),
+		"resource",
+	);
+	await expectEntries(
+		ygoproDir,
+		new Map([
+			["base", "dir"],
+			["formats", "dir"],
+		]),
+		"ygopro",
+	);
+	await expectEntries(
+		baseDir,
+		new Map([
+			["cards.cdb", "file"],
+			["script", "dir"],
+		]),
+		"base",
+	);
+	await expectEntries(
+		formatsDir,
+		new Map([
+			["1103", "dir"],
+			["1109", "dir"],
+		]),
+		"formats",
+	);
+
+	for (const formatId of ALLOWED_FORMAT_IDS) {
+		const formatDir = path.join(formatsDir, formatId);
+		await expectEntries(
+			formatDir,
+			new Map([
+				["lflist.conf", "file"],
+				["script", "dir"],
+			]),
+			`format ${formatId}`,
+		);
+		await expectScriptDirectory(path.join(formatDir, "script"));
+	}
+	await expectScriptDirectory(path.join(baseDir, "script"));
+}
+
+async function expectEntries(
+	directory: string,
+	allowed: Map<string, "file" | "dir">,
+	label: string,
+): Promise<void> {
+	for (const entry of await readdir(directory, { withFileTypes: true })) {
+		const expectedType = allowed.get(entry.name);
+		const ok =
+			expectedType === "file"
+				? entry.isFile()
+				: expectedType === "dir"
+					? entry.isDirectory()
+					: false;
+		if (!ok) {
+			throw new Error(`unexpected ${label} entry: ${entry.name}`);
+		}
+	}
+}
+
+async function expectScriptDirectory(scriptDirectory: string): Promise<void> {
+	for (const entry of await readdir(scriptDirectory, { withFileTypes: true })) {
+		if (entry.isDirectory()) {
+			throw new Error(`unexpected script subdirectory: ${entry.name}`);
+		}
+		if (!entry.isFile() || (!entry.name.endsWith(".lua") && entry.name !== ".gitkeep")) {
+			throw new Error(`unexpected script file: ${entry.name}`);
+		}
 	}
 }
 

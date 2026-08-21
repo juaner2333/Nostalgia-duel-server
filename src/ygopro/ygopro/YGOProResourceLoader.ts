@@ -17,7 +17,6 @@ export class YGOProResourceLoader {
 	private readonly logger: Logger;
 	private readonly loadingLock = new BetterLock();
 	private readonly resolvedPools = resolvePools({
-		manifestPath: config.resources.manifestPath,
 		resourcesDir: config.resources.dir,
 		logger: LoggerFactory.getLogger(),
 	});
@@ -135,9 +134,6 @@ export class YGOProResourceLoader {
 	}
 
 	private basePath(): string {
-		if (!this.resolvedPools.base) {
-			throw new Error("Fixed nostalgia base resource is unavailable");
-		}
 		return this.resolvedPools.base;
 	}
 

@@ -50,15 +50,11 @@ mercury/pre-releases/tcg/*
 # Git Submodules & Repositories
 *repositories/
 
-# Scripts
-scripts/
-
 # Miscellaneous Directories
 dependencies/
 build/
 
 mycard
-resources/
 
 # Reviewed fixed assets for the two nostalgia formats. Keep the broad generated
 # resource rules above; only these committed inputs and generated outputs escape.
@@ -67,9 +63,6 @@ resources/
 
 # Local bats-core installation (not a repo dependency)
 tools/
-resources.manifest.private.json
-resources.manifest.effective.json
-resources.manifest.private.json.*
 
 # Local session + fetched core artifact (not versioned)
 .claude/

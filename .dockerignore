@@ -47,16 +47,8 @@ mercury/pre-releases/ocg/*
 mercury/pre-releases/tcg/*
 !mercury/pre-releases/tcg/ygopro
 
-# Git Submodules & Repositories
+# Legacy resource pipeline artifacts (repositories cache, assembled releases)
 *repositories/
-
-# Assembled resources are produced inside the image (Stage 1), never copied
-# from the context; the local `resources/current` symlink breaks context upload.
-resources/
-
-# Scripts — exclude the directory but re-include the .sh files for the build
-scripts/
-!scripts/*.sh
 
 # Miscellaneous Directories
 dependencies/

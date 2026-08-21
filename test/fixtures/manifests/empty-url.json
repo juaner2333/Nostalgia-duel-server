@@ -1,6 +1,0 @@
-{
-  "sources": [
-    { "id": "no-url-src", "type": "git", "url": "" }
-  ],
-  "assembly": []
-}

@@ -71,6 +71,9 @@ nostalgia-resources/
 - `formats/1103/lflist.conf` 与 `formats/1109/lflist.conf` 中的 `$whitelist` 分别是对应环境卡池与禁限数量的唯一事实来源。卡片 ID 必须唯一、属于基础数据库，数量只能为 0–3。
 - 脚本查找顺序固定为 `formats/<format>/script`，未命中时回退 `base/script`；禁止读取另一环境的脚本目录。
 - 数据库、基础脚本、环境覆盖脚本、两份 LFList 和 `lock.json` 必须作为一个整体校验并发布。任何文件缺失或摘要不匹配时，都不得切换活动版本。
+- 应用与固定资源是单一版本：代码、CDB、LFList、Lua 与 lock 随同一提交/镜像整体发布与回滚，禁止独立升级或回滚任一资源组成部分。
+- 启动时（在持久化连接和端口监听之前）、CI 与镜像构建必须执行同一完整 lock 校验（`npm run check:nostalgia-resources`），并检查 EDOPro、未启用赛制、额外卡池与仓库缓存等越界内容；失败即停。
+- 不存在运行时 manifest、`resources/current`/`resources/releases`/`repositories` 约定或任何资源刷新路径；资源根目录固定为 `nostalgia-resources/`，路径由领域层 1103/1109 注册表派生。
 - 固定资源不得在启动或周期刷新时跟随浮动上游更新，也不得创建外部仓库缓存。资源内容只能通过经过评审、更新 lock 并通过完整性检查的应用变更升级。
 - 发布树只能包含固定 base、1103/1109 format 和 YGOPro WASM 核心；不得重新引入 EDOPro、未启用赛制、现代 OCG、预发布或自定义扩展资源。
 
@@ -196,8 +199,9 @@ nostalgia-resources/
 | `npm test -- path/to/file` | 运行指定测试文件 |
 | `npm run lint` | 检查代码规范 |
 | `npm run lint:fix` | 修复可自动处理的规范问题 |
-| `npm run check:nostalgia-resources` | 校验固定数据库、1103/1109 LFList 与资源 lock |
+| `npm run check:nostalgia-resources` | 对完整资源根执行同一 lock 校验（数据库、双环境 LFList、脚本摘要与边界检查） |
 | `npm run generate:nostalgia-lock` | 在已审核的资源变更后重新生成 `nostalgia-resources/lock.json` |
+| `npm run smoke:duel -- [port]` | 双环境 TCP 冒烟：`1103#1001`/`1109#1001` 建房、真实卡组校验与真实 WASM 决斗 |
 
 ### 路径别名
 
@@ -210,3 +214,22 @@ nostalgia-resources/
 - 服务端只实现 YGOPro 协议，为 Koishi、YGO Mobile 和其他兼容客户端提供二进制 TCP 与 WebSocket 传输。
 - 决斗引擎使用 `koishipro-core.js` 提供的 ocgcore WASM，并在线程 Worker 中运行。
 - 修改 `shared/` 时必须确认不会破坏 `ygopro/` 中的协议实现；修改房间身份、卡池、禁限卡表或脚本解析时必须同时覆盖 1103 与 1109。
+
+### 冒烟验证（`npm run smoke:duel`）
+
+`scripts/smoke-duel.mjs` 用两个测试侧 TCP socket 驱动真实服务器完成 `1103#1001` 与 `1109#1001` 的完整决斗流程，并额外以第三个 socket 验证观战，用于验证资源加载、准入、卡组校验与真实 WASM 引擎在改动后仍可用：
+
+1. **启动前置服务**：目标服务器需已在运行且可连接 Redis（本地 `npm run dev` 或容器均可；无本地 Redis 时可临时 `docker run -d -p 6379:6379 valkey/valkey:9.0-alpine`）。
+2. **运行冒烟**：
+   ```bash
+   node scripts/smoke-duel.mjs [port]      # 默认 706
+   npm run smoke:duel -- 17711            # 或通过 npm script 指定端口
+   SMOKE_PORT=17711 node scripts/smoke-duel.mjs
+   ```
+3. **预期结果**：每个格式打印 `OK format <id>: created room, validated decks, real WASM duel started, surrendered`，最后 `SMOKE PASS`，退出码 0。
+
+覆盖阶段：建房与加入（`STOC_JOIN_GAME`/`HS_TYPE_CHANGE`）、真实卡组校验（CDB + 环境禁限卡表，卡组取 whitelist 中 qty=3 且有 base 脚本的主卡组怪兽）、双方 READY、RPS 与先后手选择、真实 ocgcore WASM 决斗（`MSG_START`）、投降与 `MATCH_END`。
+
+观战验证：房间满员后第三个连接被准入为 OBSERVER，收到 `HS_WATCH_CHANGE` 观众数广播（host 侧计数从 0 → 1），决斗期间观战者同样收到 `DUEL_START` 与观战视角的 `MSG_START`，且玩家席位不受影响（后续 RPS/决斗流程成功即证明）。
+
+注意：脚本依赖仓库内 `nostalgia-resources/` 构造卡组，只能对使用固定资源的实例运行；RPS 中 host=ROCK(1)/guest=PAPER(3) 时按服务器既有判定 host 获胜并选择先后手。
