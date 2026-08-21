@@ -1,180 +1,212 @@
-# AGENTS.md - Evolution Server Development Guide
+# AGENTS.md - 怀旧决斗服务器开发指南
 
-## How to Use This Guide
+## 如何使用本指南
 
-- **Start here**: This file defines the rules, patterns, and workflows for the `Nostalgia-duel-server` project.
-- **Strict Adherence**: You must follow the "Prime Directives" and "Auto-invoke Skills" without exception.
-- **Context**: This is a high-performance Hexagonal/DDD architecture.
+- **从这里开始**：本文件定义 `Nostalgia-duel-server` 的项目边界、开发规则和工作流。
+- **严格遵守**：必须无例外地遵守“首要准则”“归档规格约束”和“技能自动调用规则”。
+- **架构背景**：本项目采用高性能的六边形架构与领域驱动设计（DDD）。
+- **局部规则**：修改子目录前还需读取该目录中的 `AGENTS.md`；发生冲突时，以离目标文件最近的规则为准。
 
-## Project Overview
+## 项目概览
 
-| Component       | Location                                | Tech Stack       | Description                                      |
-| --------------- | --------------------------------------- | ---------------- | ------------------------------------------------ |
-| **Core Domain** | `src/ygopro/`, `src/shared/`            | TypeScript, DDD  | Business logic, Entities, Value Objects          |
-| **API**         | `src/http-server/`                      | Express, Diod    | REST endpoints for management                    |
-| **Realtime**    | `src/socket-server/`                    | WS, Net          | WebSocket & TCP socket handling                  |
-| **Persistence** | `src/shared/infrastructure/persistence` | TypeORM, Redis   | PostgreSQL (Users), Redis (Cache)                |
-| **Clients**     | `src/ygopro/`                           | Custom Protocol  | Implementation for YGOPro-compatible clients    |
-
----
-
-## Prime Directives (Rules)
-
-As an AI agent, you must strictly adhere to these rules. **Violation of these rules will result in rejected code.**
-
-### 1. Architecture & Patterns
-
-- **DDD is Mandatory**: Business logic lives in `domain/`. Never import `infrastructure/` or `application/`. Dependencies point inward.
-- **Hexagonal Architecture**: Dependencies point inward. The core doesn't know about the database or sockets.
-- **Test data**: Use `*Mother` classes for shared domain entities; local `make*` factories for suite-specific stubs. Tests are **co-located** in `src/` next to their source. See [testing conventions](./docs/testing.md).
-- **Chain of Responsibility**: Use this pattern for complex validations (e.g., Deck Rules).
-- **Dependency Injection**: Use `diod` or constructor injection to manage dependencies.
-
-### 2. Coding Standards
-
-- **Explicit Visibility**: `public`, `private`, `protected` must be explicit.
-- **No Console Logs**: Use `Logger` domain service.
-- **Naming**: `PascalCase` for classes, `camelCase` for vars, `UPPER_SNAKE_CASE` for constants.
-- **Conventional Commits**: Commit messages must follow the [Conventional Commits](https://www.conventionalcommits.org/) specification (e.g., `feat: add user login`, `fix: resolve room crash`).
-- **Path Aliases**: Always use `@ygopro/*` for imports from `src/ygopro/` when possible.
-
-### 3. Operational Safety
-
-- **Absolute Paths**: Always use absolute paths for file operations.
-- **Database**: Never alter `migrations/` manually after they are applied. Use `npm run migration:generate` for schema changes.
-- **Verify**: Run `npm run lint` and `npm run test` before finishing.
+| 组件 | 位置 | 技术栈 | 说明 |
+| --- | --- | --- | --- |
+| **核心领域** | `src/ygopro/`、`src/shared/` | TypeScript、DDD | 业务逻辑、实体、值对象 |
+| **管理 API** | `src/http-server/` | Express、Diod | 管理、匹配与查询 REST 接口 |
+| **实时通信** | `src/socket-server/` | WS、Node.js Net | YGOPro TCP 与 WebSocket 连接 |
+| **持久化** | `src/shared/infrastructure/persistence` | TypeORM、Redis | PostgreSQL 用户数据与 Redis 缓存 |
+| **固定资源** | `nostalgia-resources/` | CDB、Lua、LFList、JSON | 固定的 1103/1109 卡池、脚本、禁限卡表与资源锁 |
 
 ---
 
-## Available Skills
+## 归档规格定义的产品边界
 
-Use these skills for detailed patterns on-demand:
+以下约束来自已归档的 `remove-edopro-support` 与 `add-fixed-ocg-1109-environment` 变更，是当前系统的长期行为契约。
 
-| Skill                  | Description                                                                                 | Location                                       |
-| ---------------------- | ------------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| `typescript-expert`    | Deep knowledge of type-level programming, performance, and tooling                          | `.agents/skills/typescript-expert/SKILL.md`    |
-| `systematic-debugging` | Use when encountering any bug, test failure, or unexpected behavior, before proposing fixes | `.agents/skills/systematic-debugging/SKILL.md` |
+### 1. 仅支持 YGOPro
 
-## Auto-invoke Skills
+- 只允许暴露 YGOPro TCP 和 WebSocket 决斗端点；不得恢复 EDOPro TCP/WebSocket 监听器、端口映射、入口规则或健康检查。
+- 生产代码、依赖、构建和部署产物不得包含 EDOPro TypeScript 模块、原生 CoreIntegrator、EDOPro SQLite 数据库、热重载器、环境变量或资源树。
+- HTTP 检查、房间、卡片、禁限卡表、资源版本和管理消息接口只能处理 YGOPro 数据；不得新增 `edopro` 响应分支或恢复 EDOPro 专用建房行为。
+- `src/shared/` 不得依赖任何客户端专用模块；统计订阅必须通过显式启动流程注册，不得依赖 Socket 服务器构造函数的副作用。
+- 不得因为历史名称含有 Mercury、Evolution 或上游 Project Ignis 字样就删除仍被 YGOPro 使用的组件；应以实际运行时消费者判断归属。
 
-When performing these actions, **ALWAYS** follow the corresponding Standard Operating Procedure (SOP) below:
+### 2. 固定怀旧环境与房间路由
 
-| Action                                              | Skill / SOP                                     |
-| --------------------------------------------------- | ----------------------------------------------- |
-| "Implement feature...", "Create use case..."        | **[SOP-001] Feature Implementation (DDD)**      |
-| "Write tests...", "Fix bug...", "Add unit test"     | **[SOP-002] Testing Strategy**                  |
-| "Add field to DB", "Update schema", "New entity"    | **[SOP-003] Database Migration**                |
-| "Create new module", "New architecture component"   | **[SOP-004] Module Creation**                   |
-| "Fix complex type error", "Optimize TS build"       | **typescript-expert**                           |
-| "Debug an issue", "Fix bug", "Why is this failing?" | **systematic-debugging**                        |
+- 当前且仅当前启用 `1103` 与 `1109` 两个环境：
 
----
+| 环境 | 规则 | 模式 | 初始 LP | 对局制 | 固定卡池基线 |
+| --- | --- | --- | --- | --- | --- |
+| `1103` | OCG 2011.03、Master Rule 2 | MATCH | 8000 | 三局两胜 | 5002 个唯一卡片 ID |
+| `1109` | OCG 2011.09、Master Rule 2 | MATCH | 8000 | 三局两胜 | 5120 个唯一卡片 ID |
 
-## Standard Operating Procedures (Skills)
+- 玩家和观战者使用 `format#roomId` 加入，例如 `1103#1001`。`roomId` 必须是非空十进制数字，完整值必须适配 `JoinGame` 的 20 个 UTF-16LE 字符槽。
+- `format` 与 `roomId` 的组合才是房间身份。同一个 `roomId` 在 1103 和 1109 中对应两个隔离的房间，禁止以裸 `roomId` 查找房间。
+- 环境化房间不使用密码；`#` 右侧全部内容都是外部房间号，不得复用旧式“房间名/密码”语义。
+- 未启用环境、空或非数字房间号、额外的 `#` 分段以及超长标识必须被拒绝，且不得创建或修改房间，也不得回退到其他加入策略。
+- 房间创建后，其环境、卡池、规则、禁限卡表和脚本集合不可变。新路由必须继续使用现有玩家准入、重连、观战、消息可见性、席位和生命周期逻辑。
+- 如需新增环境，必须通过独立变更明确提供卡池派生规则、禁限卡表、可选脚本覆盖及固定资源完整性验证；不得以动态命令或隐式资源扫描启用。
 
-### [SOP-001] Feature Implementation (DDD)
+### 3. 固定资源边界
 
-**Goal**: Implement a new feature following strict DDD/Hexagonal patterns.
+固定资源布局为：
 
-1.  **Domain Layer** (`src/[module]/domain/`):
-    - Define the Entity/Aggregate Root.
-    - Define Value Objects if needed.
-    - Define the `Repository` interface (port).
-    - _Output_: `.ts` files with pure business logic.
-2.  **Application Layer** (`src/[module]/application/`):
-    - Create the Use Case (Service/Handler).
-    - Inject the Repository interface via constructor.
-    - _Output_: Service class implementing specific business action.
-3.  **Infrastructure Layer** (`src/[module]/infrastructure/`):
-    - Implement the Repository using TypeORM.
-    - _Output_: Repository implementation file.
-4.  **Interface Layer**:
-    - Expose via Controller (HTTP) or Event Handler (Socket).
+```text
+nostalgia-resources/
+├── lock.json
+└── ygopro/
+    ├── base/
+    │   ├── cards.cdb
+    │   └── script/
+    └── formats/
+        ├── 1103/
+        │   ├── lflist.conf
+        │   └── script/
+        └── 1109/
+            ├── lflist.conf
+            └── script/
+```
 
-### [SOP-002] Testing Strategy
+- `ygopro/base/cards.cdb` 是唯一基础数据库，其 `datas` 表当前包含 5120 个有效、唯一的卡片 ID；不得合并其他 `.cdb`、YDK、历史 LFList 或临时输入来扩展卡池。
+- `formats/1103/lflist.conf` 与 `formats/1109/lflist.conf` 中的 `$whitelist` 分别是对应环境卡池与禁限数量的唯一事实来源。卡片 ID 必须唯一、属于基础数据库，数量只能为 0–3。
+- 脚本查找顺序固定为 `formats/<format>/script`，未命中时回退 `base/script`；禁止读取另一环境的脚本目录。
+- 数据库、基础脚本、环境覆盖脚本、两份 LFList 和 `lock.json` 必须作为一个整体校验并发布。任何文件缺失或摘要不匹配时，都不得切换活动版本。
+- 固定资源不得在启动或周期刷新时跟随浮动上游更新，也不得创建外部仓库缓存。资源内容只能通过经过评审、更新 lock 并通过完整性检查的应用变更升级。
+- 发布树只能包含固定 base、1103/1109 format 和 YGOPro WASM 核心；不得重新引入 EDOPro、未启用赛制、现代 OCG、预发布或自定义扩展资源。
 
-**Goal**: Consistent, co-located tests. Full conventions in [docs/testing.md](./docs/testing.md).
+### 4. YGOPro 线协议兼容性
 
-1.  **Co-locate the test**: create `[Thing].test.ts` next to `src/[module]/[Thing].ts`. Do **not** add to the root `tests/` folder (legacy, being migrated out).
-2.  **Build test data**:
-    - Shared domain entities → use/create a `*Mother` (static `create(overrides?)`, faker defaults):
-      ```typescript
-      export class UserMother {
-        static create(overrides?: Partial<UserPrimitives>): User {
-          return User.fromPrimitives({
-            id: UuidMother.create(),
-            name: faker.person.firstName(),
-            ...overrides,
-          });
-        }
-      }
-      ```
-    - Suite-local stubs (fake repo/provider/socket) → inline `make*` factory with an `overrides` param.
-3.  **Naming**: `describe` the unit, `it` the behavior in **English**, present tense, no "should":
-      ```typescript
-      describe("CreateRoom", () => {
-        it("creates a public room", async () => {
-          const user = UserMother.create();
-          // ...
-        });
-      });
-      ```
-4.  **Mocks**: shared Mock classes for infra (Logger/Socket/MessageRepository), `jest.mock()` for module singletons, `mock<T>()` (jest-mock-extended) for one-off interfaces. Reset singletons in `afterEach`.
+- TCP 帧使用二字节小端长度前缀，长度包含一字节命令及消息负载。
+- 固定加入序列依次为 `ExternalAddress (0x17)`、`PlayerInfo (0x10)` 和 `JoinGame (0x12)`；协议版本保持 `0x1362`。
+- `PlayerInfo` 使用 20 个 UTF-16LE 字符槽；`JoinGame` 在版本后包含两个 `0xCC` 字节、一个 32 位保留/游戏 ID 字段和 20 个 UTF-16LE 字符槽。
+- 解析器必须正确处理任意 TCP 分片与粘包，每个完整帧只分发一次；截断、非法长度或超过上限的帧必须被拒绝，且不得产生房间副作用。
+- 认证、准入和版本错误必须使用 YGOPro 原生序列化。存在兼容错误码时先发送错误再关闭；错误房间标识等静默拒绝必须保留既有关闭语义。
+- 修改协议时必须显式更新仓库内人工核对的固定二进制样本、规格与预期解析结果；测试不得用被测编码器动态生成期望样本。
 
-### [SOP-003] Database Migration
+### 5. 必须保持的行为
 
-**Goal**: Safely modify the database schema.
-
-1.  **Update Entity**: Modify the TypeORM entity class in `src/evolution-types/src/`.
-2.  **Generate Migration**:
-    ```bash
-    npm run migration:generate --name=NameOfChange
-    ```
-3.  **Verify**: Inspect the generated file in `src/shared/infrastructure/persistence/typeorm/migrations/`.
-4.  **Apply**:
-    ```bash
-    npm run migration:run
-    ```
-
-### [SOP-004] Module Creation
-
-**Goal**: Create a new domain module from scratch.
-
-1.  **Structure**:
-    ```bash
-    mkdir -p src/new-module/{domain,application,infrastructure}
-    ```
-    Tests are co-located next to their source inside these folders — no separate `tests/` tree.
-2.  **Registration**:
-    - Register new entities in TypeORM config.
-    - Register new controllers/handlers in the dependency injection container (`diod`).
+- 保持房间创建与加入、卡组校验、决斗状态流转、断线与受支持重连、聊天、表情、录像、匹配、WindBot 和观战行为。
+- 房间展示、卡组校验、录像元数据与持久化决斗事件必须使用同一份 YGOPro 禁限卡表名称和哈希作为唯一事实来源。
+- 启用统计持久化时，一次 YGOPro 游戏结束事件必须恰好一次送达所有已配置订阅者。
+- 阻断回归必须能在 WSL 内仅依赖 Node.js、仓库内固定样本和测试侧套接字执行；网络测试只能监听系统分配的临时 loopback 端口。
 
 ---
 
-## Technical Reference
+## 首要准则
 
-### Key Commands
+### 1. 架构与模式
 
-| Command                    | Description                          |
-| -------------------------- | ------------------------------------ |
-| `npm run dev`              | Start development server (Port 9229) |
-| `npm run build`            | Build for production                 |
-| `npm run test`             | Run all tests                        |
-| `npm test -- path/to/file` | Run specific test file               |
-| `npm run lint`             | Check code style                     |
-| `npm run lint:fix`         | Fix code style                       |
+- **DDD 是强制要求**：业务逻辑必须位于 `domain/`；领域层不得导入 `application/` 或 `infrastructure/`，依赖只能指向内层。
+- **六边形架构**：核心领域不感知数据库、HTTP 或 Socket；外部能力通过端口与依赖注入接入。
+- **测试数据**：共享领域实体使用 `*Mother`；套件专用桩件使用本地 `make*` 工厂。测试与源码共同放在 `src/` 中，详见 [测试约定](./docs/testing.md)。
+- **职责链**：复杂校验（例如卡组规则）使用项目已有的职责链模式，不得另建平行实现。
+- **依赖注入**：使用 `diod` 或构造函数注入管理依赖。
 
-### Path Aliases
+### 2. 编码标准
+
+- **显式可见性**：类成员必须显式声明 `public`、`private` 或 `protected`。
+- **禁止 Console 日志**：使用 `Logger` 领域服务。
+- **命名规范**：类使用 `PascalCase`，变量使用 `camelCase`，常量使用 `UPPER_SNAKE_CASE`。
+- **提交规范**：提交消息遵循 [Conventional Commits](https://www.conventionalcommits.org/)（例如 `feat: add user login`、`fix: resolve room crash`）。
+- **路径别名**：从 `src/ygopro/` 导入时应尽量使用 `@ygopro/*`。
+
+### 3. 操作安全
+
+- **绝对路径**：文件操作始终使用绝对路径。
+- **数据库迁移**：已应用的迁移不得手工修改；模式变更使用 `npm run migration:generate --name=NameOfChange` 生成迁移。
+- **固定资源**：不要手工伪造 `lock.json`。有意修改 CDB、LFList 或 Lua 脚本后，重新生成 lock 并检查差异与卡池基线。
+- **部署清理**：只有在新 YGOPro 应用与资源版本健康检查、完整决斗冒烟测试通过后，才可清理旧 EDOPro 数据；删除目标必须解析为明确路径或版本 ID。
+- **完成验证**：结束前运行 `npm run lint`、`npm run test` 和 `npm run check:nostalgia-resources`；涉及生产入口或产物时还需运行 `npm run build`。
+
+---
+
+## 可用技能
+
+按需使用以下技能获取详细流程：
+
+| 技能 | 用途 | 位置 |
+| --- | --- | --- |
+| `typescript-expert` | TypeScript 类型系统、性能与工具链问题 | `.agents/skills/typescript-expert/SKILL.md` |
+| `systematic-debugging` | Bug、测试失败或异常行为的系统化诊断 | `.agents/skills/systematic-debugging/SKILL.md` |
+
+## 技能与 SOP 自动调用规则
+
+执行下列操作时，必须遵循对应流程：
+
+| 操作 | 技能 / SOP |
+| --- | --- |
+| 实现功能、创建用例 | **[SOP-001] DDD 功能实现** |
+| 编写测试、修复 Bug、添加单元测试 | **[SOP-002] 测试策略** |
+| 增加数据库字段、更新模式、新增持久化实体 | **[SOP-003] 数据库迁移** |
+| 创建模块或架构组件 | **[SOP-004] 模块创建** |
+| 修复复杂类型错误、优化 TypeScript 构建 | **typescript-expert** |
+| 调试问题、修复 Bug、分析失败原因 | **systematic-debugging** |
+
+---
+
+## 标准操作流程
+
+### [SOP-001] DDD 功能实现
+
+**目标**：按 DDD 与六边形架构实现新功能。
+
+1. **领域层**（`src/[module]/domain/`）：定义实体或聚合根、必要的值对象以及仓库端口；只包含纯业务逻辑。
+2. **应用层**（`src/[module]/application/`）：创建用例服务或处理器，通过构造函数注入端口。
+3. **基础设施层**（`src/[module]/infrastructure/`）：实现仓库或其他外部适配器。
+4. **接口层**：通过 HTTP Controller 或 Socket 事件处理器暴露功能。
+
+### [SOP-002] 测试策略
+
+**目标**：保持测试一致、就近放置，并遵循测试优先循环。完整约定见 [测试约定](./docs/testing.md)。
+
+1. 在修改生产代码前，先新增或修改一个能失败的测试以复现问题或覆盖新行为。
+2. 将 `[Thing].test.ts` 与 `src/[module]/[Thing].ts` 放在同一目录；不要向根 `tests/` 添加新测试。
+3. 共享领域实体使用带 `static create(overrides?)` 的 `*Mother`；套件本地桩件使用支持 `overrides` 的内联 `make*` 工厂。
+4. `describe` 描述被测单元，`it` 使用英文、一般现在时且不含 “should” 描述行为。
+5. 基础设施共用 Logger、Socket、MessageRepository 等 Mock；模块单例使用 `jest.mock()`；一次性接口使用 `mock<T>()`。在 `afterEach` 中重置单例。
+6. 先确认测试失败，再用最少代码使其通过；随后运行聚焦测试和完整回归。
+
+### [SOP-003] 数据库迁移
+
+**目标**：安全修改数据库模式。
+
+1. 修改 `src/evolution-types/src/` 中的 TypeORM 实体。
+2. 执行 `npm run migration:generate --name=NameOfChange`。
+3. 检查 `src/evolution-types/src/migrations/` 中生成的迁移。
+4. 执行 `npm run migration:run` 验证迁移。
+
+### [SOP-004] 模块创建
+
+**目标**：从零创建领域模块。
+
+1. 创建 `src/new-module/{domain,application,infrastructure}` 结构，测试与对应源码放在同一目录，不创建独立测试树。
+2. 在 TypeORM 配置中注册新实体，并在依赖注入容器中注册 Controller、Handler 与适配器。
+
+---
+
+## 技术参考
+
+### 常用命令
+
+| 命令 | 用途 |
+| --- | --- |
+| `npm run dev` | 启动开发服务器，调试端口为 9229 |
+| `npm run build` | 构建生产代码 |
+| `npm run test` | 运行全部 Jest 测试 |
+| `npm test -- path/to/file` | 运行指定测试文件 |
+| `npm run lint` | 检查代码规范 |
+| `npm run lint:fix` | 修复可自动处理的规范问题 |
+| `npm run check:nostalgia-resources` | 校验固定数据库、1103/1109 LFList 与资源 lock |
+| `npm run generate:nostalgia-lock` | 在已审核的资源变更后重新生成 `nostalgia-resources/lock.json` |
+
+### 路径别名
 
 - `@ygopro/*` → `src/ygopro/*`
 - `@shared/*` → `src/shared/*`
 - `@test-support/*` → `src/test-support/*`
 
-### Architecture
+### 运行时架构
 
-The server speaks the YGOPro protocol (srvpro2-compatible) for Koishi, YGO Mobile, and YGOPro clients:
-
-- **YGOPro**: Binary TCP protocol plus a WebSocket transport.
-- **Engine**: ocgcore compiled to WASM (`koishipro-core.js`), run in worker threads.
-
-Ensure changes in `shared/` do not break the protocol-specific implementations in `ygopro/`.
+- 服务端只实现 YGOPro 协议，为 Koishi、YGO Mobile 和其他兼容客户端提供二进制 TCP 与 WebSocket 传输。
+- 决斗引擎使用 `koishipro-core.js` 提供的 ocgcore WASM，并在线程 Worker 中运行。
+- 修改 `shared/` 时必须确认不会破坏 `ygopro/` 中的协议实现；修改房间身份、卡池、禁限卡表或脚本解析时必须同时覆盖 1103 与 1109。
