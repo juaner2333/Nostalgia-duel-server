@@ -67,7 +67,7 @@ nostalgia-resources/
             └── script/
 ```
 
-- `ygopro/base/cards.cdb` 是唯一基础数据库，其 `datas` 表当前包含 5120 个有效、唯一的卡片 ID；不得合并其他 `.cdb`、YDK、历史 LFList 或临时输入来扩展卡池。
+- `ygopro/base/cards.cdb` 是唯一基础数据库，其 `datas` 表当前包含 5199 个有效、唯一的卡片 ID（5120 张实卡 + 79 个脚本引用的 token 虚拟卡元数据）；不得合并其他 `.cdb`、YDK、历史 LFList 或临时输入来扩展卡池。token 虚拟卡不进 whitelist、不能入卡组，仅为 `Duel.CreateToken` 提供卡数据；lock 校验会断言脚本引用的 token 集合与 CDB 中的 TYPE_TOKEN 卡集合完全一致，任何一边缺失即失败。
 - `formats/1103/lflist.conf` 与 `formats/1109/lflist.conf` 中的 `$whitelist` 分别是对应环境卡池与禁限数量的唯一事实来源。卡片 ID 必须唯一、属于基础数据库，数量只能为 0–3。
 - 脚本查找顺序固定为 `formats/<format>/script`，未命中时回退 `base/script`；禁止读取另一环境的脚本目录。
 - 数据库、基础脚本、环境覆盖脚本、两份 LFList 和 `lock.json` 必须作为一个整体校验并发布。任何文件缺失或摘要不匹配时，都不得切换活动版本。

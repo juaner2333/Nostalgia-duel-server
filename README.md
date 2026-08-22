@@ -38,7 +38,7 @@ nostalgia-resources/
 ├── lock.json                  # 资源锁：全部资源摘要
 └── ygopro/
     ├── base/
-    │   ├── cards.cdb          # 唯一基础数据库（5,120 个有效卡片 ID）
+    │   ├── cards.cdb          # 唯一基础数据库（5,120 实卡 + 79 个脚本引用 token 元数据）
     │   └── script/            # 基础脚本
     └── formats/
         ├── 1103/{lflist.conf,script/}   # 环境禁限卡表 + 环境覆盖脚本
@@ -47,7 +47,7 @@ nostalgia-resources/
 
 - 应用与固定资源是**同一个不可拆分版本**：代码、CDB、LFList、Lua 与 `lock.json` 随同一提交/镜像发布、升级与回滚，不存在独立资源版本或运行时刷新。
 - 每场决斗的脚本查找链固定为 `formats/<format>/script` → `base/script`，**禁止**读取另一环境的脚本目录。
-- 两份 `lflist.conf` 中的 `$whitelist` 是各环境卡池与禁限数量的唯一事实来源；运行时仅凭它过滤唯一基础 CDB。
+- 两份 `lflist.conf` 中的 `$whitelist` 是各环境卡池与禁限数量的唯一事实来源；运行时按它过滤唯一基础 CDB（同时保留脚本引用的 token 虚拟卡元数据，供引擎 `Duel.CreateToken` 读取；token 不可入卡组）。
 - 启动时（持久化连接与端口监听之前）、CI 与 Docker 构建执行**同一完整 lock 校验**（`npm run check:nostalgia-resources`），任何文件缺失、漂移或越界都会快速失败。
 - 部署后可通过 `GET /api/resources/version` 核对镜像内实际加载的资源摘要。
 

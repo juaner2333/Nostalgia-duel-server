@@ -44,23 +44,35 @@ describe("fixed nostalgia resource integration", () => {
 		const baseCards = [...cdb.step()];
 		cdb.finalize();
 		const baseCardIds = new Set(baseCards.map((card) => card.code));
+		const tokenCardIds = new Set(
+			baseCards.filter((card) => (card.type ?? 0) & 0x4000).map((card) => card.code),
+		);
 		const baseStorage = CardStorage.fromCards(baseCards);
 		const pool1103 = await readWhitelistCardIds(path.join(pools.formats["1103"], "lflist.conf"));
 		const pool1109 = await readWhitelistCardIds(path.join(pools.formats["1109"], "lflist.conf"));
-		const storage1103 = baseStorage.filterByCardIds(pool1103);
-		const storage1109 = baseStorage.filterByCardIds(pool1109);
+		const storage1103 = baseStorage.filterForFormat(pool1103);
+		const storage1109 = baseStorage.filterForFormat(pool1109);
 
-		expect(baseStorage.size).toBe(5120);
-		expect(storage1103.size).toBe(5002);
-		expect(storage1109.size).toBe(5120);
+		expect(baseStorage.size).toBe(5199);
+		expect(storage1103.size).toBe(5002 + tokenCardIds.size);
+		expect(storage1109.size).toBe(5120 + tokenCardIds.size);
 		expect(sorted(pool1103)).toEqual(
 			sorted([...baseCardIds].filter((cardId) => pool1103.has(cardId))),
 		);
-		expect(sorted(pool1109)).toEqual(sorted(baseCardIds));
+		// 基础数据库 = 1109 实卡池 ∪ 脚本引用的 token 虚拟卡；token 不属于任何环境卡池。
+		expect(sorted([...tokenCardIds].filter((cardId) => pool1109.has(cardId)))).toEqual([]);
+		expect(sorted(pool1109)).toEqual(
+			sorted([...baseCardIds].filter((cardId) => !tokenCardIds.has(cardId))),
+		);
 		for (const cardId of pool1103) {
 			expect(storage1103.readCard(cardId)).toBeDefined();
 		}
 		for (const cardId of pool1109) {
+			expect(storage1109.readCard(cardId)).toBeDefined();
+		}
+		// 引擎视图保留全部 token 元数据，保证 Duel.CreateToken 可读取。
+		for (const cardId of tokenCardIds) {
+			expect(storage1103.readCard(cardId)).toBeDefined();
 			expect(storage1109.readCard(cardId)).toBeDefined();
 		}
 	});

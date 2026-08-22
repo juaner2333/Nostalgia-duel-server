@@ -9,6 +9,9 @@ const HASH_LOAD_FACTOR = 0.75;
 const HASH_MIN_CAPACITY = 16;
 const CARD_ENTRY_SIZE = CARD_DATA_WITH_OT_PAYLOAD_SIZE;
 
+/** ygopro TYPE_TOKEN 位：token 虚拟卡元数据必须随环境卡池一起交给引擎 */
+const TYPE_TOKEN = 0x4000;
+
 const isValidCardId = (cardId: number) =>
 	Number.isInteger(cardId) && cardId >= CARD_ID_MIN && cardId <= CARD_ID_MAX;
 
@@ -126,6 +129,28 @@ export class CardStorage {
 		for (const cardId of cardIds) {
 			const card = this.readCard(cardId);
 			if (card) {
+				cards.push(card);
+			}
+		}
+		return CardStorage.fromCards(cards, this.ocgcoreWasmBinary);
+	}
+
+	/**
+	 * 环境卡池视图：白名单实卡 + 脚本引用的 token 虚拟卡。
+	 * token 不进 whitelist（不可入卡组），但 `Duel.CreateToken` 需要从
+	 * 卡阅读器读取其数据，因此过滤时必须随卡池一并保留。
+	 */
+	filterForFormat(cardIds: Set<number>): CardStorage {
+		const cards: CardDataWithOt[] = [];
+		for (const cardId of cardIds) {
+			const card = this.readCard(cardId);
+			if (card) {
+				cards.push(card);
+			}
+		}
+		for (let index = 0; index < this.size; index++) {
+			const card = this.readEntry(index);
+			if ((card.type & TYPE_TOKEN) !== 0 && !cardIds.has(card.code)) {
 				cards.push(card);
 			}
 		}

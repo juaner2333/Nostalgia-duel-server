@@ -102,7 +102,7 @@ export class HistoricalRulingsDriver {
 		const pool = await readWhitelistCardIds(
 			path.join(RESOURCE_ROOT, "ygopro", "formats", formatId, "lflist.conf"),
 		);
-		const storage = baseStorage.filterByCardIds(pool);
+		const storage = baseStorage.filterForFormat(pool);
 		const wrapper = await createOcgcoreWrapper();
 		const formatPath = path.join(RESOURCE_ROOT, "ygopro", "formats", formatId);
 		const basePath = path.join(RESOURCE_ROOT, "ygopro", "base");
@@ -125,7 +125,7 @@ export class HistoricalRulingsDriver {
 		const pool = await readWhitelistCardIds(
 			path.join(RESOURCE_ROOT, "ygopro", "formats", formatId, "lflist.conf"),
 		);
-		const storage = baseStorage.filterByCardIds(pool);
+		const storage = baseStorage.filterForFormat(pool);
 		const wrapper = await createOcgcoreWrapper();
 		wrapper.setScriptReader(await DirScriptReaderEx(...scriptDirs));
 		wrapper.setCardReader(storage.toCardReader());

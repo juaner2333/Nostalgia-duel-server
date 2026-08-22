@@ -166,9 +166,11 @@ export class YGOProResourceLoader {
 	private async loadFormatCardStorage(formatId: string): Promise<CardStorage> {
 		const formatPath = resolveFormatPath(this.resolvedPools, formatId);
 		const cardIds = await readWhitelistCardIds(path.join(formatPath, "lflist.conf"));
-		const storage = (await this.loadBaseCdb()).filterByCardIds(cardIds);
-		if (storage.size !== cardIds.size) {
-			throw new Error(`Format ${formatId} whitelist references cards outside base/cards.cdb`);
+		const storage = (await this.loadBaseCdb()).filterForFormat(cardIds);
+		for (const cardId of cardIds) {
+			if (!storage.readCard(cardId)) {
+				throw new Error(`Format ${formatId} whitelist references cards outside base/cards.cdb`);
+			}
 		}
 		this.formatCardStorages.set(formatId, storage);
 		return storage;
