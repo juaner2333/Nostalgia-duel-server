@@ -5,7 +5,7 @@ import { config } from "src/config";
 import { PostgresTypeORM } from "src/evolution-types/src/PostgresTypeORM";
 
 // Opens every datastore connection the server depends on. Postgres is only
-// touched when ranking is enabled; Redis is always required.
+// touched when ranking is enabled; Redis is only connected when USE_REDIS=true.
 export async function bootstrapPersistence(logger: Logger): Promise<void> {
 	if (config.ranking.enabled) {
 		const postgres = new PostgresTypeORM();
