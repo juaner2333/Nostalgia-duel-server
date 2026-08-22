@@ -37,7 +37,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: evolutionygo-server
+    container_name: nostalgia-duel-server
     environment:
       NODE_ENV: production
       POSTGRES_HOST: postgres

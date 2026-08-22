@@ -105,7 +105,7 @@ USE_REDIS=false RANK_ENABLED=false docker compose -f docker-compose.prod.yaml up
 
 # 方式二：直接运行镜像
 docker compose -f docker-compose.prod.yaml build server
-docker run -d --name evolutionygo-server \
+docker run -d --name nostalgia-duel-server \
   -p 706:706 -p 7922:7922 -p 4000:4000 \
   -e NODE_ENV=production -e USE_REDIS=false -e RANK_ENABLED=false \
   evolutionygo-server
