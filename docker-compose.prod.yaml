@@ -75,6 +75,10 @@ services:
       valkey:
         condition: service_healthy
     restart: unless-stopped
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
     networks:
       - evolutionygo-network
 

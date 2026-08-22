@@ -144,3 +144,47 @@ node scripts/load-test-duel.mjs --mode duel --rooms 12 --hold-ms 60000 --pid <se
 - 本报告数据采集于本地 WSL2/Docker Desktop（宿主 12 核/8G），Docker 镜像 `nostalgia-duel-server:latest`（含 `check:nostalgia-resources` 校验）
 - 测试脚本：`scripts/load-test-duel.mjs`（duel/churn/idle 三模式；`--docker`/`--pid` 采样；CSV 输出 `/tmp/load-test-*.csv`）
 - 完整方法与复现命令见 `docs/capacity-load-test-plan.md`
+
+## 7. 云主机实测确认（2026-08-22）
+
+### 7.1 实测环境
+
+- **腾讯云 CVM**：2 vCPU / 3.6GiB 内存（`nproc=2`），Docker 部署（镜像 `nostalgia-duel-server:1.0.0`，容器名 `evolutionygo-server`，端口 706/4000/4002/7922），**未启用 PG/Redis**
+- **压测生成器**：本地 WSL 经公网 `--host 134.175.22.216 --port 706`；服务器侧独立采样循环直读容器主进程宿主 `/proc/<pid>`（与脚本 `--docker` 模式同源）
+- **基线**：空闲 RSS ~198MB / 12 线程
+
+### 7.2 并发对局阶梯（duel 模式，hold 60s，双格式）
+
+| rooms | 并发场数 | 结果 | join→MSG_START p95 | max RSS | 线程数 | max CPU 突发 | 非零帧 avg CPU |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 4 | 8 | PASS | 3.3s | 1008MB | 20 | 202% | 40.5% |
+| 8 | 16 | PASS | 5.9s | — | 28 | — | — |
+| 12 | 24 | PASS | 7.4-7.9s | 1490MB | 36 | — | — |
+| 16 | 32 | PASS | 9.1s | — | — | — | — |
+| 20 | 40 | PASS | 13.5-14.4s | 2003MB | 52 | 205% | 72.6% |
+| 24 | 48 | PASS | 14.6s（个别 >15s） | — | — | — | — |
+| **28** | **56** | **FAIL 3-6/56** | **>15s 超时** | 2319MB | 65 | 206% | 72.5% |
+
+- 与本地 Docker 模拟**高度一致**：墙位同为 40 场安全 / 48 场边缘 / 56 场开局 MSG_START 超时；marginal RSS ~25-29MB/场（本地 27-35MB）
+- max CPU 突发 205-206%：2 核在 40+ 场同时开局时打满，是并发上限的第一约束
+- join 延迟不随并发增长（p50≈300ms 为公网 RTT+处理，本地 302ms 一致）
+
+### 7.3 稳定性（churn，并发窗口 8=16 场）
+
+- 180s：**483/484 完成**；300s：**804/805 完成**（两次）
+- 每次恰有 1 场 guest join 超时，**服务器日志无该连接准入记录**（0 帧）——为压测客户端（WSL 公网）连接建立偶发失败，非服务器拒绝；服务器侧零拒绝
+- avg CPU **1.15 核**（快速建房/投降为 CPU 密集场景），无 OOM/判平
+- **泄漏检查 OK**：churn 窗口前/后 60s 平均 RSS 1068MB → 1059MB（-9.4MB，<200MB 阈值）
+- 服务器日志存在 71 次 `Error while advancing ocgcore`（`OCGCore disposed` 后的 pending advance 触发），被 `handleAdvanceError` 捕获，未影响任何房间完成；属快速关房竞态，建议后续排查
+
+### 7.4 在线连接（idle）
+
+- **服务器侧能力 ≥3000**：服务器本机（prlimit 提升后）经公网 IP 自连 3000/3000 全通并保持
+- **压测客户端（WSL）是瓶颈**：5000 并发仅 ~45% 存活（WSL NAT 并发限制），非服务器问题
+- **部署参数发现**：容器内 `ulimit -n` 默认 **1024**（远低于计划要求的 65535），已用 `prlimit --pid <宿主PID> --nofile=65535:65535` 临时提升生效；**需固化到部署配置**（`docker run --ulimit nofile=65535:65535` 或 compose `ulimits:`），否则在线连接上限约 1000
+
+### 7.5 云主机结论
+
+- **稳态并发对局：24-32 场**（安全上限 ~40 场），与本地模拟结论一致，无需修正
+- **在线连接**：容器 `ulimit -n` 提升后 ≥3000（受客户端测试能力限制未测更高），建议按计划固化 65535 后复测 5000+
+- 部署配置需补充：`ulimits: nofile 65535`（compose）或 `--ulimit nofile=65535:65535`（docker run）
