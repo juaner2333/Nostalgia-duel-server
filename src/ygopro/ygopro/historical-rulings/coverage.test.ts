@@ -7,14 +7,15 @@ import { readWhitelistCardIds } from "@ygopro/ygopro/YGOProResourceLoader";
 import { IdleCmdType, YGOProMsgDamage } from "ygopro-msg-encode";
 
 /**
- * The card IDs covered by 2011 rulings in both 1103 and 1109 for this
- * change: the first batch minus 5861892 (kept on modern rulings) plus
- * 47355498 necrovalley. The remaining spec candidates stay on base scripts.
+ * The fixed 2011 coverage set is the upstream `purerosefallen/specials` 706
+ * collection (commit f993d739344f1914bcf8c54e90d638eb1fb45d45) filtered by
+ * each format whitelist (374 cards for 1103, 375 for 1109) plus the two
+ * project-kept cards 80168720 and 96782886; therefore 1103 has exactly 376
+ * card scripts and 1109 exactly 377, plus a shared special.lua each.
  */
-export const HISTORICAL_RULINGS_CARD_IDS = [
-	95727991, 26202165, 50321796, 88264978, 70583986, 25862681, 96782886, 77565204, 21502796,
-	80168720, 16226786, 47355498,
-];
+const EXCLUDED_UPSTREAM_CARD_IDS = [27847700, 57728571, 61468779, 82301904, 83555667, 92661479];
+const KEPT_PROJECT_CARD_IDS = [80168720, 96782886];
+const COUNT_BY_FORMAT: Record<string, number> = { "1103": 376, "1109": 377 };
 
 const formatScriptDir = (formatId: string) =>
 	path.join(RESOURCE_ROOT, "ygopro", "formats", formatId, "script");
@@ -22,27 +23,53 @@ const formatScriptDir = (formatId: string) =>
 const sha256 = (content: Buffer): string =>
 	crypto.createHash("sha256").update(content).digest("hex");
 
+const listCardScriptIds = (formatId: string): number[] =>
+	fs
+		.readdirSync(formatScriptDir(formatId))
+		.filter((name) => /^c\d+\.lua$/.test(name))
+		.map((name) => Number(name.slice(1, -4)));
+
 describe("historical card rulings coverage", () => {
-	it("covers the 27 spec card IDs in both format script dirs with identical content", () => {
+	it("contains exactly the fixed card script counts plus special.lua per format, byte-identical across formats", () => {
+		const idsByFormat = new Map<string, number[]>();
 		for (const formatId of ["1103", "1109"]) {
-			const dir = formatScriptDir(formatId);
-			const files = fs.readdirSync(dir).filter((name) => name.endsWith(".lua"));
-			expect(files.sort()).toEqual(HISTORICAL_RULINGS_CARD_IDS.map((id) => `c${id}.lua`).sort());
+			const files = fs.readdirSync(formatScriptDir(formatId));
+			const ids = listCardScriptIds(formatId);
+			expect(ids.length).toBe(COUNT_BY_FORMAT[formatId]);
+			// exactly one special.lua and no other non-card files
+			expect(files.filter((name) => name === "special.lua").length).toBe(1);
+			expect(files.filter((name) => /^c\d+\.lua$/.test(name)).length).toBe(ids.length);
+			idsByFormat.set(formatId, ids);
 		}
-		const digests1103 = new Map(
-			HISTORICAL_RULINGS_CARD_IDS.map((id) => [
-				id,
-				sha256(fs.readFileSync(path.join(formatScriptDir("1103"), `c${id}.lua`))),
-			]),
-		);
-		for (const id of HISTORICAL_RULINGS_CARD_IDS) {
-			const digest1109 = sha256(fs.readFileSync(path.join(formatScriptDir("1109"), `c${id}.lua`)));
-			expect(digest1109).toBe(digests1103.get(id));
+		// every shared card ID is byte-identical across the two formats,
+		// including the project-kept scripts and special.lua
+		const digests1103 = new Map<string, string>();
+		for (const name of fs.readdirSync(formatScriptDir("1103"))) {
+			digests1103.set(name, sha256(fs.readFileSync(path.join(formatScriptDir("1103"), name))));
 		}
+		// every shared card ID is byte-identical across the two formats,
+		// including the project-kept scripts and special.lua (67750322 is 1109-only)
+		const files1109 = fs.readdirSync(formatScriptDir("1109"));
+		const only1109 = files1109.filter((name) => !digests1103.has(name));
+		expect(only1109).toEqual(["c67750322.lua"]);
+		for (const name of files1109.filter((name) => digests1103.has(name))) {
+			expect(sha256(fs.readFileSync(path.join(formatScriptDir("1109"), name)))).toBe(
+				digests1103.get(name),
+			);
+		}
+		// the kept project cards are present in both environments
+		for (const id of KEPT_PROJECT_CARD_IDS) {
+			expect(idsByFormat.get("1103")).toContain(id);
+			expect(idsByFormat.get("1109")).toContain(id);
+		}
+		// 67750322 exists only in 1109
+		expect(idsByFormat.get("1103")).not.toContain(67750322);
+		expect(idsByFormat.get("1109")).toContain(67750322);
 	});
 
-	it("keeps every covered card inside the fixed base database and both whitelists", async () => {
-		const driver = await HistoricalRulingsDriver.create("1103");
+	it("keeps every covered card inside the fixed base database and its format whitelist", async () => {
+		const driver1103 = await HistoricalRulingsDriver.create("1103");
+		const driver1109 = await HistoricalRulingsDriver.create("1109");
 		try {
 			const pool1103 = await readWhitelistCardIds(
 				path.join(RESOURCE_ROOT, "ygopro", "formats", "1103", "lflist.conf"),
@@ -50,13 +77,22 @@ describe("historical card rulings coverage", () => {
 			const pool1109 = await readWhitelistCardIds(
 				path.join(RESOURCE_ROOT, "ygopro", "formats", "1109", "lflist.conf"),
 			);
-			for (const id of HISTORICAL_RULINGS_CARD_IDS) {
-				expect(driver.storage.readCard(id)).toBeDefined();
-				expect(pool1103.has(id)).toBe(true);
-				expect(pool1109.has(id)).toBe(true);
+			for (const formatId of ["1103", "1109"] as const) {
+				const pool = formatId === "1103" ? pool1103 : pool1109;
+				const storage = formatId === "1103" ? driver1103.storage : driver1109.storage;
+				for (const id of listCardScriptIds(formatId)) {
+					expect(storage.readCard(id)).toBeDefined();
+					expect(pool.has(id)).toBe(true);
+				}
+			}
+			// whitelist-excluded upstream scripts must not be part of any format
+			for (const id of EXCLUDED_UPSTREAM_CARD_IDS) {
+				expect(fs.existsSync(path.join(formatScriptDir("1103"), `c${id}.lua`))).toBe(false);
+				expect(fs.existsSync(path.join(formatScriptDir("1109"), `c${id}.lua`))).toBe(false);
 			}
 		} finally {
-			driver.finalize();
+			driver1103.finalize();
+			driver1109.finalize();
 		}
 	});
 

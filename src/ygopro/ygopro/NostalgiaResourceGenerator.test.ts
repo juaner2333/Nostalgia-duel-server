@@ -18,9 +18,10 @@ const LFLIST_1109 =
 
 // 固定环境卡池规模（与 EXPECTED_NOSTALGIA_POOL_SIZES 一致）：fixture 按此规模
 // 生成，使 lock 校验通过且与生产门禁使用同一条路径。
-const BASE_POOL_SIZE = 5120;
+const BASE_POOL_SIZE = 5199;
 const POOL_1103_SIZE = 5002;
 const POOL_1109_SIZE = 5120;
+const TYPE_TOKEN = 0x4000;
 
 describe("NostalgiaResourceGenerator", () => {
 	it("reads unique valid CDB card IDs", async () => {
@@ -101,7 +102,7 @@ describe("NostalgiaResourceGenerator", () => {
 		);
 	});
 
-	it("locks the fixed card pool sizes (5120 / 5002 / 5120)", () => {
+	it("locks the fixed card pool sizes (5199 / 5002 / 5120)", () => {
 		const fixedSizes = {
 			inputs: { baseDatabase: { count: BASE_POOL_SIZE } },
 			formats: {
@@ -118,7 +119,7 @@ describe("NostalgiaResourceGenerator", () => {
 					"1109": { cardPool: { count: 4 } },
 				},
 			}),
-		).toThrow("base card pool mismatch: expected 5120, got 4");
+		).toThrow("base card pool mismatch: expected 5199, got 4");
 		expect(() =>
 			assertFixedPoolSizes({
 				inputs: { baseDatabase: { count: BASE_POOL_SIZE } },
@@ -168,7 +169,7 @@ describe("NostalgiaResourceGenerator", () => {
 		// 校验不受影响，必须仍被 lock 逐字比较拒绝。
 		const SQL = await initSqlJs();
 		const database = new SQL.Database();
-		database.run("CREATE TABLE datas (id INTEGER PRIMARY KEY, name TEXT)");
+		database.run("CREATE TABLE datas (id INTEGER PRIMARY KEY, type INTEGER DEFAULT 0, name TEXT)");
 		database.run(
 			`INSERT INTO datas (id, name) VALUES ${range(1, BASE_POOL_SIZE)
 				.map((id) => `(${id}, 'drifted')`)
@@ -186,6 +187,37 @@ describe("NostalgiaResourceGenerator", () => {
 			"utf-8",
 		);
 		await expect(checkNostalgiaResourceLock(resourceRoot, lockPath)).rejects.toThrow("drift");
+		fs.rmSync(resourceRoot, { recursive: true, force: true });
+	});
+
+	it("rejects script token references missing from the base CDB", async () => {
+		const resourceRoot = await buildLockFixture({
+			tokenScript: "local t=Duel.CreateToken(tp,44330099)\n",
+		});
+		const lockPath = path.join(resourceRoot, "lock.json");
+		await expect(writeNostalgiaResourceLock(resourceRoot, lockPath)).rejects.toThrow(
+			"script token references missing from base CDB: 44330099",
+		);
+		fs.rmSync(resourceRoot, { recursive: true, force: true });
+	});
+
+	it("rejects base CDB tokens not referenced by any script", async () => {
+		const resourceRoot = await buildLockFixture({ tokenCardIds: [44330099] });
+		const lockPath = path.join(resourceRoot, "lock.json");
+		await expect(writeNostalgiaResourceLock(resourceRoot, lockPath)).rejects.toThrow(
+			"base CDB token cards not referenced by scripts: 44330099",
+		);
+		fs.rmSync(resourceRoot, { recursive: true, force: true });
+	});
+
+	it("accepts script token references backed by base CDB token cards", async () => {
+		const resourceRoot = await buildLockFixture({
+			tokenScript: "local t=Duel.CreateToken(tp,44330099)\n",
+			tokenCardIds: [44330099],
+		});
+		const lockPath = path.join(resourceRoot, "lock.json");
+		await writeNostalgiaResourceLock(resourceRoot, lockPath);
+		await expect(checkNostalgiaResourceLock(resourceRoot, lockPath)).resolves.toBeUndefined();
 		fs.rmSync(resourceRoot, { recursive: true, force: true });
 	});
 
@@ -285,9 +317,13 @@ function buildWhitelist(from: number, toInclusive: number): string {
 	return `${lines.join("\n")}\n`;
 }
 
-// 生成与固定环境同规模的资源树：基础 5120 张、1103 白名单 5002 张、
+// 生成与固定环境同规模的资源树：基础 5199 张（5120 实卡 + 79 token 元数据，
+// fixture 中 token 为空集时基础卡数即 5199 张非 token 卡）、1103 白名单 5002 张、
 // 1109 白名单 5120 张，使完整 lock 校验（含卡池数量断言）走生产同一条路径。
-async function buildLockFixture(): Promise<string> {
+async function buildLockFixture(overrides?: {
+	tokenScript?: string;
+	tokenCardIds?: number[];
+}): Promise<string> {
 	const resourceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "nostalgia-lock-fixture-"));
 	const cdbPath = path.join(resourceRoot, "ygopro", "base", "cards.cdb");
 	const format1103Dir = path.join(resourceRoot, "ygopro", "formats", "1103");
@@ -298,15 +334,26 @@ async function buildLockFixture(): Promise<string> {
 
 	const SQL = await initSqlJs();
 	const database = new SQL.Database();
-	database.run("CREATE TABLE datas (id INTEGER PRIMARY KEY)");
+	database.run("CREATE TABLE datas (id INTEGER PRIMARY KEY, type INTEGER DEFAULT 0)");
+	const realCardCount = BASE_POOL_SIZE - (overrides?.tokenCardIds?.length ?? 0);
 	database.run(
-		`INSERT INTO datas (id) VALUES ${range(1, BASE_POOL_SIZE)
+		`INSERT INTO datas (id) VALUES ${range(1, realCardCount)
 			.map((id) => `(${id})`)
 			.join(",")}`,
 	);
+	for (const cardId of overrides?.tokenCardIds ?? []) {
+		database.run(`INSERT INTO datas (id, type) VALUES (${cardId}, ${TYPE_TOKEN | 0x1})`);
+	}
 	fs.writeFileSync(cdbPath, Buffer.from(database.export()));
 	for (const script of ["constant.lua", "procedure.lua", "utility.lua", "c1.lua"]) {
 		fs.writeFileSync(path.join(resourceRoot, "ygopro", "base", "script", script), script, "utf-8");
+	}
+	if (overrides?.tokenScript) {
+		fs.writeFileSync(
+			path.join(resourceRoot, "ygopro", "base", "script", "c2.lua"),
+			overrides.tokenScript,
+			"utf-8",
+		);
 	}
 	fs.writeFileSync(
 		path.join(format1103Dir, "lflist.conf"),

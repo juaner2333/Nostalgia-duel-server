@@ -35,6 +35,7 @@ import {
 } from "ygopro-msg-encode";
 import { calculateDuelOptions } from "@ygopro/utils/calculate-duel-options";
 import { CardStorage } from "@ygopro/ygopro/card-storage";
+import { resolveFormatPreloadScriptPaths } from "@ygopro/ygopro/ResourcePoolResolver";
 import { readWhitelistCardIds } from "@ygopro/ygopro/YGOProResourceLoader";
 
 export type FormatId = "1103" | "1109";
@@ -76,6 +77,7 @@ export class HistoricalRulingsDriver {
 	readonly storage: CardStorage;
 	readonly formatPath: string;
 	readonly basePath: string;
+	private readonly preloadScriptPaths: string[];
 	private readonly wrapper: OcgcoreWrapper;
 
 	private constructor(
@@ -84,12 +86,14 @@ export class HistoricalRulingsDriver {
 		wrapper: OcgcoreWrapper,
 		formatPath: string,
 		basePath: string,
+		preloadScriptPaths: string[],
 	) {
 		this.formatId = formatId;
 		this.storage = storage;
 		this.wrapper = wrapper;
 		this.formatPath = formatPath;
 		this.basePath = basePath;
+		this.preloadScriptPaths = preloadScriptPaths;
 	}
 
 	static async create(formatId: FormatId): Promise<HistoricalRulingsDriver> {
@@ -102,13 +106,20 @@ export class HistoricalRulingsDriver {
 		const pool = await readWhitelistCardIds(
 			path.join(RESOURCE_ROOT, "ygopro", "formats", formatId, "lflist.conf"),
 		);
-		const storage = baseStorage.filterByCardIds(pool);
+		const storage = baseStorage.filterForFormat(pool);
 		const wrapper = await createOcgcoreWrapper();
 		const formatPath = path.join(RESOURCE_ROOT, "ygopro", "formats", formatId);
 		const basePath = path.join(RESOURCE_ROOT, "ygopro", "base");
 		wrapper.setScriptReader(await DirScriptReaderEx(formatPath, basePath));
 		wrapper.setCardReader(storage.toCardReader());
-		return new HistoricalRulingsDriver(formatId, storage, wrapper, formatPath, basePath);
+		return new HistoricalRulingsDriver(
+			formatId,
+			storage,
+			wrapper,
+			formatPath,
+			basePath,
+			resolveFormatPreloadScriptPaths(formatPath),
+		);
 	}
 
 	/** Build a driver whose script chain starts with the given temp dirs (isolation tests). */
@@ -125,21 +136,30 @@ export class HistoricalRulingsDriver {
 		const pool = await readWhitelistCardIds(
 			path.join(RESOURCE_ROOT, "ygopro", "formats", formatId, "lflist.conf"),
 		);
-		const storage = baseStorage.filterByCardIds(pool);
+		const storage = baseStorage.filterForFormat(pool);
 		const wrapper = await createOcgcoreWrapper();
 		wrapper.setScriptReader(await DirScriptReaderEx(...scriptDirs));
 		wrapper.setCardReader(storage.toCardReader());
+		// the first script dir stands in for the format dir, so preload derivation
+		// follows the same format-first rule against it
+		const preloadScriptPaths =
+			scriptDirs.length > 0 ? resolveFormatPreloadScriptPaths(scriptDirs[0]!) : [];
 		return new HistoricalRulingsDriver(
 			formatId,
 			storage,
 			wrapper,
 			path.join(RESOURCE_ROOT, "ygopro", "formats", formatId),
 			path.join(RESOURCE_ROOT, "ygopro", "base"),
+			preloadScriptPaths,
 		);
 	}
 
 	createDuel(): HistoricalTestDuel {
-		return new HistoricalTestDuel(this, this.wrapper.createDuelV2([1, 2, 3, 4]));
+		return new HistoricalTestDuel(
+			this,
+			this.wrapper.createDuelV2([1, 2, 3, 4]),
+			this.preloadScriptPaths,
+		);
 	}
 
 	finalize(): void {
@@ -161,9 +181,14 @@ export class HistoricalTestDuel {
 	turnPlayer = 0;
 	phase = 0;
 
-	constructor(driver: HistoricalRulingsDriver, duel: OcgcoreDuel) {
+	constructor(driver: HistoricalRulingsDriver, duel: OcgcoreDuel, preloadScriptPaths: string[]) {
 		this.driver = driver;
 		this.duel = duel;
+		// preload any format-level special.lua before any card script is loaded,
+		// mirroring the production worker init order
+		for (const scriptPath of preloadScriptPaths) {
+			this.duel.preloadScript(scriptPath);
+		}
 		this.duel.setPlayerInfo({ player: 0, lp: 8000, startHand: 0, drawCount: 1 });
 		this.duel.setPlayerInfo({ player: 1, lp: 8000, startHand: 0, drawCount: 1 });
 	}

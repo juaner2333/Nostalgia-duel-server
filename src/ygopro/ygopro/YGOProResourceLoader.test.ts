@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { DirScriptReaderEx } from "koishipro-core.js";
 import { YGOProLFList } from "ygopro-lflist-encode";
 import { config } from "src/config";
 import { YGOProResourceLoader, readWhitelistCardIds } from "./YGOProResourceLoader";
@@ -61,5 +62,41 @@ describe("YGOProResourceLoader", () => {
 			path.join(tmpDir, "ygopro", "formats", "1109"),
 			path.join(tmpDir, "ygopro", "base"),
 		]);
+	});
+
+	it("derives preload script paths only when the format special.lua exists", () => {
+		const loader = new YGOProResourceLoader();
+
+		// no special.lua anywhere: empty preload list, current behavior unchanged
+		expect(loader.getFormatPreloadScriptPaths("1103")).toEqual([]);
+		expect(loader.getFormatPreloadScriptPaths("1109")).toEqual([]);
+
+		// 1103 gets a special.lua: only its own reader-resolvable relative name
+		// is derived, not the other format's
+		fs.mkdirSync(path.join(tmpDir, "ygopro", "formats", "1103", "script"), { recursive: true });
+		fs.writeFileSync(
+			path.join(tmpDir, "ygopro", "formats", "1103", "script", "special.lua"),
+			"-- patch\n",
+		);
+		expect(loader.getFormatPreloadScriptPaths("1103")).toEqual(["script/special.lua"]);
+		expect(loader.getFormatPreloadScriptPaths("1109")).toEqual([]);
+	});
+
+	it("returns a preload script name the koishipro script reader can resolve", async () => {
+		// production assembly: the name derived by the loader must resolve
+		// through DirScriptReaderEx against the format-first script chain
+		const loader = new YGOProResourceLoader();
+		const formatPath = path.join(tmpDir, "ygopro", "formats", "1103");
+		const scriptDir = path.join(formatPath, "script");
+		fs.mkdirSync(scriptDir, { recursive: true });
+		fs.writeFileSync(path.join(scriptDir, "special.lua"), "-- patch\n");
+		const scriptReader = await DirScriptReaderEx(formatPath, path.join(tmpDir, "ygopro", "base"));
+		const [name] = loader.getFormatPreloadScriptPaths("1103");
+		expect(name).toBe("script/special.lua");
+		// the reader must return the patch content for that name (not null)
+		expect(scriptReader(name!)).not.toBeNull();
+		expect(Buffer.from(scriptReader(name!) as Uint8Array).toString()).toBe("-- patch\n");
+		// an absolute path must NOT be used: it never resolves through the reader
+		expect(scriptReader(path.join(scriptDir, "special.lua"))).toBeNull();
 	});
 });

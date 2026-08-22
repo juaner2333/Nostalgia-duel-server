@@ -12,13 +12,10 @@ function c95727991.initial_effect(c)
 	e1:SetOperation(c95727991.operation)
 	c:RegisterEffect(e1)
 end
-function c95727991.filter(c)
-	return c:GetAttack()>0
-end
 function c95727991.cost(e,tp,eg,ep,ev,re,r,rp,chk)
-	if chk==0 then return Duel.CheckReleaseGroup(tp,c95727991.filter,1,nil) end
-	local sg=Duel.SelectReleaseGroup(tp,c95727991.filter,1,1,nil)
-	e:SetLabel(math.floor(sg:GetFirst():GetAttack()/2))
+	if chk==0 then return Duel.CheckReleaseGroup(tp,nil,1,nil) end
+	local sg=Duel.SelectReleaseGroup(tp,nil,1,1,nil)
+	e:SetLabel(sg:GetFirst():GetAttack()/2)
 	Duel.Release(sg,REASON_COST)
 end
 function c95727991.target(e,tp,eg,ep,ev,re,r,rp,chk)

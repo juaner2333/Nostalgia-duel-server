@@ -2,7 +2,7 @@
 function c77565204.initial_effect(c)
 	--Activate
 	local e1=Effect.CreateEffect(c)
-	e1:SetCategory(CATEGORY_SPECIAL_SUMMON+CATEGORY_FUSION_SUMMON)
+	e1:SetCategory(CATEGORY_SPECIAL_SUMMON)
 	e1:SetType(EFFECT_TYPE_ACTIVATE)
 	e1:SetCode(EVENT_FREE_CHAIN)
 	e1:SetTarget(c77565204.target)
@@ -24,7 +24,7 @@ function c77565204.initial_effect(c)
 	c:RegisterEffect(e3)
 end
 function c77565204.filter1(c,e)
-	return c:IsCanBeFusionMaterial() and c:IsAbleToGrave() and not c:IsImmuneToEffect(e)
+	return c:IsType(TYPE_MONSTER) and c:IsAbleToGrave() and not c:IsImmuneToEffect(e)
 end
 function c77565204.filter2(c,m)
 	return c:IsType(TYPE_FUSION) and c:CheckFusionMaterial(m) and not c:IsForbidden()
@@ -71,7 +71,6 @@ function c77565204.activate(e,tp,eg,ep,ev,re,r,rp)
 end
 function c77565204.procfilter(c,code,e,tp)
 	return c:IsCode(code) and c:IsCanBeSpecialSummoned(e,SUMMON_TYPE_FUSION,tp,false,false)
-		and Duel.GetLocationCountFromEx(tp,tp,nil,c)>0
 end
 function c77565204.proccon(e,tp,eg,ep,ev,re,r,rp)
 	return tp==Duel.GetTurnPlayer()
@@ -83,7 +82,8 @@ function c77565204.procop(e,tp,eg,ep,ev,re,r,rp)
 	c:SetTurnCounter(ct)
 	if ct==2 then
 		local code=e:GetLabel()
-		local tc=Duel.GetFirstMatchingCard(c77565204.procfilter,tp,LOCATION_EXTRA,0,nil,code,e,tp)
+		Duel.Hint(HINT_SELECTMSG,tp,HINTMSG_SPSUMMON)
+		local tc=Duel.SelectMatchingCard(tp,c77565204.procfilter,tp,LOCATION_EXTRA,0,1,1,nil,code,e,tp):GetFirst()
 		if not tc then return end
 		if Duel.GetLocationCount(tp,LOCATION_MZONE)<=0 then
 			Duel.SendtoGrave(tc,REASON_EFFECT)

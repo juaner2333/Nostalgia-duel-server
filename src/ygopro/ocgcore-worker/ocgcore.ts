@@ -141,6 +141,7 @@ export class OCGCore {
 		const loader = YGOProResourceLoader.get();
 		const cardStorage = await loader.getFormatCardStorage(this.room.formatId);
 		const scriptSearchPaths = loader.getFormatScriptPaths(this.room.formatId);
+		const extraScriptPaths = loader.getFormatPreloadScriptPaths(this.room.formatId);
 		const ocgcoreWasmBinary = await loader.getOcgcoreWasmBinary();
 
 		const registry: Record<string, string> = {
@@ -167,7 +168,7 @@ export class OCGCore {
 				seed: duelRecord.seed,
 				hostinfo: this.room.hostInfo,
 				ygoproPaths: scriptSearchPaths,
-				extraScriptPaths: [],
+				extraScriptPaths,
 				cardStorage,
 				ocgcoreWasmBinary,
 				registry,

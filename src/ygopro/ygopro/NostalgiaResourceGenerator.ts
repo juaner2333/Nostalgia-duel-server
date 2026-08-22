@@ -3,17 +3,20 @@ import { readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import initSqlJs from "sql.js";
 import { YGOProLFListItem } from "ygopro-lflist-encode";
+import { scanTokenCodes } from "./token-script-scanner";
 
 const MIN_CARD_ID = 1;
 const MAX_CARD_ID = 0x7fffffff;
 const ALLOWED_FORMAT_IDS = new Set(["1103", "1109"]);
 
-/** 固定环境的卡池数量契约：基础数据库与 1103/1109 白名单的唯一规模。 */
+/** 固定环境的卡池数量契约：基础数据库（5120 实卡 + 79 个脚本引用 token）与 1103/1109 白名单的唯一规模。 */
 export const EXPECTED_NOSTALGIA_POOL_SIZES: Readonly<Record<string, number>> = Object.freeze({
-	base: 5120,
+	base: 5199,
 	"1103": 5002,
 	"1109": 5120,
 });
+/** ygopro TYPE_TOKEN 位：CDB 中带该位的卡是脚本生成 token 所需的虚拟卡元数据 */
+const TYPE_TOKEN = 0x4000;
 const SCRIPT_SOURCE = {
 	repository: "https://github.com/Fluorohydride/ygopro-scripts",
 	commit: "090e881772f488e1256c456b827d5cbed4facf79",
@@ -83,6 +86,26 @@ export async function readCdbCardIds(cdbPath: string): Promise<number[]> {
 
 		const ids = query.values.map(([id]) => parseCardId(id, "CDB"));
 		assertUnique(ids, "CDB");
+		return ids;
+	} finally {
+		database.close();
+	}
+}
+
+/** CDB 中所有 token 虚拟卡的 ID（type 含 TYPE_TOKEN 位） */
+export async function readCdbTokenIds(cdbPath: string): Promise<number[]> {
+	const SQL = await initSqlJs();
+	const database = new SQL.Database(await readFile(cdbPath));
+	try {
+		const query = database.exec("SELECT id, type FROM datas ORDER BY id ASC")[0];
+		if (!query) {
+			throw new Error(`CDB ${cdbPath} has no datas rows`);
+		}
+
+		const ids = query.values
+			.filter(([, type]) => Number(type) > 0 && (Number(type) & TYPE_TOKEN) !== 0)
+			.map(([id]) => parseCardId(id, "CDB token"));
+		assertUnique(ids, "CDB token");
 		return ids;
 	} finally {
 		database.close();
@@ -168,7 +191,7 @@ export async function checkNostalgiaResourceLock(
 }
 
 /**
- * 断言 lock 中的卡池数量与固定环境契约一致（基础 5120、1103 5002、1109 5120），
+ * 断言 lock 中的卡池数量与固定环境契约一致（基础 5120 实卡 + 79 token、1103 5002、1109 5120），
  * 防止错误资源配合重新生成的 lock 通过门禁。
  */
 export function assertFixedPoolSizes(lock: {
@@ -316,8 +339,29 @@ function sameCardIds(left: Set<number>, right: Set<number>): boolean {
 async function buildNostalgiaResourceLock(resourceRoot: string): Promise<NostalgiaResourceLock> {
 	const baseDatabasePath = path.join(resourceRoot, "ygopro", "base", "cards.cdb");
 	const baseCardIds = new Set(await readCdbCardIds(baseDatabasePath));
+	const baseTokenIds = new Set(await readCdbTokenIds(baseDatabasePath));
 	const baseScriptDirectory = path.join(resourceRoot, "ygopro", "base", "script");
 	const baseScriptSelection = await summarizeBaseScriptSelection(baseScriptDirectory, baseCardIds);
+
+	// token 元数据完整性：脚本引用的 token 必须存在于基础 CDB，且 CDB 中不得
+	// 存在脚本未引用的多余 token（防止 token 缺失再次静默破坏 token 生成）。
+	const scriptTokenIds = await scanTokenCodes([
+		path.join(resourceRoot, "ygopro", "formats", "1103", "script"),
+		path.join(resourceRoot, "ygopro", "formats", "1109", "script"),
+		baseScriptDirectory,
+	]);
+	const missingTokens = [...scriptTokenIds].filter((cardId) => !baseTokenIds.has(cardId));
+	if (missingTokens.length > 0) {
+		throw new Error(
+			`script token references missing from base CDB: ${missingTokens.sort((a, b) => a - b).join(", ")}`,
+		);
+	}
+	const extraTokens = [...baseTokenIds].filter((cardId) => !scriptTokenIds.has(cardId));
+	if (extraTokens.length > 0) {
+		throw new Error(
+			`base CDB token cards not referenced by scripts: ${extraTokens.sort((a, b) => a - b).join(", ")}`,
+		);
+	}
 
 	const formats = Object.fromEntries(
 		await Promise.all(

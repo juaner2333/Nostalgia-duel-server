@@ -9,7 +9,11 @@ import { Logger } from "src/shared/logger/domain/Logger";
 import LoggerFactory from "src/shared/logger/infrastructure/LoggerFactory";
 import { CardStorage } from "./card-storage";
 import { CardLoadWorker } from "./card-load-worker";
-import { resolveFormatPath, resolvePools } from "./ResourcePoolResolver";
+import {
+	resolveFormatPath,
+	resolveFormatPreloadScriptPaths,
+	resolvePools,
+} from "./ResourcePoolResolver";
 
 let sharedInstance: YGOProResourceLoader | null = null;
 
@@ -83,6 +87,16 @@ export class YGOProResourceLoader {
 
 	getFormatScriptPaths(formatId: string): string[] {
 		return [resolveFormatPath(this.resolvedPools, formatId), this.basePath()];
+	}
+
+	/**
+	 * Script name of the format-level `script/special.lua` preload patch when it
+	 * exists, otherwise an empty list (no preload, current behavior unchanged).
+	 * The returned name is relative so the koishipro script reader resolves it
+	 * against the format script dir.
+	 */
+	getFormatPreloadScriptPaths(formatId: string): string[] {
+		return resolveFormatPreloadScriptPaths(resolveFormatPath(this.resolvedPools, formatId));
 	}
 
 	async getFormatBanListHash(formatId: string): Promise<number> {
@@ -166,9 +180,11 @@ export class YGOProResourceLoader {
 	private async loadFormatCardStorage(formatId: string): Promise<CardStorage> {
 		const formatPath = resolveFormatPath(this.resolvedPools, formatId);
 		const cardIds = await readWhitelistCardIds(path.join(formatPath, "lflist.conf"));
-		const storage = (await this.loadBaseCdb()).filterByCardIds(cardIds);
-		if (storage.size !== cardIds.size) {
-			throw new Error(`Format ${formatId} whitelist references cards outside base/cards.cdb`);
+		const storage = (await this.loadBaseCdb()).filterForFormat(cardIds);
+		for (const cardId of cardIds) {
+			if (!storage.readCard(cardId)) {
+				throw new Error(`Format ${formatId} whitelist references cards outside base/cards.cdb`);
+			}
 		}
 		this.formatCardStorages.set(formatId, storage);
 		return storage;
