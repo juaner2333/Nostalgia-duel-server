@@ -14,14 +14,14 @@
 | **核心领域** | `src/ygopro/`、`src/shared/` | TypeScript、DDD | 业务逻辑、实体、值对象 |
 | **管理 API** | `src/http-server/` | Express、Diod | 管理、匹配与查询 REST 接口 |
 | **实时通信** | `src/socket-server/` | WS、Node.js Net | YGOPro TCP 与 WebSocket 连接 |
-| **持久化** | `src/shared/infrastructure/persistence` | TypeORM、Redis | PostgreSQL 用户数据与 Redis 缓存 |
+| **持久化** | `src/shared/db/`、`src/evolution-types/src/` | TypeORM、PostgreSQL、Redis/Valkey | 用户数据、统计与排行（Postgres）；缓存与门票（Redis/Valkey，可选） |
 | **固定资源** | `nostalgia-resources/` | CDB、Lua、LFList、JSON | 固定的 1103/1109 卡池、脚本、禁限卡表与资源锁 |
 
 ---
 
 ## 归档规格定义的产品边界
 
-以下约束来自已归档的 `remove-edopro-support` 与 `add-fixed-ocg-1109-environment` 变更，是当前系统的长期行为契约。
+以下约束来自已归档的 `remove-edopro-support`、`add-fixed-ocg-1109-environment`、`bundle-nostalgia-resources-with-app` 与 `restore-2011-card-rulings` 变更，是当前系统的长期行为契约。
 
 ### 1. 仅支持 YGOPro
 
@@ -92,6 +92,13 @@ nostalgia-resources/
 - 房间展示、卡组校验、录像元数据与持久化决斗事件必须使用同一份 YGOPro 禁限卡表名称和哈希作为唯一事实来源。
 - 启用统计持久化时，一次 YGOPro 游戏结束事件必须恰好一次送达所有已配置订阅者。
 - 阻断回归必须能在 WSL 内仅依赖 Node.js、仓库内固定样本和测试侧套接字执行；网络测试只能监听系统分配的临时 loopback 端口。
+
+### 6. 历史裁定覆盖（restore-2011-card-rulings）
+
+- 1103 与 1109 的 `formats/<format>/script/` 下存在 12 张卡的 2011 OCG 裁定覆盖（`c<cardId>.lua`，清单见 `docs/historical-card-rulings.md` 已修复表格）；同一卡片 ID 在两个环境的脚本必须逐字节一致，由 `src/ygopro/ygopro/historical-rulings/coverage.test.ts` 校验。
+- 覆盖脚本遵循既有 format-first 查找链（`formats/<format>/script` → `base/script`），不改变脚本解析规则。
+- 台账 `docs/historical-card-rulings.md` 是人工审阅记录：**不进入 `lock.json`、不被运行时扫描**。新增或移除裁定覆盖时，必须在同一变更中同步更新台账、更新两个 format 目录并重新生成资源锁。
+- 台账「后续候选脚本」中的卡片仍使用现代 base 脚本，未纳入运行时；未经证据与独立 WASM 验证不得擅自启用。
 
 ---
 
@@ -219,14 +226,14 @@ nostalgia-resources/
 
 `scripts/smoke-duel.mjs` 用两个测试侧 TCP socket 驱动真实服务器完成 `1103#1001` 与 `1109#1001` 的完整决斗流程，并额外以第三个 socket 验证观战，用于验证资源加载、准入、卡组校验与真实 WASM 引擎在改动后仍可用：
 
-1. **启动前置服务**：目标服务器需已在运行且可连接 Redis（本地 `npm run dev` 或容器均可；无本地 Redis 时可临时 `docker run -d -p 6379:6379 valkey/valkey:9.0-alpine`）。
+1. **启动前置服务**：目标服务器需已在运行（本地 `npm run dev` 或容器均可）。Redis 是可选依赖：`USE_REDIS=false` 的零中间件配置可直接冒烟；`USE_REDIS=true` 时需可连接的 Redis（无本地 Redis 时可临时 `docker run -d -p 6379:6379 valkey/valkey:9.0-alpine`）。
 2. **运行冒烟**：
    ```bash
    node scripts/smoke-duel.mjs [port]      # 默认 706
    npm run smoke:duel -- 17711            # 或通过 npm script 指定端口
    SMOKE_PORT=17711 node scripts/smoke-duel.mjs
    ```
-3. **预期结果**：每个格式打印 `OK format <id>: created room, validated decks, real WASM duel started, surrendered`，最后 `SMOKE PASS`，退出码 0。
+3. **预期结果**：每个格式打印 `OK format <id>: players dueled, spectator admitted and watched (seats unchanged)`，最后 `SMOKE PASS`，退出码 0；任一格式失败（超时/被拒/校验失败）退出码为 1。
 
 覆盖阶段：建房与加入（`STOC_JOIN_GAME`/`HS_TYPE_CHANGE`）、真实卡组校验（CDB + 环境禁限卡表，卡组取 whitelist 中 qty=3 且有 base 脚本的主卡组怪兽）、双方 READY、RPS 与先后手选择、真实 ocgcore WASM 决斗（`MSG_START`）、投降与 `MATCH_END`。
 
