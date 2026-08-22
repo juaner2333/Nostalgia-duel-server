@@ -9,6 +9,8 @@
 
 `roomId` 是非空十进制房间号，不是密码。`1103#1001` 与 `1109#1001` 是相互隔离的两个房间——`format` 与 `roomId` 的组合才是房间身份。
 
+> 本项目由 [EDOpro-server-ts](https://github.com/diangogav/EDOpro-server-ts) 派生而来，在移除 EDOPro 支持后，重构为仅面向 YGOPro 客户端、使用固定 1103/1109 怀旧环境的决斗服务器。
+
 ## 核心特性
 
 - **YGOPro 线协议**：二字节小端长度前缀 TCP 帧，协议版本 `0x1362`，支持任意分片与粘包；同时提供 WebSocket 传输，兼容 Koishi、YGO Mobile 等客户端。
@@ -54,6 +56,8 @@ nostalgia-resources/
 ## 历史裁定覆盖
 
 为还原 2011 OCG 的原始效果处理，项目为 **12 张卡**在 1103/1109 双环境提供了 2011 裁定脚本覆盖（两环境同 ID 脚本逐字节一致），例如移除勘误新增的「卡名 1 回合 1 次」限制、恢复目标选择时点与表示形式语义等。每张覆盖均由真实 WASM 场景测试验证，且两环境逐字节一致。
+
+裁定脚本来源于 [purerosefallen/specials](https://github.com/purerosefallen/specials/tree/master/706) 仓库的 `706` 目录（固定提交 `f993d739344f1914bcf8c54e90d638eb1fb45d45`）；导入时对无法在本核心加载的上游脚本做了最小修复，不改变 2011 裁定语义，详见下方台账。
 
 | ID | 卡名 | 2011 行为摘要 |
 | --- | --- | --- |
@@ -179,3 +183,7 @@ npm run build
 - [docs/ops-runbook-bundled-resources.md](./docs/ops-runbook-bundled-resources.md) — 运维运行手册：应用与固定资源单一版本的发布、回滚与验证
 - [docs/testing.md](./docs/testing.md) — 测试约定（就近放置、Mother、Mock 规范）
 - [AGENTS.md](./AGENTS.md) — 项目开发指南（架构、SOP 与固定资源约束）
+
+## 许可证
+
+本项目基于 [ISC License](https://opensource.org/license/isc) 发布（与 `package.json` 中的 `license` 字段一致）。
