@@ -9,7 +9,11 @@ import { Logger } from "src/shared/logger/domain/Logger";
 import LoggerFactory from "src/shared/logger/infrastructure/LoggerFactory";
 import { CardStorage } from "./card-storage";
 import { CardLoadWorker } from "./card-load-worker";
-import { resolveFormatPath, resolvePools } from "./ResourcePoolResolver";
+import {
+	resolveFormatPath,
+	resolveFormatPreloadScriptPaths,
+	resolvePools,
+} from "./ResourcePoolResolver";
 
 let sharedInstance: YGOProResourceLoader | null = null;
 
@@ -83,6 +87,16 @@ export class YGOProResourceLoader {
 
 	getFormatScriptPaths(formatId: string): string[] {
 		return [resolveFormatPath(this.resolvedPools, formatId), this.basePath()];
+	}
+
+	/**
+	 * Script name of the format-level `script/special.lua` preload patch when it
+	 * exists, otherwise an empty list (no preload, current behavior unchanged).
+	 * The returned name is relative so the koishipro script reader resolves it
+	 * against the format script dir.
+	 */
+	getFormatPreloadScriptPaths(formatId: string): string[] {
+		return resolveFormatPreloadScriptPaths(resolveFormatPath(this.resolvedPools, formatId));
 	}
 
 	async getFormatBanListHash(formatId: string): Promise<number> {

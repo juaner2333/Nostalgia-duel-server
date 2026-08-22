@@ -181,6 +181,14 @@ describe("historical card rulings batch 1", () => {
 		};
 		duel.selectUnselectTargetCount = () => 2;
 		duel.selectCardIndices = (msg) => {
+			// the upstream cost prompt (SelectMatchingCard) lists the hand and asks
+			// for 1..rt cards; discard two to prove the two-bounce behavior
+			if (
+				msg.cards.length > 0 &&
+				msg.cards.every((c) => c.code === FODDER && c.location === C.LOCATION_HAND)
+			) {
+				return msg.max >= 2 ? [0, 1] : [0];
+			}
 			// own monster first (proves own-field targets), then opponent cards
 			const own = msg.cards.findIndex((c) => c.code === FODDER && c.controller === 0);
 			const opp = msg.cards.map((c, i) => (c.controller === 1 ? i : -1)).filter((i) => i !== -1);

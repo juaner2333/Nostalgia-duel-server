@@ -39,6 +39,22 @@ export function resolveFormatPath(resolved: ResolvedPools, formatId: string): st
 	return formatPath;
 }
 
+/**
+ * Script name of the format-level `script/special.lua` preload patch that the
+ * koishipro DirScriptReaderEx resolves against each script dir (`script/` is
+ * its first candidate, so the format dir wins), or an empty list when the
+ * patch is absent (no preload, current behavior unchanged).
+ *
+ * Absolute paths must NOT be used: DirScriptReaderEx strips the leading `/`
+ * and re-joins it below the base dirs, so an absolute path can never resolve
+ * and the preload silently no-ops.
+ */
+export function resolveFormatPreloadScriptPaths(formatPath: string): string[] {
+	return fs.existsSync(path.join(formatPath, "script", "special.lua"))
+		? ["script/special.lua"]
+		: [];
+}
+
 function warnMissingDirectories(paths: string[], logger: Logger): void {
 	for (const resourcePath of paths) {
 		if (!fs.existsSync(resourcePath) || !fs.statSync(resourcePath).isDirectory()) {

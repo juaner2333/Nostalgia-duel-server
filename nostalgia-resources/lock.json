@@ -22,8 +22,8 @@
 				"sha256": "cf65bd356cf82316b05a8b1f7ab6d434f2fe31f5ab9ee14bc21fb08d204f64a1"
 			},
 			"scripts": {
-				"fileCount": 12,
-				"sha256": "3148d6c5e91ac56ecc5ee717f13693772062c7be936aa34b19f337205323fa05",
+				"fileCount": 377,
+				"sha256": "f881d37a21806658861aa9d9dc7ac95bbd4df0c33d19aad97fc8a1fcf52f6911",
 				"source": {
 					"repository": "https://github.com/Fluorohydride/ygopro-scripts",
 					"commit": "090e881772f488e1256c456b827d5cbed4facf79"
@@ -41,8 +41,8 @@
 				"sha256": "51323f2a00d4472268829feb8d018f711df0c4a11e64572a774a5274577ecf42"
 			},
 			"scripts": {
-				"fileCount": 12,
-				"sha256": "3148d6c5e91ac56ecc5ee717f13693772062c7be936aa34b19f337205323fa05",
+				"fileCount": 378,
+				"sha256": "2baf0daeb3eda2eedd1bd1a1a6205606f386c73abbc9dea134d31f6db06f4e06",
 				"source": {
 					"repository": "https://github.com/Fluorohydride/ygopro-scripts",
 					"commit": "090e881772f488e1256c456b827d5cbed4facf79"
