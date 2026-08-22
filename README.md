@@ -186,4 +186,4 @@ npm run build
 
 ## 许可证
 
-本项目基于 [ISC License](https://opensource.org/license/isc) 发布（与 `package.json` 中的 `license` 字段一致）。
+本项目基于 [MIT License](https://opensource.org/license/mit) 发布（与 `package.json` 中的 `license` 字段一致）。
