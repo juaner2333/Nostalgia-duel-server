@@ -113,6 +113,23 @@ docker run -d --name nostalgia-duel-server \
 
 注意：`docker-compose.prod.yaml` 中 server 服务默认 `USE_REDIS=true`、`RANK_ENABLED=true` 且 `depends_on` 中间件健康检查，因此不带环境变量覆盖的 `up` 会连带启动 postgres/valkey；完整三服务部署见下文 [Docker 部署](#docker-部署)。
 
+## 云主机部署（镜像直拉）
+
+无需中间件（无 PostgreSQL / Valkey，与压测基线一致）时，使用独立的镜像直拉编排，不依赖源码构建：
+
+```bash
+cp .env.example .env                                # 填 SERVER_IMAGE 与 ADMIN_API_KEY
+chmod 600 .env
+# 不同环境只需改 SERVER_IMAGE 的 registry 前缀；仓库名后缀与 tag 必须与发布版本一致
+docker compose -f docker-compose.cloud.yaml pull     # 镜像不存在/不一致直接失败
+docker compose -f docker-compose.cloud.yaml up -d
+```
+
+- 密钥（`ADMIN_API_KEY`）只存在于服务器 `.env`（600 权限，已入 `.gitignore`），仓库只有 `.env.example` 占位符
+- 端口：`YGOPRO_PORT`(706) / `HTTP_PORT`(7922) / `WEBSOCKET_PORT`(4000) / `4002`
+- `ulimits nofile 65535` 已内置（在线连接上限不受容器默认 1024 限制）
+- 回滚：修改 `.env` 中 `SERVER_IMAGE` 的 tag 后 `up -d`，或 `docker compose down` 后用旧镜像重新拉起
+
 ## Docker 部署
 
 ```bash

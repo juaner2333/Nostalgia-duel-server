@@ -1,0 +1,33 @@
+# 云主机部署（镜像直拉，无 PostgreSQL / Valkey 中间件）
+#
+# 与 docker-compose.prod.yaml 的区别：
+#   - 镜像直拉（SERVER_IMAGE），不在服务器上构建
+#   - 仅 server 服务，USE_REDIS=false / RANK_ENABLED=false（压测基线形态）
+#   - nofile ulimit 按压测结论固化（否则在线连接上限约 1024）
+#
+# 部署步骤（任何机器一致）：
+#   cp .env.example .env   # 填 SERVER_IMAGE 与 ADMIN_API_KEY
+#   docker compose -f docker-compose.cloud.yaml pull
+#   docker compose -f docker-compose.cloud.yaml up -d
+services:
+  nostalgia-duel-server:
+    image: ${SERVER_IMAGE}
+    container_name: nostalgia-duel-server
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      USE_REDIS: ${USE_REDIS:-false}
+      RANK_ENABLED: ${RANK_ENABLED:-false}
+      ADMIN_API_KEY: ${ADMIN_API_KEY}
+      YGOPRO_PORT: ${YGOPRO_PORT:-706}
+      HTTP_PORT: ${HTTP_PORT:-7922}
+      WEBSOCKET_PORT: ${WEBSOCKET_PORT:-4000}
+    ports:
+      - "${YGOPRO_PORT:-706}:${YGOPRO_PORT:-706}"
+      - "${HTTP_PORT:-7922}:${HTTP_PORT:-7922}"
+      - "${WEBSOCKET_PORT:-4000}:${WEBSOCKET_PORT:-4000}"
+      - "4002:4002"
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535

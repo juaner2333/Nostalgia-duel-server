@@ -30,6 +30,16 @@
    ```
 4. 部署新镜像并完成冒烟验证（见 §4），验证通过后旧镜像按既有保留策略清理。
 
+**云主机（镜像直拉，无中间件）部署路径**：镜像 tag 与 Git tag 严格对齐（同一代码版本 ↔ 同一镜像，禁止手写任意 tag），仓库名后缀固定 `nostalgia-duel-server`，仅 registry 前缀可因环境而异（写入 `.env` 的 `SERVER_IMAGE`）：
+
+```bash
+cp .env.example .env                                      # 填 SERVER_IMAGE 与 ADMIN_API_KEY，chmod 600
+cd <部署目录> && docker compose -f docker-compose.cloud.yaml pull
+cd <部署目录> && docker compose -f docker-compose.cloud.yaml up -d
+```
+
+镜像不存在、pull 失败或 tag 与预期不一致时部署直接失败，不进入启动。验证同 §4。
+
 ## 3. 回滚（整体版本）
 
 - 回滚 = 恢复**上一应用镜像**（连同其内固定资源）并重新启动 server 服务；**不得**单独恢复、导出或挂载旧 `resources/current`。
