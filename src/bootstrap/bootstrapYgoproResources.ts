@@ -1,5 +1,6 @@
 import path from "node:path";
 import { Logger } from "@shared/logger/domain/Logger";
+import { NOSTALGIA_FORMAT_IDS } from "@ygopro/room/domain/NostalgiaFormat";
 import { YGOProResourceLoader } from "@ygopro/ygopro/YGOProResourceLoader";
 import YGOProBanListMemoryRepository from "@ygopro/ban-list/infrastructure/YGOProBanListMemoryRepository";
 import { checkNostalgiaResourceLock } from "@ygopro/ygopro/NostalgiaResourceGenerator";
@@ -21,6 +22,17 @@ export async function bootstrapYgoproResources(logger: Logger): Promise<void> {
 	logger.info("🔒 Fixed nostalgia resources integrity verified");
 	await YGOProResourceLoader.start();
 	await YGOProResourceLoader.get().logLFLists();
+
+	// Pre-warm both enabled formats and the shared ocgcore WASM module so the
+	// first real duel starts at steady-state speed (no cold compile or card
+	// pool load). Any pre-warm failure fails the startup before any listener
+	// opens (fail-fast, same philosophy as the resource lock check).
+	const loader = YGOProResourceLoader.getShared();
+	await Promise.all([
+		...NOSTALGIA_FORMAT_IDS.map((formatId) => loader.getFormatCardStorage(formatId)),
+		loader.getOcgcoreWasmModule(),
+	]);
+	logger.info("🔥 Pre-warmed 1103/1109 card storages and precompiled ocgcore WASM module");
 
 	const tmp = await loadYgoproBanLists();
 	YGOProBanListMemoryRepository.replaceAll(tmp);

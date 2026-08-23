@@ -48,6 +48,10 @@ type Client = YGOProClient;
 export class OCGCore {
 	private ocgcore: WorkerInstance<OcgcoreWorker> | null;
 	private messageSubscription: Subscription | null = null;
+	// Set synchronously on the first dispose request; further dispose requests
+	// return silently. Lets disposing (normal lifecycle end) be told apart from
+	// a real engine crash in advance(), which used to log false draw errors.
+	private isDisposing = false;
 	// responseSide: the side (0 or 1) currently being prompted by the core
 	private responseSide: number | null = null;
 	private lastResponseRequestMsg: YGOProMsgBase | null = null;
@@ -142,7 +146,7 @@ export class OCGCore {
 		const cardStorage = await loader.getFormatCardStorage(this.room.formatId);
 		const scriptSearchPaths = loader.getFormatScriptPaths(this.room.formatId);
 		const extraScriptPaths = loader.getFormatPreloadScriptPaths(this.room.formatId);
-		const ocgcoreWasmBinary = await loader.getOcgcoreWasmBinary();
+		const ocgcoreWasmModule = await loader.getOcgcoreWasmModule();
 
 		const registry: Record<string, string> = {
 			duel_mode: this.room.duelMode,
@@ -170,7 +174,7 @@ export class OCGCore {
 				ygoproPaths: scriptSearchPaths,
 				extraScriptPaths,
 				cardStorage,
-				ocgcoreWasmBinary,
+				ocgcoreWasmModule,
 				registry,
 				decks,
 			});
@@ -308,6 +312,13 @@ export class OCGCore {
 	}
 
 	private disposeWithTimeout(kill: boolean): void {
+		if (this.isDisposing) {
+			// Double-dispose (e.g. Win branch + side-decking disposeCore race) is
+			// a normal lifecycle event: return silently, no error logs, no
+			// 60s timeout warn, no "Worker has been finalized" rejection noise.
+			return;
+		}
+		this.isDisposing = true;
 		const ocgcore = this.ocgcore;
 		if (!ocgcore) {
 			return;
@@ -394,6 +405,11 @@ export class OCGCore {
 				await this.handleAdvanceResult(advanceResult);
 			}
 		} catch (error) {
+			if (this.isDisposing) {
+				// The worker channel was closed as part of a normal dispose/surrender/
+				// win settlement: this is not a server error, no draw broadcast.
+				return;
+			}
 			await this.handleAdvanceError(error);
 		}
 	}
@@ -678,7 +694,10 @@ export class OCGCore {
 		}
 
 		if (processedMessage instanceof YGOProMsgWin) {
-			await this.ocgcore?.dispose();
+			// Mark disposing first so the concurrently floating
+			// handleWinCondition → disposeCore() microtask hits the silent
+			// idempotent path instead of racing a second worker dispose.
+			this.disposeWithTimeout(false);
 			return;
 		}
 

@@ -114,10 +114,33 @@ export class OcgcoreWorker {
 
 	@WorkerInit()
 	async init() {
-		const wasmBinary = this.options.ocgcoreWasmBinary;
+		const wasmModule = this.options.ocgcoreWasmModule;
+		if (!(wasmModule instanceof WebAssembly.Module)) {
+			throw new Error(
+				"OcgcoreWorker requires a precompiled WebAssembly.Module " +
+					"(ocgcoreWasmModule); missing or corrupted modules fail worker init " +
+					"explicitly - there is no worker-side compile fallback",
+			);
+		}
 
-		// Create ocgcore wrapper
-		this.ocgcore = await createOcgcoreWrapper(wasmBinary ? { wasmBinary } : undefined);
+		// Create ocgcore wrapper: instantiate the shared precompiled module via
+		// the Emscripten instantiateWasm hook. The rejection handler rethrows so
+		// a corrupt/mismatched module must NOT leave the factory promise pending
+		// forever (receiveInstance never called -> wasm-instantiate dependency
+		// never removed -> worker init would hang without any error).
+		this.ocgcore = await createOcgcoreWrapper({
+			moduleOverrides: {
+				instantiateWasm: (info, receiveInstance) => {
+					WebAssembly.instantiate(wasmModule, info).then(
+						(instance) => receiveInstance(instance),
+						(error) => {
+							throw error;
+						},
+					);
+					return {};
+				},
+			},
+		});
 		this.ocgcore.setMessageHandler(async (_, message, type) => {
 			await this.handleMessage(message, type);
 		});

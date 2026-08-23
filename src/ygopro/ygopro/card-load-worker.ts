@@ -1,4 +1,3 @@
-import * as fs from "node:fs";
 import { createHash, Hash } from "node:crypto";
 import { searchYGOProResource } from "koishipro-core.js";
 import type { CardDataEntry } from "ygopro-cdb-encode";
@@ -6,12 +5,6 @@ import { YGOProCdb } from "ygopro-cdb-encode";
 import initSqlJs from "sql.js";
 import { DefineWorker, TransportType, WorkerMethod, toShared } from "yuzuthread";
 import { CardStorage } from "./card-storage";
-
-const isFileNotFoundError = (error: unknown): error is NodeJS.ErrnoException =>
-	typeof error === "object" &&
-	error !== null &&
-	"code" in error &&
-	(error as NodeJS.ErrnoException).code === "ENOENT";
 
 const hashWithSizePrefix = (hash: Hash, payload: Buffer) => {
 	const sizePrefix = Buffer.allocUnsafe(4);
@@ -37,10 +30,7 @@ export class CardLoadWorkerResult {
 
 @DefineWorker()
 export class CardLoadWorker {
-	constructor(
-		private ygoproPaths: string[],
-		private ocgcoreWasmPath?: string,
-	) {}
+	constructor(private ygoproPaths: string[]) {}
 
 	@WorkerMethod()
 	@TransportType(() => CardLoadWorkerResult)
@@ -92,22 +82,8 @@ export class CardLoadWorker {
 			}
 		}
 
-		let ocgcoreWasmBinary: Buffer | undefined;
-		if (this.ocgcoreWasmPath) {
-			try {
-				const wasmBinary = Buffer.from(await fs.promises.readFile(this.ocgcoreWasmPath));
-				hashWithSizePrefixText(sha512, this.ocgcoreWasmPath);
-				hashWithSizePrefix(sha512, wasmBinary);
-				ocgcoreWasmBinary = toShared(wasmBinary);
-			} catch (error) {
-				if (!isFileNotFoundError(error)) {
-					throw error;
-				}
-			}
-		}
-
 		const result = new CardLoadWorkerResult();
-		result.cardStorage = toShared(CardStorage.fromCards(cards, ocgcoreWasmBinary));
+		result.cardStorage = toShared(CardStorage.fromCards(cards));
 		result.dbCount = dbCount;
 		result.failedFiles = failedFiles;
 		result.sha512 = toShared(sha512.digest());

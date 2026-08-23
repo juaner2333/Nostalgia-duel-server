@@ -30,6 +30,8 @@ export class YGOProResourceLoader {
 	private readonly formatCardStorages = new Map<string, CardStorage>();
 	private readonly formatCardStoragePromises = new Map<string, Promise<CardStorage>>();
 	private readonly formatBanListHashes = new Map<string, number>();
+	private wasmModulePromise?: Promise<WebAssembly.Module>;
+	private wasmModule?: WebAssembly.Module;
 
 	constructor() {
 		this.logger = LoggerFactory.getLogger();
@@ -117,8 +119,33 @@ export class YGOProResourceLoader {
 		return hash;
 	}
 
-	async getOcgcoreWasmBinary(): Promise<Buffer | undefined> {
-		return (await this.loadBaseCdb()).ocgcoreWasmBinary;
+	/**
+	 * Precompiles the shared ocgcore WASM module once (single-flight promise; a
+	 * resolved result is cached). The module is a hard dependency: precompile
+	 * failures are fatal and there is no worker-side compile fallback.
+	 */
+	async getOcgcoreWasmModule(): Promise<WebAssembly.Module> {
+		if (this.wasmModule) {
+			return this.wasmModule;
+		}
+		const loading = this.wasmModulePromise;
+		if (loading) {
+			// Single-flight: concurrent inits while compiling reuse the same
+			// promise so the WASM binary is only compiled once.
+			return loading;
+		}
+		const promise = this.loadOcgcoreWasmModule().then((module) => {
+			this.wasmModule = module;
+			return module;
+		});
+		this.wasmModulePromise = promise;
+		try {
+			return await promise;
+		} finally {
+			if (this.wasmModulePromise === promise) {
+				this.wasmModulePromise = undefined;
+			}
+		}
 	}
 
 	async *getLFLists(): AsyncGenerator<{ item: YGOProLFList["items"][number]; text: string }> {
@@ -177,6 +204,23 @@ export class YGOProResourceLoader {
 		}
 	}
 
+	private async loadOcgcoreWasmModule(): Promise<WebAssembly.Module> {
+		const koishiproEntry = require.resolve("koishipro-core.js");
+		const wasmPath = path.join(path.dirname(koishiproEntry), "vendor/wasm_cjs/libocgcore.wasm");
+		try {
+			const wasmBinary = await readFile(wasmPath);
+			return await WebAssembly.compile(wasmBinary);
+		} catch (error) {
+			throw new Error(
+				`Failed to precompile ocgcore WASM at ${wasmPath}: ` +
+					`${error instanceof Error ? error.message : String(error)}. ` +
+					`vendor/wasm_cjs/libocgcore.wasm is the internal layout of ` +
+					`koishipro-core.js@^1.5.2 — verify this path still exists when ` +
+					`upgrading the dependency; there is no worker-side compile fallback.`,
+			);
+		}
+	}
+
 	private async loadFormatCardStorage(formatId: string): Promise<CardStorage> {
 		const formatPath = resolveFormatPath(this.resolvedPools, formatId);
 		const cardIds = await readWhitelistCardIds(path.join(formatPath, "lflist.conf"));
@@ -195,7 +239,6 @@ export class YGOProResourceLoader {
 			CardLoadWorker,
 			(worker) => worker.load(),
 			paths,
-			undefined,
 		);
 
 		for (const failedFile of failedFiles) {
