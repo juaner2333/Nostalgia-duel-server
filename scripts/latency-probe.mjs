@@ -22,6 +22,7 @@
  *
  * 用法：
  *   node scripts/latency-probe.mjs --host 134.175.22.216 --port 706 --rounds 3
+ *   node scripts/latency-probe.mjs --host mygo.superpre.pro --pass-prefix m,nf,mr2
  *
  * 退出码：0 = 全部阶段完成；1 = 任一阶段超时/失败。
  */
@@ -40,6 +41,7 @@ const args = {
 	port: 706,
 	rounds: 3,
 	formats: ["1103", "1109"],
+	passPrefix: null,
 	help: false,
 };
 for (let i = 2; i < process.argv.length; i += 1) {
@@ -58,6 +60,10 @@ for (let i = 2; i < process.argv.length; i += 1) {
 		case "--formats":
 			args.formats = take().split(",");
 			break;
+		case "--pass-prefix":
+			// 原版 YGOPro 服务器建房参数前缀，如 "m,nf,mr2"（本项目服务器默认用环境 id）
+			args.passPrefix = take();
+			break;
 		case "-h":
 		case "--help":
 			args.help = true;
@@ -69,7 +75,7 @@ for (let i = 2; i < process.argv.length; i += 1) {
 }
 if (args.help) {
 	console.log(
-		"usage: node scripts/latency-probe.mjs [--host HOST] [--port PORT] [--rounds N] [--formats 1103,1109]",
+		"usage: node scripts/latency-probe.mjs [--host HOST] [--port PORT] [--rounds N] [--formats 1103,1109] [--pass-prefix m,nf,mr2]",
 	);
 	process.exit(0);
 }
@@ -173,6 +179,7 @@ function createProbe(host, port) {
 		const times = [];
 		let buffer = Buffer.alloc(0);
 		socket.on("connect", () => {
+			clearTimeout(connectTimer);
 			resolve({
 				socket,
 				frames,
@@ -180,7 +187,15 @@ function createProbe(host, port) {
 				connectMs: toMs(process.hrtime.bigint() - startedAt),
 			});
 		});
-		socket.on("error", reject);
+		socket.on("error", (error) => {
+			clearTimeout(connectTimer);
+			reject(error);
+		});
+		// 代理/TUN 环境下连接可能静默挂起，加超时保护
+		const connectTimer = setTimeout(() => {
+			socket.destroy();
+			reject(new Error(`connect timeout: ${host}:${port}`));
+		}, 8000);
 		socket.on("data", (chunk) => {
 			buffer = Buffer.concat([buffer, chunk]);
 			const now = process.hrtime.bigint();
@@ -299,7 +314,7 @@ function waitForPlayerReady(probe, position, timeoutMs = 20000) {
 
 async function runProbe(formatId, roundNo, deck) {
 	const suffix = `${formatId}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
-	const pass = `${formatId}#${100000 + Math.floor(Math.random() * 800000)}`;
+	const pass = `${args.passPrefix ?? formatId}#${100000 + Math.floor(Math.random() * 800000)}`;
 
 	const host = await createProbe(args.host, args.port);
 	const guest = await createProbe(args.host, args.port);
@@ -351,10 +366,11 @@ async function runProbe(formatId, roundNo, deck) {
 	const msgStartAt = await waitForCommand(host, 0x01);
 	const engineMs = toMs(msgStartAt - sentAt);
 
-	// 投降 → MATCH_END（引擎回收）
+	// 投降 → 对局结束确认（引擎回收）。本项目实现回 MATCH_END 0x07；标准
+	// YGOPro 服务器（如原版 ygopro-server）回 DUEL_END 0x16，兼容两者。
 	sentAt = process.hrtime.bigint();
 	host.socket.write(surrenderFrame());
-	const matchEndAt = await waitForCommand(host, 0x07);
+	const matchEndAt = await waitForCommands(host, [0x07, 0x16]);
 	const surrenderMs = toMs(matchEndAt - sentAt);
 
 	host.socket.destroy();
