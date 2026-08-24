@@ -23,3 +23,11 @@
 - [x] 4.1 执行 `npm run lint`、`npm run test` 与资源锁校验 `npm run check:nostalgia-resources`
 - [x] 4.2 对刚启动的实例执行双环境冒烟测试 `npm run smoke:duel`（默认端口 706），验证首局开局 < 1s（无冷加载长耗时）
 - [ ] 4.3 压测验收（可执行口径，`scripts/load-test-duel.mjs`）：a) `node scripts/load-test-duel.mjs --mode duel --rooms 40 --cpu-cores 2` → 0 FAIL、MSG_START p95 < 1s、avg CPU < 配额 80%；b) `--mode churn` 长跑验证 `Error while advancing ocgcore` 竞态日志消除、无 dispose 噪音日志、无内存泄漏
+
+### 4.3 独立验收实测记录（2C4G 容器，`--cpus=2 --memory=4g`，基于 41abcef 独立复核）
+
+- **churn 稳定性（4.3b 达成）**：`--mode churn --duration 90 --rooms 8` → 304 房间完成、0 FAIL；`Error while advancing ocgcore` / `Error disposing ocgcore` / dispose 超时 / `Worker has been finalized` 均 0 次，伪平局广播 0 次；内存平稳（前半段均值 1623MB / 后半段 1592MB）。
+- **步进延迟（达成）**：`node scripts/duel-step-latency.mjs --rooms 16 --min-think-ms 1000 --max-think-ms 20000 --duration 60` → p50=98ms / p95=353ms / max=507ms（162 步），avg CPU 16.9%（配额 160%）。
+- **开局并发（4.3a 未达成）**：2C4G 下 40 总房间（`--rooms 20`，每格式 20）0 FAIL 但 join→MSG_START p95=10.3s，远超 <1s 验收线；56 总房间（`--rooms 28`）出现 3–10/56 房间 MSG_START 超时 FAIL（服务器无 ERROR 日志，纯超时）。
+- **瓶颈归因（A/B 实测，新 41abcef vs 旧 41abcef^ 同容器）**：join→DUEL_START p95 新 1.579–1.580s vs 旧 1.605s——WASM 预编译的增益未复现为显著差异；MSG_START 长尾来自每 Worker 内 ocgcore process/Lua 初始化的串行成本，不在本变更优化范围。4.3a 的 <1s 目标需后续独立变更（Worker 池化或引擎初始化削减）另行处理。
+- **口径勘误**：commit 41abcef message 中 “56 并发 init p95 3.8s→1.7s” 与 “首局引擎开局 ~350ms” 在独立 A/B 中不可复现（新旧差异均在噪声内）；单房间首局 join→MSG_START 实测 1857ms（新）/ 1906ms（旧），其中约 1.2s 为压测脚本固定开销（800ms sleep + 50ms 轮询粒度）。
