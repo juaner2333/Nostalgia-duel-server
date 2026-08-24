@@ -3,7 +3,7 @@
 	"inputs": {
 		"baseDatabase": {
 			"path": "ygopro/base/cards.cdb",
-			"sha256": "051ad640864d49d9b653d24ee1354ea5090fe31687695737a046d5270ebb1168",
+			"sha256": "1b0d885e71d71e0da72024a04094256e73dec4530884f974a61d0f1db60cf9e5",
 			"count": 5399,
 			"cardIdsSha256": "f220941c231ae9e3833807478ab9acd8d75cccab6ece9c588f53ac32d04b7ca5",
 			"invalidCardIds": [],
