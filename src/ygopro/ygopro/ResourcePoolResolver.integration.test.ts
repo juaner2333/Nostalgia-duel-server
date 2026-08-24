@@ -53,9 +53,9 @@ describe("fixed nostalgia resource integration", () => {
 		const storage1103 = baseStorage.filterForFormat(pool1103);
 		const storage1109 = baseStorage.filterForFormat(pool1109);
 
-		expect(baseStorage.size).toBe(5199);
-		expect(storage1103.size).toBe(5002 + tokenCardIds.size);
-		expect(storage1109.size).toBe(5120 + tokenCardIds.size);
+		expect(baseStorage.size).toBe(5399);
+		expect(storage1103.size).toBe(5198 + tokenCardIds.size);
+		expect(storage1109.size).toBe(5320 + tokenCardIds.size);
 		expect(sorted(pool1103)).toEqual(
 			sorted([...baseCardIds].filter((cardId) => pool1103.has(cardId))),
 		);
