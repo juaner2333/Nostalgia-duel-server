@@ -67,4 +67,3 @@ tools/
 # Local session + fetched core artifact (not versioned)
 .claude/
 /ocgcore-worker
-.vfox/
