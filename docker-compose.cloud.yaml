@@ -22,6 +22,7 @@ services:
       YGOPRO_PORT: ${YGOPRO_PORT:-706}
       HTTP_PORT: ${HTTP_PORT:-7922}
       WEBSOCKET_PORT: ${WEBSOCKET_PORT:-4000}
+      TZ: Asia/Shanghai
     ports:
       - "${YGOPRO_PORT:-706}:${YGOPRO_PORT:-706}"
       - "${HTTP_PORT:-7922}:${HTTP_PORT:-7922}"
