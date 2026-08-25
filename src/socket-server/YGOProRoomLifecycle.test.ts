@@ -165,9 +165,11 @@ const buildFrame = (command: number, payload: Buffer): Buffer => {
 
 const buildPlayerInfoFrame = (name: string): Buffer => buildFrame(0x10, encodeUtf16LE(name, 20));
 
-const buildJoinGameFrame = (pass: string): Buffer => {
+const buildJoinGameFrame = (pass: string): Buffer => buildJoinGameFrameWithVersion(pass, 0x1362);
+
+const buildJoinGameFrameWithVersion = (pass: string, version: number): Buffer => {
 	const payload = Buffer.alloc(48);
-	payload.writeUInt16LE(0x1362, 0); // mercuryConfig.version
+	payload.writeUInt16LE(version, 0);
 	payload.writeUInt16LE(0xcccc, 2);
 	payload.writeUInt32LE(42, 4);
 	encodeUtf16LE(pass, 20).copy(payload, 8);
@@ -201,6 +203,9 @@ const buildSurrenderFrame = (): Buffer => buildFrame(20, Buffer.alloc(0));
 
 const VALID_MAIN_DECK = (): number[] => Array<number>(40).fill(89631139);
 const UNKNOWN_CARD_CODE = 99999999;
+
+// [size=9][0x02 error][0x04 VER_ERROR][code 3B][version 4962 LE]
+const VERSION_ERROR_FRAME_HEX = "0900020400000062130000";
 
 // ---------- socket-side helpers ----------
 
@@ -441,6 +446,82 @@ describe("YGOProRoom · two-socket lifecycle contract", () => {
 		host.socket.destroy();
 		guest.socket.destroy();
 		spectator.socket.destroy();
+	});
+
+	it.each([
+		"rps",
+		"dueling",
+	] as const)("rejects a 0x1361 join during %s with only the version frames and no room side effects", async (phase) => {
+		const { port } = await waitForListening();
+		const { host, guest } = await createRoomAtPhase(port, phase);
+
+		const room = YGOProRoomList.findByAdmissionKey("1109#1001");
+		const playersBefore = room?.players.map((player) => player.name);
+		const spectatorsBefore = room?.spectators.length;
+
+		const intruder = await connect(port);
+		const tap = new FrameTap(intruder);
+		const closed = new Promise<void>((resolve) => intruder.on("close", () => resolve()));
+		intruder.write(buildPlayerInfoFrame("Syrus"));
+		intruder.write(buildJoinGameFrameWithVersion("1109#1001", 0x1361));
+		await Promise.all([tap.waitFor((frames) => frames.length >= 2), closed]);
+
+		// exactly the VersionError frame followed by the upgrade hint — nothing else
+		expect(tap.commands()).toEqual([0x02, 0x19]);
+		expect(tap.commands()).not.toContain(0x12); // no join-game response
+		expect(tap.commands()).not.toContain(0x15); // no duel start / re-sync / history
+		expect(tap.commands()).not.toContain(0x01); // no game messages
+
+		expect(tap.all[0].toString("hex")).toBe(VERSION_ERROR_FRAME_HEX);
+		const hint = new YGOProStocChat().fromFullPayload(tap.all[1]);
+		expect(hint.player_type).toBe(0x09);
+		expect(hint.msg).toContain("0x1362");
+		expect(hint.msg).toContain("升级");
+
+		// no observer was added and no seat changed
+		expect(room?.players.map((player) => player.name)).toEqual(playersBefore);
+		expect(room?.spectators.length).toBe(spectatorsBefore);
+
+		host.socket.destroy();
+		guest.socket.destroy();
+		intruder.destroy();
+	});
+
+	it("does not take over an active player's seat via name reconnect for a 0x1361 join", async () => {
+		const { port } = await waitForListening();
+		const { host, guest } = await createRoomAtPhase(port, "dueling");
+
+		// Drop the guest so the closed-socket name-reconnect guards would match a
+		// re-joining "Chazz" if the dueling phase ever saw the JOIN.
+		guest.socket.destroy();
+		await new Promise((resolve) => setTimeout(resolve, 150));
+
+		const room = YGOProRoomList.findByAdmissionKey("1109#1001");
+		const playersBefore = room?.players.map((player) => player.name);
+
+		const intruder = await connect(port);
+		const tap = new FrameTap(intruder);
+		const closed = new Promise<void>((resolve) => intruder.on("close", () => resolve()));
+		intruder.write(buildPlayerInfoFrame("Chazz"));
+		intruder.write(buildJoinGameFrameWithVersion("1109#1001", 0x1361));
+		await Promise.all([tap.waitFor((frames) => frames.length >= 2), closed]);
+
+		// only version frames; the reconnect path never emits join/sync messages
+		expect(tap.commands()).toEqual([0x02, 0x19]);
+		expect(tap.commands()).not.toContain(0x12);
+		expect(tap.commands()).not.toContain(0x13);
+		expect(tap.commands()).not.toContain(0x15);
+
+		expect(tap.all[0].toString("hex")).toBe(VERSION_ERROR_FRAME_HEX);
+		const hint = new YGOProStocChat().fromFullPayload(tap.all[1]);
+		expect(hint.msg).toContain("0x1362");
+
+		// the guest keeps its seat; the intruder never took it over
+		expect(room?.players.map((player) => player.name)).toEqual(playersBefore);
+		expect(room?.players.find((player) => player.name === "Chazz")).toBeDefined();
+
+		host.socket.destroy();
+		intruder.destroy();
 	});
 
 	it("rejects an unknown card and broadcasts ready state to both players", async () => {

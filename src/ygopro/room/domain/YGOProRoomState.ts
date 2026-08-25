@@ -4,7 +4,6 @@ import { YgoClient } from "@shared/client/domain/YgoClient";
 import { Commands } from "@shared/messages/Commands";
 import { ClientMessage } from "@shared/messages/MessageProcessor";
 import { ISocket } from "@shared/socket/domain/ISocket";
-import { mercuryConfig } from "@ygopro/config";
 import {
 	EMOTE_COOLDOWN_MS,
 	MAX_ID_LENGTH,
@@ -12,11 +11,9 @@ import {
 	isValidEmoteId,
 } from "@ygopro/emote/emote-protocol";
 import { PlayerInfoMessage } from "@ygopro/messages/client-to-server/PlayerInfoMessage";
-import { YGOProJoinGameMessage } from "@ygopro/messages/YGOProJoinGameMessage";
 import { ErrorClientMessage } from "@ygopro/messages/server-to-client/ErrorClientMessage";
 import { ErrorMessages } from "@ygopro/messages/server-to-client/ErrorMessages";
 import { ServerErrorClientMessage } from "@ygopro/messages/server-to-client/ServerErrorMessageClientMessage";
-import { VersionErrorClientMessage } from "@ygopro/messages/server-to-client/VersionErrorClientMessage";
 import { YGOProPlayerChatMessage } from "@ygopro/messages/server-to-client/YGOProPlayerChatMessage";
 import { NetPlayerType, YGOProStocChat } from "ygopro-msg-encode";
 
@@ -46,18 +43,6 @@ export abstract class YGOProRoomState {
 
 	removeAllListener(): void {
 		this.eventEmitter.removeAllListeners();
-	}
-
-	protected validateVersion(message: Buffer, socket: ISocket): void {
-		const joinMessage = new YGOProJoinGameMessage(message);
-
-		if (joinMessage.version !== mercuryConfig.version) {
-			socket.send(VersionErrorClientMessage.create(mercuryConfig.version));
-
-			throw new Error(
-				`Version mismatch: got 0x${joinMessage.version.toString(16)}, expected 0x${mercuryConfig.version.toString(16)}`,
-			);
-		}
 	}
 
 	protected sendExistingPlayerErrorMessage(

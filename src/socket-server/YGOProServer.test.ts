@@ -290,9 +290,9 @@ describe("YGOProServer · TCP admission contract", () => {
 			expect(hint.msg).toContain("0x1362");
 			expect(hint.msg).toContain("升级");
 
-			// Both valid-format packets reach the fixed-format strategy; version
-			// validation rejects the second one before room admission.
-			expect(recording.contexts).toHaveLength(2);
+			// Both valid-format packets reach the fixed-format strategy; the version
+			// gate now rejects the second one BEFORE any strategy runs.
+			expect(recording.contexts).toHaveLength(1);
 			expect(trap.handled).toHaveLength(0);
 
 			// the room and its host are unaffected
@@ -324,7 +324,7 @@ describe("YGOProServer · TCP admission contract", () => {
 			expect(hint.msg).toContain("0x1362");
 			expect(hint.msg).toContain("升级");
 
-			expect(recording.contexts).toHaveLength(2);
+			expect(recording.contexts).toHaveLength(1);
 			expect(trap.handled).toHaveLength(0);
 
 			const room = YGOProRoomList.findByAdmissionKey(roomPass);

@@ -1,10 +1,12 @@
 export function UTF8ToUTF16(str: string, length: number): Buffer {
-	const utf8Bytes = Buffer.from(str, "utf-8");
-	const utf16Array = new Uint16Array(length);
-
-	for (let i = 0; i < utf8Bytes.length; i++) {
-		utf16Array[i] = utf8Bytes[i];
+	// Encode the string as UTF-16LE code units, zero-padded to exactly `length`
+	// bytes — the wire format the YGOPro client decodes chat/server-error text
+	// with. Spreading raw UTF-8 bytes into 16-bit slots used to garble any
+	// non-ASCII character (e.g. Chinese upgrade hints), so encode the string's
+	// code points directly.
+	const buf = Buffer.alloc(length);
+	for (let i = 0; i < Math.min(str.length, Math.floor(length / 2)); i++) {
+		buf.writeUInt16LE(str.charCodeAt(i), i * 2);
 	}
-
-	return Buffer.from(utf16Array.buffer, 0, length);
+	return buf;
 }

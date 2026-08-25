@@ -14,9 +14,7 @@ import { YGOProClient } from "../../../client/domain/YGOProClient";
 import { YGOProRoom } from "../YGOProRoom";
 import { AdmitToRoom } from "@ygopro/room/admission/application/AdmitToRoom";
 
-import { YGOPRO_PROTOCOL_VERSION } from "@ygopro/ygopro/protocol-version";
-
-import { ErrorMessageType, YGOProCtosUpdateDeck, YGOProStocChat } from "ygopro-msg-encode";
+import { ErrorMessageType, YGOProCtosUpdateDeck } from "ygopro-msg-encode";
 import { YGOProDeckCreator } from "@ygopro/deck/application/YGOProDeckCreator";
 import { YGOProDeckValidator } from "@ygopro/deck/domain/YGOProDeckValidator";
 import { DeckError } from "@shared/deck/domain/errors/DeckError";
@@ -72,27 +70,6 @@ export class YGOProWaitingState extends YGOProRoomState {
 		socket: ISocket,
 	): Promise<void> {
 		this.logger.info(`handleJoin: ${message.data.toString("hex")}`);
-
-		try {
-			this.validateVersion(message.data, socket);
-		} catch (error) {
-			const reason = error instanceof Error ? error.message : String(error);
-			this.logger.warn(`Join rejected before admission: ${reason}`);
-
-			if (reason.startsWith("Version mismatch")) {
-				// The version-error frame is already flushed; send one readable
-				// hint so the user knows to upgrade the client instead of the
-				// failure looking silent.
-				const hint = new YGOProStocChat().fromPartial({
-					player_type: 0x09,
-					msg: `当前服务器仅支持协议版本 0x${YGOPRO_PROTOCOL_VERSION.toString(16)}；你的客户端版本不受支持，请升级客户端至最新版本后再连接。`,
-				});
-				socket.send(Buffer.from(hint.toFullPayload()));
-			}
-
-			socket.close();
-			return;
-		}
 
 		const playerInfoMessage = new PlayerInfoMessage(message.previousMessage, message.data.length);
 		if (isNameTaken(room.players, playerInfoMessage.name)) {

@@ -9,6 +9,9 @@ import { PlayerInfoMessage } from "@ygopro/messages/client-to-server/PlayerInfoM
 
 import { ErrorMessageType, YGOProCtosJoinGame } from "ygopro-msg-encode";
 import { MessageRepository } from "@ygopro/room/domain/MessageRepository";
+import { YGOPRO_PROTOCOL_VERSION } from "@ygopro/ygopro/protocol-version";
+import { VersionErrorClientMessage } from "@ygopro/messages/server-to-client/VersionErrorClientMessage";
+import { YGOProPlayerChatMessage } from "@ygopro/messages/server-to-client/YGOProPlayerChatMessage";
 
 import { JoinStrategyRegistry } from "./join-strategies/JoinStrategyRegistry";
 import { JoinContext } from "./join-strategies/JoinStrategy";
@@ -43,6 +46,31 @@ export class YGOProJoinHandler implements JoinMessageHandler {
 
 		const playerInfoMessage = new PlayerInfoMessage(message.previousMessage, message.data.length);
 		const joinMessage = new YGOProCtosJoinGame().fromPayload(message.data);
+
+		// Every new JOIN_GAME must speak the supported protocol version, no matter
+		// what room (or room state machine) it targets. Already-admitted players do
+		// not re-join through this handler, so this is evaluated exactly once per
+		// new connection. The reject happens before room identity parsing, join
+		// strategy selection, room lookup/creation, and any room state event.
+		if (joinMessage.version !== YGOPRO_PROTOCOL_VERSION) {
+			this.logger.warn("Join rejected before admission", {
+				reason: "unsupported_protocol_version",
+				actualVersion: joinMessage.version,
+				expectedVersion: YGOPRO_PROTOCOL_VERSION,
+			});
+
+			this.socket.send(VersionErrorClientMessage.create(YGOPRO_PROTOCOL_VERSION));
+			// The version-error frame is already queued; send one readable hint so the
+			// user knows to upgrade the client instead of the failure looking silent.
+			this.socket.send(
+				YGOProPlayerChatMessage.create(
+					`当前服务器仅支持协议版本 0x${YGOPRO_PROTOCOL_VERSION.toString(16)}；你的客户端版本不受支持，请升级客户端至最新版本后再连接。`,
+				),
+			);
+			// close() (not destroy()): flush both queued frames before tearing down.
+			this.socket.close();
+			return;
+		}
 
 		// NOTE: password is the single segment after the first "#", matching
 		// YGOProRoom.create's own parsing. Do NOT join the rest with "#" — a room

@@ -50,12 +50,12 @@ const makeModule = (overrides: Partial<WindbotModuleDeps> = {}): WindbotModule =
 	});
 
 /**
- * Build a valid join message buffer (48 bytes) as expected by YGOProJoinGameMessage.
+ * Build a valid join message buffer (48 bytes):
  * version(u16) + align(u16) + gameid(u32) + pass(utf16, 40 bytes)
  */
 const makeJoinData = (pass: string): Buffer => {
 	const data = Buffer.alloc(48, 0);
-	// Use the same version as mercuryConfig to pass validateVersion
+	// Use the same version as the supported protocol to pass the join version gate
 	data.writeUInt16LE(0x1362, 0);
 	data.writeUInt16LE(0, 2);
 	data.writeUInt32LE(0, 4);
