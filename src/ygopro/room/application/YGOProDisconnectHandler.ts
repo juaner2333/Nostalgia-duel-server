@@ -37,7 +37,17 @@ export class YGOProDisconnectHandler {
 
 		// On `close` the leaver's socket is already closed, so this also catches
 		// the last WAITING player leaving — finalize instead of leaking a zombie.
+		// Started, non-AI, NON-matchmaking rooms get a bounded reconnect grace
+		// instead: both players may recover by name before the unified teardown
+		// runs. Matchmaking starts with a reservation that is atomic per proposal
+		// (no 90s grace) — isMatchmaking survives into the started duel, so it is
+		// excluded explicitly here.
 		if (room.hasNoConnectedPlayers) {
+			if (room.duelState !== DuelState.WAITING && !room.noHost && !room.isMatchmaking) {
+				room.startReconnectGrace(() => FinalizeYGOProRoom.run(room));
+				return;
+			}
+
 			FinalizeYGOProRoom.run(room);
 
 			return;

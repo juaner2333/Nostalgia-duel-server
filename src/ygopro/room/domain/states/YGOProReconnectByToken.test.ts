@@ -58,6 +58,45 @@ beforeEach(() => TokenIndex.getInstance().clear());
 afterEach(() => TokenIndex.getInstance().clear());
 
 // ----------------------------------------------------------------------------
+// Dueling-state teardown releases the ocgcore worker.
+// ----------------------------------------------------------------------------
+describe("YGOProDuelingState.removeAllListener", () => {
+	it("disposes the ocgcore worker when room teardown detaches the state", () => {
+		const ocgCore = {
+			hasOcgcore: jest.fn().mockReturnValue(true),
+			dispose: jest.fn(),
+		};
+		const state = Object.create(YGOProDuelingState.prototype);
+		Object.assign(state, {
+			logger: makeLogger(),
+			ocgCore,
+			eventEmitter: new EventEmitter(),
+		});
+
+		state.removeAllListener();
+
+		expect(ocgCore.dispose).toHaveBeenCalledTimes(1);
+	});
+
+	it("skips disposal when the core was already disposed (idempotent path)", () => {
+		const ocgCore = {
+			hasOcgcore: jest.fn().mockReturnValue(false),
+			dispose: jest.fn(),
+		};
+		const state = Object.create(YGOProDuelingState.prototype);
+		Object.assign(state, {
+			logger: makeLogger(),
+			ocgCore,
+			eventEmitter: new EventEmitter(),
+		});
+
+		state.removeAllListener();
+
+		expect(ocgCore.dispose).not.toHaveBeenCalled();
+	});
+});
+
+// ----------------------------------------------------------------------------
 // Token issuance at match start (TRY_START in the waiting state).
 // ----------------------------------------------------------------------------
 describe("YGOProWaitingState — reconnection token issuance at match start", () => {

@@ -1,11 +1,12 @@
 import WebSocket from "ws";
 
-import { ISocket } from "./ISocket";
+import { ISocket, SocketTransport } from "./ISocket";
 
 export class WebSocketClientSocket implements ISocket {
-	id?: string;
-	roomId?: number;
-	resolvedUserId?: string;
+	public id?: string;
+	public roomId?: number;
+	public resolvedUserId?: string;
+	public readonly transport: SocketTransport = "websocket";
 	private readonly socket: WebSocket;
 	private isClosed = false;
 	private messageCallback?: (data: WebSocket.Data) => void;

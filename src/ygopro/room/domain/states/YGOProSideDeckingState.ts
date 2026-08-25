@@ -15,7 +15,11 @@ import { ISocket } from "../../../../shared/socket/domain/ISocket";
 
 import { YGOProClient } from "../../../client/domain/YGOProClient";
 import { YGOProRoom } from "../YGOProRoom";
-import { findReconnectingPlayer } from "@shared/room/domain/findReconnectingPlayer";
+import {
+	findReconnectingPlayer,
+	logReconnectJudgement,
+	type ReconnectRejectionReason,
+} from "@shared/room/domain/findReconnectingPlayer";
 import { config } from "../../../../config";
 import { ReconnectionTokenIssuer } from "@shared/room/application/reconnect/ReconnectionTokenIssuer";
 import { ReconnectionAckMessage } from "@shared/messages/server-to-client/ReconnectionAckMessage";
@@ -193,22 +197,45 @@ export class YGOProSideDeckingState extends YGOProRoomState {
 		this.logger.info("handleJoin");
 
 		const playerInfoMessage = new PlayerInfoMessage(message.previousMessage, message.data.length);
-		const playerAlreadyInRoom = findReconnectingPlayer({
+		const reconnect = findReconnectingPlayer({
 			players: room.players,
 			name: playerInfoMessage.name,
 			remoteAddress: socket.remoteAddress,
+			transport: socket.transport,
 			ranked: room.ranked,
 		});
 
-		if (!(playerAlreadyInRoom instanceof YGOProClient)) {
+		const reject = (reason: ReconnectRejectionReason): void => {
+			logReconnectJudgement({
+				logger: this.logger,
+				result: "rejected",
+				reason,
+				room,
+				socket,
+			});
 			const spectator = room.createSpectatorUnsafe(socket, playerInfoMessage.name);
 			room.addSpectatorUnsafe(spectator);
 			spectator.sendMessageToClient(Buffer.from(new YGOProStocDuelStart().toFullPayload()));
 			spectator.sendMessageToClient(Buffer.from(new YGOProStocWaitingSide().toFullPayload()));
+		};
 
+		if (reconnect.outcome !== "takeover") {
+			reject(reconnect.reason);
+			return;
+		}
+		if (!(reconnect.player instanceof YGOProClient)) {
+			reject("player_not_found");
 			return;
 		}
 
+		const playerAlreadyInRoom = reconnect.player;
+		logReconnectJudgement({
+			logger: this.logger,
+			result: "takeover",
+			room,
+			socket,
+			previousSocket: reconnect.player.socket,
+		});
 		room.reconnect(playerAlreadyInRoom, socket);
 		playerAlreadyInRoom.sendMessageToClient(room.messageSender.duelStartMessage());
 		if (!playerAlreadyInRoom.isReady) {

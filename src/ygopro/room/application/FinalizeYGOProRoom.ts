@@ -21,6 +21,15 @@ import { ReconnectionTokenIssuer } from "@shared/room/application/reconnect/Reco
  */
 export class FinalizeYGOProRoom {
 	static run(room: YGOProRoom): void {
+		// A pending reconnect-grace timer must never outlive the room: cancel it
+		// unconditionally (even on the already-finalizing early return below), so
+		// the expiry can never double-finalize or hold the room after teardown.
+		room.cancelReconnectGrace();
+		// Detach the state machine and cancel its timers (side-decking intervals,
+		// dueling ocgcore resources) for the same reason — a finalized room must
+		// not keep an interval ticking or a WASM worker alive.
+		room.disposeRoomState();
+
 		// Matchmaking's join reaper and socket disconnect handler can observe the
 		// same abort on adjacent turns. Teardown is a single terminal transition.
 		if (room.finalizing) return;

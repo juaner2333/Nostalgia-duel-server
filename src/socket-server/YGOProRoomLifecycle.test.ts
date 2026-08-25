@@ -132,6 +132,7 @@ import { DefaultJoinStrategy } from "@ygopro/room/application/join-strategies/De
 import { JoinStrategyRegistry } from "@ygopro/room/application/join-strategies/JoinStrategyRegistry";
 import { NostalgiaJoinStrategy } from "@ygopro/room/application/join-strategies/NostalgiaJoinStrategy";
 import YGOProRoomList from "@ygopro/room/infrastructure/YGOProRoomList";
+import { FinalizeYGOProRoom } from "@ygopro/room/application/FinalizeYGOProRoom";
 import {
 	ErrorMessageType,
 	NetPlayerType,
@@ -297,6 +298,16 @@ describe("YGOProRoom · two-socket lifecycle contract", () => {
 			socket.on("connect", () => resolve(socket));
 		});
 
+	/** Connects from a different loopback source address (cross-IP attempt). */
+	const connectFromAddress = (port: number, localAddress: string): Promise<net.Socket> =>
+		new Promise((resolve) => {
+			const socket = net.connect({ port, host: "127.0.0.1", localAddress });
+			socket.on("error", () => {
+				// late connect errors surface via close; never asserted here
+			});
+			socket.on("connect", () => resolve(socket));
+		});
+
 	/** Connects and joins `roomName`, returning the socket and its frame tap. */
 	const joinRoom = async (
 		port: number,
@@ -341,12 +352,13 @@ describe("YGOProRoom · two-socket lifecycle contract", () => {
 	const createRoomAtPhase = async (
 		port: number,
 		phase: "waiting" | "rps" | "choosing-order" | "dueling" | "side-decking",
+		roomName = "1109#1001",
 	): Promise<{
 		host: { socket: net.Socket; tap: FrameTap };
 		guest: { socket: net.Socket; tap: FrameTap };
 	}> => {
-		const host = await joinRoom(port, "Jaden", "1109#1001");
-		const guest = await joinRoom(port, "Chazz", "1109#1001");
+		const host = await joinRoom(port, "Jaden", roomName);
+		const guest = await joinRoom(port, "Chazz", roomName);
 		if (phase === "waiting") {
 			return { host, guest };
 		}
@@ -396,7 +408,10 @@ describe("YGOProRoom · two-socket lifecycle contract", () => {
 
 	afterEach(() => {
 		for (const room of [...YGOProRoomList.getRooms()]) {
-			YGOProRoomList.deleteRoom(room);
+			// Run the canonical teardown: it cancels any pending reconnect-grace
+			// timer AND detaches the state machine (side-decking intervals), so no
+			// timer keeps the jest event loop alive after the suite ends.
+			FinalizeYGOProRoom.run(room);
 		}
 		JoinStrategyRegistry.reset();
 		server.close();
@@ -726,6 +741,119 @@ describe("YGOProRoom · two-socket lifecycle contract", () => {
 
 		host.socket.destroy();
 		guest.socket.destroy();
+	});
+
+	it.each([
+		"1103",
+		"1109",
+	] as const)("%s#1001: a same-IP half-open TCP connection takes over the original seat and closes the stale socket", async (formatId) => {
+		const { port } = await waitForListening();
+		const roomName = `${formatId}#1001`;
+		const { host, guest } = await createRoomAtPhase(port, "dueling", roomName);
+		const room = YGOProRoomList.findByAdmissionKey(roomName);
+		expect(room?.players).toHaveLength(2);
+
+		// The guest's old connection is deliberately KEPT OPEN (half-open: no
+		// FIN/RST reached the server), which the legacy closed-socket guard
+		// would have rejected. The same-IP rejoin must instead take it over.
+		const oldGuestClosed = new Promise<void>((resolve) =>
+			guest.socket.on("close", () => resolve()),
+		);
+
+		const rejoined = await joinRoom(port, "Chazz", roomName);
+		await rejoined.tap.waitFor((frames) => hasCommand(frames, 0x12) && hasCommand(frames, 0x13));
+
+		// the takeover actively closed the stale half-open connection
+		await oldGuestClosed;
+
+		// seat identity unchanged: same player names, same count, host intact
+		expect(room?.players).toHaveLength(2);
+		expect(room?.players.map((p) => p.name)).toEqual(expect.arrayContaining(["Jaden", "Chazz"]));
+		expect(room?.players.find((p) => p.name === "Jaden")?.host).toBe(true);
+
+		host.socket.destroy();
+		rejoined.socket.destroy();
+	});
+
+	it("does not replace the seat for a JOIN from a different source IP — the intruder becomes a spectator", async () => {
+		const { port } = await waitForListening();
+		const { host, guest } = await createRoomAtPhase(port, "dueling");
+		const room = YGOProRoomList.findByAdmissionKey("1109#1001");
+		const playersBefore = room?.players.map((p) => p.name);
+		const spectatorCountBefore = room?.spectators.length ?? 0;
+
+		const intruder = await connectFromAddress(port, "127.0.0.2");
+		const tap = new FrameTap(intruder);
+		intruder.write(buildPlayerInfoFrame("Chazz"));
+		intruder.write(buildJoinGameFrame("1109#1001"));
+		await tap.waitFor((frames) => hasCommand(frames, 0x15)); // spectator DUEL_START
+
+		// the original player socket was neither replaced nor closed
+		await new Promise((resolve) => setTimeout(resolve, 150));
+		expect(guest.socket.closed).toBe(false);
+		expect(room?.players.map((p) => p.name)).toEqual(playersBefore);
+		expect(room?.players).toHaveLength(2);
+		expect(room?.spectators.length).toBe(spectatorCountBefore + 1);
+
+		host.socket.destroy();
+		guest.socket.destroy();
+		intruder.destroy();
+	});
+
+	it("retains the room after both players disconnect and restores a seat within the grace window", async () => {
+		const { port } = await waitForListening();
+		const { host, guest } = await createRoomAtPhase(port, "dueling");
+		const room = YGOProRoomList.findByAdmissionKey("1109#1001");
+		expect(room).not.toBeNull();
+		room!.reconnectGraceMs = 400;
+
+		// both players' connections close for real
+		guest.socket.destroy();
+		host.socket.destroy();
+		await new Promise((resolve) => setTimeout(resolve, 100));
+
+		// the room and both seats survive inside the grace window
+		expect(YGOProRoomList.findByAdmissionKey("1109#1001")).toBe(room);
+		expect(room?.players).toHaveLength(2);
+
+		// one original player recovers by name before the window expires
+		const rejoined = await joinRoom(port, "Jaden", "1109#1001");
+		await rejoined.tap.waitFor((frames) => hasCommand(frames, 0x12) && hasCommand(frames, 0x13));
+
+		// the takeover cancelled the pending teardown: the room survives past the
+		// original window with the same seats
+		await new Promise((resolve) => setTimeout(resolve, 600));
+		expect(YGOProRoomList.findByAdmissionKey("1109#1001")).toBe(room);
+		expect(room?.players).toHaveLength(2);
+		expect(room?.players.map((p) => p.name)).toEqual(expect.arrayContaining(["Jaden", "Chazz"]));
+
+		rejoined.socket.destroy();
+	});
+
+	it("removes the room after the grace window and lets the same identifier start a fresh room", async () => {
+		const { port } = await waitForListening();
+		const { host, guest } = await createRoomAtPhase(port, "dueling");
+		const room = YGOProRoomList.findByAdmissionKey("1109#1001");
+		expect(room).not.toBeNull();
+		room!.reconnectGraceMs = 300;
+
+		guest.socket.destroy();
+		host.socket.destroy();
+		// outlast the grace window: the unified teardown must run exactly once
+		await new Promise((resolve) => setTimeout(resolve, 700));
+
+		expect(YGOProRoomList.findByAdmissionKey("1109#1001")).toBeNull();
+
+		// the same room identifier now creates a brand-new room — the old duel
+		// state and reconnect eligibility are gone with the old room
+		const joiner = await joinRoom(port, "Chazz", "1109#1001");
+		const newRoom = YGOProRoomList.findByAdmissionKey("1109#1001");
+		expect(newRoom).not.toBeNull();
+		expect(newRoom).not.toBe(room);
+		expect(newRoom?.players.map((p) => p.name)).toEqual(["Chazz"]);
+		expect(newRoom?.duelState).toBe("waiting");
+
+		joiner.socket.destroy();
 	});
 });
 

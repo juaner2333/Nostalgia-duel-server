@@ -1,10 +1,11 @@
 import { Socket } from "net";
 
-import { ISocket } from "./ISocket";
+import { ISocket, SocketTransport } from "./ISocket";
 
 export class TCPClientSocket implements ISocket {
-	id?: string;
-	roomId?: number;
+	public id?: string;
+	public roomId?: number;
+	public readonly transport: SocketTransport = "tcp";
 	private readonly socket: Socket;
 
 	private isClosed = false;

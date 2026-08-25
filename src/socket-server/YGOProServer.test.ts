@@ -23,6 +23,7 @@ import { JoinContext, JoinStrategy } from "@ygopro/room/application/join-strateg
 import { JoinStrategyRegistry } from "@ygopro/room/application/join-strategies/JoinStrategyRegistry";
 import { NostalgiaJoinStrategy } from "@ygopro/room/application/join-strategies/NostalgiaJoinStrategy";
 import YGOProRoomList from "@ygopro/room/infrastructure/YGOProRoomList";
+import { FinalizeYGOProRoom } from "@ygopro/room/application/FinalizeYGOProRoom";
 import {
 	YGOProStocChat,
 	YGOProStocHsPlayerEnter,
@@ -227,7 +228,9 @@ describe("YGOProServer · TCP admission contract", () => {
 
 	afterEach(() => {
 		for (const room of [...YGOProRoomList.getRooms()]) {
-			YGOProRoomList.deleteRoom(room);
+			// Canonical teardown: cancels any reconnect-grace timer and detaches the
+			// state machine so no timer outlives the suite.
+			FinalizeYGOProRoom.run(room);
 		}
 		JoinStrategyRegistry.reset();
 		server.close();

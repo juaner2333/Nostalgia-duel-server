@@ -18,6 +18,7 @@ function addBanList(formatId: "1103" | "1109", hash: number): void {
 function makeSocket(id: string): ISocket {
 	return {
 		id,
+		transport: "tcp",
 		send: jest.fn(),
 		onMessage: jest.fn(),
 		onClose: jest.fn(),

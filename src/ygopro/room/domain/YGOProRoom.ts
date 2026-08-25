@@ -48,6 +48,13 @@ import { CardYGOProRepository } from "@ygopro/card/infrastructure/CardYGOProRepo
 import { YGOProBanList } from "@ygopro/ban-list/domain/YGOProBanList";
 import { getNostalgiaFormat, type NostalgiaFormatId } from "@ygopro/room/domain/NostalgiaFormat";
 
+/**
+ * Bounded reconnect window for started, non-AI rooms whose players all
+ * disconnected: the room and its seats are retained this long so the original
+ * players can recover by name/TCP before the unified teardown runs.
+ */
+export const RECONNECT_GRACE_MS = 90_000;
+
 export interface NostalgiaRoomCreationOptions {
 	id: number;
 	formatId: NostalgiaFormatId;
@@ -78,6 +85,16 @@ export class YGOProRoom extends YgoRoom {
 	private readonly _messageRepository: MessageRepository;
 	private readonly _cardRepository: CardYGOProRepository;
 	private readonly _deckRules: DeckRules;
+	/** At most one pending reconnect-grace expiry per room. */
+	private _reconnectGraceTimer: NodeJS.Timeout | undefined;
+	private _reconnectGraceExpiry: (() => void) | undefined;
+	/**
+	 * Grace window length for this room (default 90s). Production code never
+	 * writes it — it is the test seam real-TCP lifecycle tests use to shorten
+	 * the window; the production default is pinned by the unit tests against
+	 * RECONNECT_GRACE_MS.
+	 */
+	public reconnectGraceMs: number = RECONNECT_GRACE_MS;
 
 	windbot?: { name: string; deck: string };
 	noHost: boolean = false;
@@ -689,7 +706,24 @@ export class YGOProRoom extends YgoRoom {
 	}
 
 	reconnect(player: YGOProClient, socket: ISocket): void {
-		player.socket.removeAllListeners();
+		// Idempotency guard: attaching the socket that is already live is a no-op
+		// — there is no stale connection to replace and no re-init to broadcast.
+		if (player.socket === socket) {
+			return;
+		}
+
+		// A successful seat takeover ends any pending reconnect grace: the room is
+		// no longer abandoned, so the scheduled teardown must not run.
+		this.cancelReconnectGrace();
+
+		const previousSocket = player.socket;
+		// Detach the old socket's room message + disconnect-close callbacks BEFORE
+		// disposing it: a late `close` from the stale (possibly half-open) TCP
+		// connection must never run room cleanup against the already-reconnected
+		// player. `last join wins` — only the newest socket keeps driving the seat.
+		previousSocket.removeAllListeners();
+		previousSocket.destroy();
+
 		player.setSocket(socket);
 		player.reconnecting();
 		player.sendMessageToClient(
@@ -704,6 +738,75 @@ export class YGOProRoom extends YgoRoom {
 			);
 			player.sendMessageToClient(playerEnterMessageBuffer);
 		});
+	}
+
+	/**
+	 * Starts the bounded reconnect grace for a room whose players all
+	 * disconnected. The room owns ONE idempotent timer: repeated disconnect
+	 * events never reset or extend it. The expiry action is supplied by the
+	 * application layer (the disconnect handler passes the unified finalize
+	 * service), so the domain object never depends on room-list or broadcast
+	 * infrastructure.
+	 */
+	public startReconnectGrace(onExpire: () => void): void {
+		if (this._reconnectGraceTimer !== undefined) {
+			return; // already inside a grace window — do not restart or extend
+		}
+		this._reconnectGraceExpiry = onExpire;
+		this.logReconnectGraceEvent("started");
+		this._reconnectGraceTimer = setTimeout(
+			() => this.handleReconnectGraceExpiry(),
+			this.reconnectGraceMs,
+		);
+	}
+
+	/**
+	 * Cancels a pending grace (successful seat takeover, or the unified teardown
+	 * cleaning up unconditionally). No-op when no window is running.
+	 */
+	public cancelReconnectGrace(): void {
+		if (this._reconnectGraceTimer === undefined) {
+			this._reconnectGraceExpiry = undefined;
+			return;
+		}
+		clearTimeout(this._reconnectGraceTimer);
+		this._reconnectGraceTimer = undefined;
+		this._reconnectGraceExpiry = undefined;
+		this.logReconnectGraceEvent("cancelled");
+	}
+
+	private handleReconnectGraceExpiry(): void {
+		this._reconnectGraceTimer = undefined;
+		const onExpire = this._reconnectGraceExpiry;
+		this._reconnectGraceExpiry = undefined;
+		// Re-check before tearing down: both run on the same event loop, so a
+		// takeover or teardown that won the race suppresses the expiry action.
+		if (this.finalizing || !this.hasNoConnectedPlayers) {
+			return;
+		}
+		this.logReconnectGraceEvent("expired");
+		onExpire?.();
+	}
+
+	private logReconnectGraceEvent(event: "started" | "cancelled" | "expired"): void {
+		this._logger.info("reconnect_grace", {
+			event,
+			roomId: this.id,
+			formatId: this.formatId,
+			externalRoomId: this.externalRoomId,
+			state: this.duelState,
+		});
+	}
+
+	/**
+	 * Detaches the active room-state machine and cancels every timer it owns
+	 * (side-decking per-player intervals; the dueling state's override also
+	 * disposes the ocgcore worker). Called by the unified teardown so no timer
+	 * or worker can outlive a finalized room.
+	 */
+	public disposeRoomState(): void {
+		this._roomState?.removeAllListener();
+		this._roomState = null;
 	}
 
 	private createDeckValidator(): YGOProDeckValidator {

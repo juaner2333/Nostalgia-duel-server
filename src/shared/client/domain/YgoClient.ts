@@ -75,8 +75,18 @@ export abstract class YgoClient {
 		return this._deck;
 	}
 
-	get socket(): ISocket {
+	public get socket(): ISocket {
 		return this._socket;
+	}
+
+	/**
+	 * The stable source IP captured when the player's FIRST socket was attached
+	 * and refreshed on every socket swap (YGOProClient.setSocket). Used by the
+	 * by-name reconnect check because a closed old socket can no longer report
+	 * its remote address reliably.
+	 */
+	public get ipAddress(): string | null {
+		return this._ipAddress;
 	}
 
 	playerPosition(position: number, team: number): void {
