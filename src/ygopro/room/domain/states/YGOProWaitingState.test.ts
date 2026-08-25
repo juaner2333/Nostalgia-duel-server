@@ -16,7 +16,7 @@ import { AdmitToRoom } from "../../admission/application/AdmitToRoom";
 import { ISocket } from "@shared/socket/domain/ISocket";
 import { RoomLeague } from "@shared/room/admission/domain/RoomLeague";
 import { PlayerCredential } from "@shared/room/admission/domain/PlayerCredential";
-import { ErrorMessageType } from "ygopro-msg-encode";
+import { ErrorMessageType, YGOProStocChat } from "ygopro-msg-encode";
 
 // ---- helpers ----
 
@@ -36,6 +36,15 @@ const makeJoinMessage = (): ClientMessage =>
 		data: makeJoinData(),
 		previousMessage: Buffer.from(PLAYER_INFO_HEX, "hex"),
 	}) as unknown as ClientMessage;
+
+const makeJoinMessageWithVersion = (version: number): ClientMessage => {
+	const buf = Buffer.alloc(48);
+	buf.writeUInt16LE(version, 0);
+	return {
+		data: buf,
+		previousMessage: Buffer.from(PLAYER_INFO_HEX, "hex"),
+	} as unknown as ClientMessage;
+};
 
 const makeDeckPayload = (): Buffer => {
 	const main = [0x00000001, 0x00000002];
@@ -329,6 +338,25 @@ describe("YGOProWaitingState.handleJoin", () => {
 		expect(mockAdmitToRoom.run).not.toHaveBeenCalled();
 		expect(mockSocket.send).toHaveBeenCalled();
 		expect(mockSocket.close).toHaveBeenCalled();
+	});
+
+	it("rejects an unsupported version with an error frame, a readable upgrade hint, and a close", async () => {
+		const message = makeJoinMessageWithVersion(0x1361);
+		await new Promise<void>((resolve) => {
+			setImmediate(() => resolve());
+			eventEmitter.emit("JOIN", message, mockRoom, mockSocket);
+		});
+
+		// frame[0]: VersionError; frame[1]: the upgrade hint (STOC_CHAT 0x19).
+		expect(mockSocket.send).toHaveBeenCalledTimes(2);
+		const hint = new YGOProStocChat().fromFullPayload(mockSocket.send.mock.calls[1][0] as Buffer);
+		expect(hint.player_type).toBe(0x09);
+		expect(hint.msg).toContain("0x1362");
+		expect(hint.msg).toContain("升级");
+
+		expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining("Version mismatch"));
+		expect(mockSocket.close).toHaveBeenCalled();
+		expect(mockAdmitToRoom.run).not.toHaveBeenCalled();
 	});
 });
 

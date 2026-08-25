@@ -1,3 +1,5 @@
+import { YGOPRO_PROTOCOL_VERSION } from "@ygopro/ygopro/protocol-version";
+
 export const mercuryConfig = {
-	version: 4962,
+	version: YGOPRO_PROTOCOL_VERSION,
 };

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+* **protocol:** reject non-0x1362 clients with a readable upgrade hint instead of a silent close
+
 ## [2.14.0](https://github.com/diangogav/EDOpro-server-ts/compare/v2.13.2...v2.14.0) (2026-08-05)
 
 

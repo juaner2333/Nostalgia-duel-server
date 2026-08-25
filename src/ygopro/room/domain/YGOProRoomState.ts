@@ -54,7 +54,9 @@ export abstract class YGOProRoomState {
 		if (joinMessage.version !== mercuryConfig.version) {
 			socket.send(VersionErrorClientMessage.create(mercuryConfig.version));
 
-			throw new Error("Version mismatch");
+			throw new Error(
+				`Version mismatch: got 0x${joinMessage.version.toString(16)}, expected 0x${mercuryConfig.version.toString(16)}`,
+			);
 		}
 	}
 
