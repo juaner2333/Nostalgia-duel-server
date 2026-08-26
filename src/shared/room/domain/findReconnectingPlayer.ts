@@ -79,9 +79,11 @@ export function findReconnectingPlayer(params: {
 /**
  * Unified structured reconnect-judgement log used by the by-name JOIN path of
  * every started phase (RPS / choosing order / dueling / side decking). Records
- * ONLY stable identifiers and decision metadata — never the reconnection token,
- * full PlayerInfo/JoinGame frames or deck hex payloads. Logging is diagnostic
- * only and never influences the eligibility decision above.
+ * stable identifiers, decision metadata and the involved player names in plain
+ * text (so a seat miss can be checked against the seated players on the next
+ * look) — never the reconnection token, full PlayerInfo/JoinGame frames or
+ * deck hex payloads. Logging is diagnostic only and never influences the
+ * eligibility decision above.
  */
 export function logReconnectJudgement(params: {
 	logger: Logger;
@@ -90,6 +92,10 @@ export function logReconnectJudgement(params: {
 	room: { id: number; formatId: string; externalRoomId: string; duelState: string };
 	socket: ISocket;
 	previousSocket?: ISocket;
+	/** Plain-text player name carried by the JOIN's PlayerInfo frame. */
+	name: string;
+	/** Plain-text names of every seated player in the room at judgement time. */
+	roomPlayers: string[];
 }): void {
 	params.logger.info("reconnect_judgement", {
 		result: params.result,
@@ -102,5 +108,7 @@ export function logReconnectJudgement(params: {
 		socketTransport: params.socket.transport,
 		previousSocketId: params.previousSocket?.id,
 		previousSocketTransport: params.previousSocket?.transport,
+		name: params.name,
+		roomPlayers: params.roomPlayers,
 	});
 }

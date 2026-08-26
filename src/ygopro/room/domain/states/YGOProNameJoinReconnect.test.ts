@@ -198,6 +198,8 @@ describe("YGOProRockPaperScissorState.handleJoin — same-IP half-open takeover"
 			socketTransport: "tcp",
 			previousSocketId,
 			previousSocketTransport: "tcp",
+			name: "Jaden",
+			roomPlayers: ["Jaden", "Chazz"],
 		});
 	});
 
@@ -221,6 +223,8 @@ describe("YGOProRockPaperScissorState.handleJoin — same-IP half-open takeover"
 			socketTransport: "tcp",
 			previousSocketId: undefined,
 			previousSocketTransport: undefined,
+			name: "Jaden",
+			roomPlayers: ["Jaden", "Chazz"],
 		});
 
 		// no judgement log may carry a token, full wire payload or deck hex

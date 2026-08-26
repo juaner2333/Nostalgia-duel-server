@@ -232,6 +232,7 @@ export class YGOProDuelingState extends YGOProRoomState {
 			transport: socket.transport,
 			ranked: room.ranked,
 		});
+		const seatedPlayerNames = room.players.map((player) => player.name);
 
 		const reject = (reason: ReconnectRejectionReason): void => {
 			logReconnectJudgement({
@@ -240,6 +241,8 @@ export class YGOProDuelingState extends YGOProRoomState {
 				reason,
 				room,
 				socket,
+				name: playerInfoMessage.name,
+				roomPlayers: seatedPlayerNames,
 			});
 			const spectator = room.createSpectatorUnsafe(socket, playerInfoMessage.name);
 			room.addSpectatorUnsafe(spectator);
@@ -264,6 +267,8 @@ export class YGOProDuelingState extends YGOProRoomState {
 			room,
 			socket,
 			previousSocket: reconnect.player.socket,
+			name: playerInfoMessage.name,
+			roomPlayers: seatedPlayerNames,
 		});
 		this.room.reconnect(playerAlreadyInRoom, socket);
 	}

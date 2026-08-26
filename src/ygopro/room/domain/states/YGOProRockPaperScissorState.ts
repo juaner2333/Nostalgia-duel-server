@@ -86,6 +86,7 @@ export class YGOProRockPaperScissorState extends YGOProRoomState {
 			transport: socket.transport,
 			ranked: room.ranked,
 		});
+		const seatedPlayerNames = room.players.map((player) => player.name);
 
 		const reject = (reason: ReconnectRejectionReason): void => {
 			logReconnectJudgement({
@@ -94,6 +95,8 @@ export class YGOProRockPaperScissorState extends YGOProRoomState {
 				reason,
 				room,
 				socket,
+				name: playerInfoMessage.name,
+				roomPlayers: seatedPlayerNames,
 			});
 			const spectator = room.createSpectatorUnsafe(socket, playerInfoMessage.name);
 			room.addSpectatorUnsafe(spectator);
@@ -117,6 +120,8 @@ export class YGOProRockPaperScissorState extends YGOProRoomState {
 			room,
 			socket,
 			previousSocket: reconnect.player.socket,
+			name: playerInfoMessage.name,
+			roomPlayers: seatedPlayerNames,
 		});
 		room.reconnect(playerAlreadyInRoom, socket);
 
