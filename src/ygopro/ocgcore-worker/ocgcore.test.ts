@@ -61,6 +61,9 @@ const makeClient = (room: YGOProRoom, name: string): { client: YGOProClient; sen
 const makeRoom = (): YGOProRoom => {
 	const room = YGOProRoomMother.create();
 	room.addDuelRecord(DuelRecordMother.create());
+	// Custom fixture: keep the legacy 450s limit so timer mechanics stay
+	// decoupled from the room factory default (300s).
+	(room as unknown as { _hostInfo: { time_limit: number } })._hostInfo.time_limit = 450;
 	return room;
 };
 

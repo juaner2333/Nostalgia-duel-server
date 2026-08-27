@@ -66,6 +66,7 @@ describe("YGOProRoom nostalgia factory", () => {
 			mode: GameMode.MATCH,
 			start_lp: 8000,
 			best_of: 3,
+			time_limit: 300,
 			lflist: Number(formatId),
 		});
 		expect(room.toRoomListDTO()).toMatchObject({

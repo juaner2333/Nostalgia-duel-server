@@ -197,7 +197,7 @@ export class YGOProRoom extends YgoRoom {
 			start_lp: format.startLp,
 			start_hand: 5,
 			draw_count: 1,
-			time_limit: 450,
+			time_limit: 300,
 			max_deck_points: 100,
 			best_of: format.bestOf,
 		};
@@ -249,7 +249,7 @@ export class YGOProRoom extends YgoRoom {
 				start_lp: format.startLp,
 				start_hand: 5,
 				draw_count: 1,
-				time_limit: 450,
+				time_limit: 300,
 				max_deck_points: 100,
 				best_of: format.bestOf,
 			},
