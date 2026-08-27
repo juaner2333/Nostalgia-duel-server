@@ -963,15 +963,23 @@ export class OCGCore {
 			awaitingConfirm?: boolean;
 		} = {},
 	): Promise<void> {
+		if (this.isDisposing || !this.ocgcore) {
+			return;
+		}
 		const { settlePrevious = true, sendTimeLimit = true, awaitingConfirm = true } = options;
 		this.clearResponseTimer(settlePrevious);
 		if (!this.hasTimeLimit || ![0, 1].includes(originalDuelPos)) {
 			return;
 		}
-		const leftTime = Math.max(0, this.timerState.leftMs[originalDuelPos] || 0);
 		if (sendTimeLimit) {
 			await this.sendTimeLimitMessage(originalDuelPos);
+			// Re-check lifecycle after the async send in case dispose() raced
+			// while awaiting message delivery (e.g. concurrent surrender).
+			if (this.isDisposing || !this.ocgcore) {
+				return;
+			}
 		}
+		const leftTime = Math.max(0, this.timerState.leftMs[originalDuelPos] || 0);
 		if (leftTime <= 0) {
 			await this.handleResponseTimeout(originalDuelPos);
 			return;
@@ -1030,7 +1038,7 @@ export class OCGCore {
 	}
 
 	private async handleResponseTimeout(originalDuelPos: number): Promise<void> {
-		if (this.timerState.runningPos !== originalDuelPos) {
+		if (this.isDisposing || !this.ocgcore || this.timerState.runningPos !== originalDuelPos) {
 			return;
 		}
 		this.clearResponseTimer(false);
