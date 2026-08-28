@@ -746,22 +746,22 @@ describe("YGOProRoom · two-socket lifecycle contract", () => {
 	it.each([
 		"1103",
 		"1109",
-	] as const)("%s#1001: a same-IP half-open TCP connection takes over the original seat and closes the stale socket", async (formatId) => {
+	] as const)("%s#1001: a cross-IP TCP connection takes over the original seat and closes the stale socket", async (formatId) => {
 		const { port } = await waitForListening();
 		const roomName = `${formatId}#1001`;
 		const { host, guest } = await createRoomAtPhase(port, "dueling", roomName);
 		const room = YGOProRoomList.findByAdmissionKey(roomName);
 		expect(room?.players).toHaveLength(2);
 
-		// The guest's old connection is deliberately KEPT OPEN (half-open: no
-		// FIN/RST reached the server), which the legacy closed-socket guard
-		// would have rejected. The same-IP rejoin must instead take it over.
 		const oldGuestClosed = new Promise<void>((resolve) =>
 			guest.socket.on("close", () => resolve()),
 		);
 
-		const rejoined = await joinRoom(port, "Chazz", roomName);
-		await rejoined.tap.waitFor((frames) => hasCommand(frames, 0x12) && hasCommand(frames, 0x13));
+		const crossIpSocket = await connectFromAddress(port, "127.0.0.2");
+		const tap = new FrameTap(crossIpSocket);
+		crossIpSocket.write(buildPlayerInfoFrame("Chazz"));
+		crossIpSocket.write(buildJoinGameFrame(roomName));
+		await tap.waitFor((frames) => hasCommand(frames, 0x12) && hasCommand(frames, 0x13));
 
 		// the takeover actively closed the stale half-open connection
 		await oldGuestClosed;
@@ -770,34 +770,10 @@ describe("YGOProRoom · two-socket lifecycle contract", () => {
 		expect(room?.players).toHaveLength(2);
 		expect(room?.players.map((p) => p.name)).toEqual(expect.arrayContaining(["Jaden", "Chazz"]));
 		expect(room?.players.find((p) => p.name === "Jaden")?.host).toBe(true);
+		expect(room?.spectators).toHaveLength(0);
 
 		host.socket.destroy();
-		rejoined.socket.destroy();
-	});
-
-	it("does not replace the seat for a JOIN from a different source IP — the intruder becomes a spectator", async () => {
-		const { port } = await waitForListening();
-		const { host, guest } = await createRoomAtPhase(port, "dueling");
-		const room = YGOProRoomList.findByAdmissionKey("1109#1001");
-		const playersBefore = room?.players.map((p) => p.name);
-		const spectatorCountBefore = room?.spectators.length ?? 0;
-
-		const intruder = await connectFromAddress(port, "127.0.0.2");
-		const tap = new FrameTap(intruder);
-		intruder.write(buildPlayerInfoFrame("Chazz"));
-		intruder.write(buildJoinGameFrame("1109#1001"));
-		await tap.waitFor((frames) => hasCommand(frames, 0x15)); // spectator DUEL_START
-
-		// the original player socket was neither replaced nor closed
-		await new Promise((resolve) => setTimeout(resolve, 150));
-		expect(guest.socket.closed).toBe(false);
-		expect(room?.players.map((p) => p.name)).toEqual(playersBefore);
-		expect(room?.players).toHaveLength(2);
-		expect(room?.spectators.length).toBe(spectatorCountBefore + 1);
-
-		host.socket.destroy();
-		guest.socket.destroy();
-		intruder.destroy();
+		crossIpSocket.destroy();
 	});
 
 	it("retains the room after both players disconnect and restores a seat within the grace window", async () => {

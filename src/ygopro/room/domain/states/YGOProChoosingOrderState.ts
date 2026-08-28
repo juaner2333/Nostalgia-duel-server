@@ -90,7 +90,6 @@ export class YGOProChoosingOrderState extends YGOProRoomState {
 		const reconnect = findReconnectingPlayer({
 			players: room.players,
 			name: playerInfoMessage.name,
-			remoteAddress: socket.remoteAddress,
 			transport: socket.transport,
 			ranked: room.ranked,
 		});

@@ -8,7 +8,6 @@ const player = (
 		name: string;
 		isStrongAuth: boolean;
 		closed: boolean;
-		socketRemoteAddress: string | null;
 		ipAddress: string | null;
 		transport: SocketTransport;
 	}> = {},
@@ -16,12 +15,9 @@ const player = (
 	({
 		name: overrides.name ?? "Jaden",
 		isStrongAuth: overrides.isStrongAuth ?? false,
-		// The stable source IP cached on the player (survives socket swaps and
-		// the old socket's `remoteAddress` going stale after close).
 		ipAddress: overrides.ipAddress ?? "1.1.1.1",
 		socket: {
 			closed: overrides.closed ?? true,
-			remoteAddress: overrides.socketRemoteAddress ?? null,
 			transport: overrides.transport ?? "tcp",
 		},
 	}) as unknown as YgoClient;
@@ -32,7 +28,6 @@ describe("findReconnectingPlayer", () => {
 		const result = findReconnectingPlayer({
 			players: [p],
 			name: "Jaden",
-			remoteAddress: "9.9.9.9",
 			transport: "tcp",
 			ranked: true,
 		});
@@ -44,7 +39,6 @@ describe("findReconnectingPlayer", () => {
 		const result = findReconnectingPlayer({
 			players: [p],
 			name: "Jaden",
-			remoteAddress: "1.1.1.1",
 			transport: "tcp",
 			ranked: true,
 		});
@@ -56,19 +50,17 @@ describe("findReconnectingPlayer", () => {
 		const result = findReconnectingPlayer({
 			players: [p],
 			name: "Jaden",
-			remoteAddress: "9.9.9.9",
 			transport: "tcp",
 			ranked: true,
 		});
 		expect(result).toEqual({ outcome: "takeover", player: p });
 	});
 
-	it("takes over a still-open casual TCP socket when the new connection shares its source IP", () => {
+	it("takes over a still-open casual TCP socket", () => {
 		const p = player({ closed: false });
 		const result = findReconnectingPlayer({
 			players: [p],
 			name: "Jaden",
-			remoteAddress: "1.1.1.1",
 			transport: "tcp",
 			ranked: false,
 		});
@@ -80,23 +72,21 @@ describe("findReconnectingPlayer", () => {
 		const result = findReconnectingPlayer({
 			players: [p],
 			name: "Jaden",
-			remoteAddress: "1.1.1.1",
 			transport: "tcp",
 			ranked: false,
 		});
 		expect(result).toEqual({ outcome: "takeover", player: p });
 	});
 
-	it("rejects a casual reconnect from a different source IP", () => {
-		const p = player();
+	it("takes over a casual TCP seat regardless of source IP (cross-IP takeover)", () => {
+		const p = player({ ipAddress: "1.1.1.1" });
 		const result = findReconnectingPlayer({
 			players: [p],
 			name: "Jaden",
-			remoteAddress: "2.2.2.2",
 			transport: "tcp",
 			ranked: false,
 		});
-		expect(result).toEqual({ outcome: "rejected", reason: "ip_mismatch" });
+		expect(result).toEqual({ outcome: "takeover", player: p });
 	});
 
 	it("rejects a casual reconnect whose original seat is held by a WebSocket", () => {
@@ -104,7 +94,6 @@ describe("findReconnectingPlayer", () => {
 		const result = findReconnectingPlayer({
 			players: [p],
 			name: "Jaden",
-			remoteAddress: "1.1.1.1",
 			transport: "tcp",
 			ranked: false,
 		});
@@ -116,7 +105,6 @@ describe("findReconnectingPlayer", () => {
 		const result = findReconnectingPlayer({
 			players: [p],
 			name: "Jaden",
-			remoteAddress: "1.1.1.1",
 			transport: "websocket",
 			ranked: false,
 		});
@@ -128,7 +116,6 @@ describe("findReconnectingPlayer", () => {
 		const result = findReconnectingPlayer({
 			players: [p],
 			name: "Jaden",
-			remoteAddress: "1.1.1.1",
 			transport: "tcp",
 			ranked: true,
 		});
@@ -139,27 +126,9 @@ describe("findReconnectingPlayer", () => {
 		const result = findReconnectingPlayer({
 			players: [],
 			name: "Jaden",
-			remoteAddress: "1.1.1.1",
 			transport: "tcp",
 			ranked: true,
 		});
 		expect(result).toEqual({ outcome: "rejected", reason: "player_not_found" });
-	});
-
-	it("compares the stable cached IP, not the old socket's possibly-stale address", () => {
-		const p = player({
-			// old socket lost its address after close, but the player remembers it
-			socketRemoteAddress: null,
-			ipAddress: "1.1.1.1",
-			closed: true,
-		});
-		const result = findReconnectingPlayer({
-			players: [p],
-			name: "Jaden",
-			remoteAddress: "1.1.1.1",
-			transport: "tcp",
-			ranked: false,
-		});
-		expect(result).toEqual({ outcome: "takeover", player: p });
 	});
 });

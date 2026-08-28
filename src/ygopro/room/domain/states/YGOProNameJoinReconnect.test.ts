@@ -93,8 +93,6 @@ const joinMessageFor = (name: string): ClientMessage => {
 };
 
 const DUEL_START_COMMAND = 0x15;
-const SELECT_TP_COMMAND = 0x04;
-const WAITING_SIDE_COMMAND = 0x08;
 
 const createRoomWithPlayers = (): {
 	room: YGOProRoom;
@@ -139,7 +137,7 @@ const textsOf = (client: YGOProClient): string[] => (client.socket as StubSocket
 // ---------------------------------------------------------------------------
 // Rock-paper-scissors
 // ---------------------------------------------------------------------------
-describe("YGOProRockPaperScissorState.handleJoin — same-IP half-open takeover", () => {
+describe("YGOProRockPaperScissorState.handleJoin — anonymous TCP takeover", () => {
 	it("takes over the still-open seat of a same-IP TCP player and re-sends the phase prompt", () => {
 		const { room, jaden, jadenSocket } = createRoomWithPlayers();
 		jaden.captain();
@@ -160,22 +158,24 @@ describe("YGOProRockPaperScissorState.handleJoin — same-IP half-open takeover"
 		expect(room.spectators).toHaveLength(0);
 	});
 
-	it("degrades a different-IP same-name JOIN to spectator without touching the player", () => {
+	it("takes over the seat even when the TCP player reconnects from a different source IP", () => {
 		const { room, jaden, jadenSocket, chazzSocket } = createRoomWithPlayers();
+		jaden.captain();
 		const emitter = new EventEmitter();
 		new YGOProRockPaperScissorState(emitter, makeLogger());
-		const intruder = new StubSocket("203.0.113.9");
+		const crossIpSocket = new StubSocket("203.0.113.9");
 
-		emitter.emit("JOIN", joinMessageFor("Jaden"), room, intruder);
+		emitter.emit("JOIN", joinMessageFor("Jaden"), room, crossIpSocket);
 
-		expect(jadenSocket.destroyed).toBe(false);
-		expect(jaden.socket).toBe(jadenSocket);
+		expect(jadenSocket.destroyed).toBe(true);
+		expect(jaden.socket).toBe(crossIpSocket);
 		expect(chazzSocket.destroyed).toBe(false);
+		expect(jaden.isReconnecting).toBe(true);
+		expect(crossIpSocket.texts()).toContain("duel-start");
+		expect(crossIpSocket.commands()).toContain(0x09); // DECK_COUNT (real frame)
+		expect(crossIpSocket.texts()).toContain("select-hand");
 		expect(room.players.map((p) => p.name)).toEqual(["Jaden", "Chazz"]);
-		expect(room.spectators.map((s) => s.name)).toEqual(["Jaden"]);
-		// the spectator got the phase sync frames
-		expect(intruder.texts()).toContain("duel-start");
-		expect(intruder.commands()).toContain(0x09); // DECK_COUNT (real frame)
+		expect(room.spectators).toHaveLength(0);
 	});
 
 	it("logs a structured takeover judgement with room identity and socket ids", () => {
@@ -208,19 +208,19 @@ describe("YGOProRockPaperScissorState.handleJoin — same-IP half-open takeover"
 		const logger = makeLogger();
 		const emitter = new EventEmitter();
 		new YGOProRockPaperScissorState(emitter, logger);
-		const intruder = new StubSocket("203.0.113.9");
+		const websocketJoin = new StubSocket("203.0.113.9", "websocket");
 
-		emitter.emit("JOIN", joinMessageFor("Jaden"), room, intruder);
+		emitter.emit("JOIN", joinMessageFor("Jaden"), room, websocketJoin);
 
 		expect(logger.info).toHaveBeenCalledWith("reconnect_judgement", {
 			result: "rejected",
-			reason: "ip_mismatch",
+			reason: "transport_mismatch",
 			roomId: room.id,
 			formatId: "1109",
 			externalRoomId: expect.any(String),
 			state: "waiting",
-			socketId: intruder.id,
-			socketTransport: "tcp",
+			socketId: websocketJoin.id,
+			socketTransport: "websocket",
 			previousSocketId: undefined,
 			previousSocketTransport: undefined,
 			name: "Jaden",
@@ -245,7 +245,7 @@ describe("YGOProRockPaperScissorState.handleJoin — same-IP half-open takeover"
 // ---------------------------------------------------------------------------
 // Choosing order
 // ---------------------------------------------------------------------------
-describe("YGOProChoosingOrderState.handleJoin — same-IP half-open takeover", () => {
+describe("YGOProChoosingOrderState.handleJoin — anonymous TCP takeover", () => {
 	it("re-sends the turn-choice prompt when the reconnecting player is the chooser", () => {
 		const { room, jaden, jadenSocket } = createRoomWithPlayers();
 		room.setClientWhoChoosesTurn(jaden);
@@ -263,28 +263,30 @@ describe("YGOProChoosingOrderState.handleJoin — same-IP half-open takeover", (
 		expect(newSocket.texts()).toContain("select-tp");
 	});
 
-	it("degrades a different-IP same-name JOIN to spectator without touching the players", () => {
+	it("takes over the seat and re-sends turn-choice prompt when reconnecting from a different source IP", () => {
 		const { room, jaden, jadenSocket } = createRoomWithPlayers();
 		room.setClientWhoChoosesTurn(jaden);
 		const emitter = new EventEmitter();
 		new YGOProChoosingOrderState(emitter, makeLogger());
-		const intruder = new StubSocket("198.51.100.7");
+		const crossIpSocket = new StubSocket("198.51.100.7");
 
-		emitter.emit("JOIN", joinMessageFor("Jaden"), room, intruder);
+		emitter.emit("JOIN", joinMessageFor("Jaden"), room, crossIpSocket);
 
-		expect(jadenSocket.destroyed).toBe(false);
-		expect(jaden.socket).toBe(jadenSocket);
+		expect(jadenSocket.destroyed).toBe(true);
+		expect(jaden.socket).toBe(crossIpSocket);
+		expect(jaden.isReconnecting).toBe(true);
 		expect(room.players).toHaveLength(2);
-		expect(room.spectators).toHaveLength(1);
-		expect(intruder.commands()).toContain(DUEL_START_COMMAND);
-		expect(intruder.commands()).not.toContain(SELECT_TP_COMMAND);
+		expect(room.spectators).toHaveLength(0);
+		expect(crossIpSocket.texts()).toContain("duel-start");
+		expect(crossIpSocket.commands()).toContain(0x09); // DECK_COUNT (real frame)
+		expect(crossIpSocket.texts()).toContain("select-tp");
 	});
 });
 
 // ---------------------------------------------------------------------------
 // Dueling
 // ---------------------------------------------------------------------------
-describe("YGOProDuelingState.handleJoin — same-IP half-open takeover", () => {
+describe("YGOProDuelingState.handleJoin — anonymous TCP takeover", () => {
 	const makeOcgCore = () => ({
 		sendStartMessageForReconnect: jest.fn(),
 		sendTurnMessages: jest.fn(),
@@ -327,18 +329,18 @@ describe("YGOProDuelingState.handleJoin — same-IP half-open takeover", () => {
 		expect(room.spectators).toHaveLength(0);
 	});
 
-	it("degrades a different-IP same-name JOIN to spectator with the historical sync", () => {
+	it("takes over the seat when reconnecting from a different source IP", () => {
 		const { room, jaden, jadenSocket } = createRoomWithPlayers();
 		const state = buildState(makeOcgCore(), room);
-		const intruder = new StubSocket("192.0.2.55");
+		const crossIpSocket = new StubSocket("192.0.2.55");
 
-		state.handleJoin(joinMessageFor("Jaden"), room, intruder);
+		state.handleJoin(joinMessageFor("Jaden"), room, crossIpSocket);
 
-		expect(jadenSocket.destroyed).toBe(false);
-		expect(jaden.socket).toBe(jadenSocket);
+		expect(jadenSocket.destroyed).toBe(true);
+		expect(jaden.socket).toBe(crossIpSocket);
+		expect(jaden.isReconnecting).toBe(true);
 		expect(room.players).toHaveLength(2);
-		expect(room.spectators).toHaveLength(1);
-		expect(intruder.commands()).toContain(DUEL_START_COMMAND);
+		expect(room.spectators).toHaveLength(0);
 	});
 
 	it("re-submitting the deck after a takeover re-syncs the board and clears the reconnect flag", async () => {
@@ -370,7 +372,7 @@ describe("YGOProDuelingState.handleJoin — same-IP half-open takeover", () => {
 // ---------------------------------------------------------------------------
 // Side decking
 // ---------------------------------------------------------------------------
-describe("YGOProSideDeckingState.handleJoin — same-IP half-open takeover", () => {
+describe("YGOProSideDeckingState.handleJoin — anonymous TCP takeover", () => {
 	jest.useFakeTimers();
 
 	let state: YGOProSideDeckingState | null = null;
@@ -396,19 +398,20 @@ describe("YGOProSideDeckingState.handleJoin — same-IP half-open takeover", () 
 		expect(newSocket.texts()).toContain("change-side");
 	});
 
-	it("degrades a different-IP same-name JOIN to spectator with the waiting-side frame", () => {
+	it("takes over the seat and re-sends side-deck prompt when reconnecting from a different source IP", () => {
 		const { room, jaden, jadenSocket } = createRoomWithPlayers();
 		const emitter = new EventEmitter();
 		state = new YGOProSideDeckingState(emitter, makeLogger(), {} as never, {} as never, room);
-		const intruder = new StubSocket("203.0.113.77");
+		const crossIpSocket = new StubSocket("203.0.113.77");
 
-		emitter.emit("JOIN", joinMessageFor("Jaden"), room, intruder);
+		emitter.emit("JOIN", joinMessageFor("Jaden"), room, crossIpSocket);
 
-		expect(jadenSocket.destroyed).toBe(false);
-		expect(jaden.socket).toBe(jadenSocket);
+		expect(jadenSocket.destroyed).toBe(true);
+		expect(jaden.socket).toBe(crossIpSocket);
+		expect(jaden.isReconnecting).toBe(false);
+		expect(crossIpSocket.texts()).toContain("duel-start");
+		expect(crossIpSocket.texts()).toContain("change-side");
 		expect(room.players).toHaveLength(2);
-		expect(room.spectators).toHaveLength(1);
-		expect(intruder.commands()).toContain(DUEL_START_COMMAND);
-		expect(intruder.commands()).toContain(WAITING_SIDE_COMMAND);
+		expect(room.spectators).toHaveLength(0);
 	});
 });

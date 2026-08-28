@@ -19,38 +19,32 @@ import { ISocket, SocketTransport } from "@shared/socket/domain/ISocket";
  *
  * The result is a discriminated union: `{ outcome: "takeover"; player }` when the
  * new connection may take the seat, or `{ outcome: "rejected"; reason }` with a
- * stable reason string (`player_not_found`, `strong_auth`, `transport_mismatch`,
- * `ip_mismatch`).
+ * stable reason string (`player_not_found`, `strong_auth`, `transport_mismatch`).
  */
 
-export type ReconnectRejectionReason =
-	| "player_not_found"
-	| "strong_auth"
-	| "transport_mismatch"
-	| "ip_mismatch";
+export type ReconnectRejectionReason = "player_not_found" | "strong_auth" | "transport_mismatch";
 
 export type ReconnectEligibility =
 	| { outcome: "takeover"; player: YgoClient }
 	| { outcome: "rejected"; reason: ReconnectRejectionReason };
 
 /**
- * Eligibility order is fixed per the improve-anonymous-tcp-reconnection design:
+ * Eligibility order is fixed:
  * seat exists -> exact name -> not strong-auth -> (casual only) both sides plain
- * TCP -> same stable source IP. The old socket's `closed` state is never read.
+ * TCP -> takeover (last join wins). The old socket's `closed` state and source
+ * IP are never read.
  *
- * Casual rooms are where the remote address is the only credential, so the
- * half-open anonymous-TCP takeover is relaxed THERE: a still-open old TCP socket
- * no longer blocks the takeover as long as the new connection shares the
- * original source IP. WebSocket clients (either side) never take a seat through
- * the anonymous TCP path — they reconnect via their token (EXPRESS_RECONNECT).
+ * Casual rooms allow anonymous TCP clients to reconnect by name across IP changes:
+ * a still-open, half-open or closed old TCP socket does not block the takeover.
+ * WebSocket clients (either side) never take a seat through the anonymous TCP path —
+ * they reconnect via their token (EXPRESS_RECONNECT).
  *
  * Ranked rooms keep their existing behavior: they are bound to authenticated
- * identities (resolveUserId), so no IP/closed/transport check is applied here.
+ * identities (resolveUserId), so no transport check is applied here.
  */
 export function findReconnectingPlayer(params: {
 	players: YgoClient[];
 	name: string;
-	remoteAddress: string | undefined;
 	transport: SocketTransport;
 	ranked: boolean;
 }): ReconnectEligibility {
@@ -65,11 +59,6 @@ export function findReconnectingPlayer(params: {
 	if (!params.ranked) {
 		if (candidate.socket.transport !== "tcp" || params.transport !== "tcp") {
 			return { outcome: "rejected", reason: "transport_mismatch" };
-		}
-		// Compare the player's CACHED source IP (survives socket swaps) rather
-		// than the old socket's live remoteAddress, which goes stale on close.
-		if (candidate.ipAddress !== params.remoteAddress) {
-			return { outcome: "rejected", reason: "ip_mismatch" };
 		}
 	}
 
