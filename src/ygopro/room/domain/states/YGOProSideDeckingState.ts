@@ -14,6 +14,7 @@ import { Logger } from "@shared/logger/domain/Logger";
 import { ISocket } from "../../../../shared/socket/domain/ISocket";
 
 import { YGOProClient } from "../../../client/domain/YGOProClient";
+import { FinalizeYGOProRoom } from "../../application/FinalizeYGOProRoom";
 import { YGOProRoom } from "../YGOProRoom";
 import {
 	findReconnectingPlayer,
@@ -140,7 +141,11 @@ export class YGOProSideDeckingState extends YGOProRoomState {
 				ChatColor.BABYBLUE,
 			);
 			this.sendChatToPlayer(player, "Time is up! You have been disconnected.", ChatColor.RED);
-			player.destroy();
+			// A side-deck timeout ends the whole room: destroying just the player's
+			// socket leaves the room stuck in sideDecking (timers, seats and the
+			// room-list entry all survive). Run the unified teardown, which is
+			// idempotent, cancels every timer and broadcasts REMOVE-ROOM once.
+			FinalizeYGOProRoom.run(this.room);
 			return;
 		}
 
