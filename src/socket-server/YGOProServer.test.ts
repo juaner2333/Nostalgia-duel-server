@@ -272,38 +272,34 @@ describe("YGOProServer · TCP admission contract", () => {
 			expect(buildJoinGameFrame("room1").toString("hex")).toBe(JOIN_GAME_FRAME_HEX);
 		});
 
-		it("rejects an unsupported client version with the version-error frame, an upgrade hint, and a close", async () => {
+		it("admits a 0x1361 client over TCP and delivers join messages plus the compatibility hint", async () => {
 			const { port } = await waitForListening();
 			const host = await hostRoom(port);
 
 			const client = await connect(port);
-			const framesPromise = receiveFrames(client, 2);
-			const closedPromise = waitForClose(client);
+			const framesPromise = receiveFrames(client, 4);
 			client.write(buildFirstPacket("Chazz", roomPass, 0x1361));
 
 			const frames = await framesPromise;
-			await closedPromise;
 
-			expect(frames[0].toString("hex")).toBe(VERSION_ERROR_FRAME_HEX);
-
-			// frame[1]: the readable upgrade hint (STOC_CHAT 0x19) so the user
-			// knows to upgrade instead of failing silently.
+			// frame 0: JOIN_GAME (0x12)
+			expect(frames[0][2]).toBe(0x12);
+			// frame 1: compatibility chat hint (0x19)
+			expect(frames[1][2]).toBe(0x19);
 			const hint = new YGOProStocChat().fromFullPayload(frames[1]);
-			expect(hint.player_type).toBe(0x09);
-			expect(hint.msg).toContain("0x1362");
-			expect(hint.msg).toContain("升级");
+			expect(hint.msg).toContain("0x1361 实时对局兼容模式");
+			// frame 2: TYPE_CHANGE (0x13)
+			expect(frames[2][2]).toBe(0x13);
 
-			// Both valid-format packets reach the fixed-format strategy; the version
-			// gate now rejects the second one BEFORE any strategy runs.
-			expect(recording.contexts).toHaveLength(1);
-			expect(trap.handled).toHaveLength(0);
+			expect(recording.contexts).toHaveLength(2);
+			expect(recording.contexts[1].protocolVersion).toBe(0x1361);
 
-			// the room and its host are unaffected
 			const room = YGOProRoomList.findByAdmissionKey(roomPass);
 			expect(room).not.toBeNull();
-			expect(room?.players).toHaveLength(1);
+			expect(room?.players).toHaveLength(2);
 
 			host.destroy();
+			client.destroy();
 		});
 
 		it.each([

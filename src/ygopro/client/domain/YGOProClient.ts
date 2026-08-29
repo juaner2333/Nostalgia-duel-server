@@ -1,9 +1,14 @@
+import {
+	YGOPRO_PROTOCOL_VERSION,
+	SupportedYGOProProtocolVersion,
+} from "@ygopro/ygopro/protocol-version";
 import { YgoClient } from "../../../shared/client/domain/YgoClient";
 import { Logger } from "../../../shared/logger/domain/Logger";
 import { Team } from "../../../shared/room/Team";
 import { ISocket } from "../../../shared/socket/domain/ISocket";
 import { SimpleRoomMessageEmitter } from "../../SimpleRoomMessageEmitter";
 import { YGOProRoom } from "../../room/domain/YGOProRoom";
+import { adaptServerFrameForProtocol } from "./YGOProProtocolCompatibility";
 
 export class YGOProClient extends YgoClient {
 	public readonly logger: Logger;
@@ -13,6 +18,7 @@ export class YGOProClient extends YgoClient {
 	private _rpsChosen: boolean;
 	private _captain: boolean = false;
 	private _isInternal: boolean = false;
+	private _protocolVersion: SupportedYGOProProtocolVersion;
 
 	constructor({
 		name,
@@ -23,6 +29,7 @@ export class YGOProClient extends YgoClient {
 		host,
 		id,
 		team,
+		protocolVersion = YGOPRO_PROTOCOL_VERSION,
 	}: {
 		name: string;
 		socket: ISocket;
@@ -32,8 +39,10 @@ export class YGOProClient extends YgoClient {
 		host: boolean;
 		id: string | null;
 		team: Team;
+		protocolVersion?: SupportedYGOProProtocolVersion;
 	}) {
 		super({ name, position, team, socket, host, id });
+		this._protocolVersion = protocolVersion;
 		this.logger = logger.child({ clientName: name, roomId: room.id, file: "YGOProClient" });
 
 		this._roomMessageEmitter = new SimpleRoomMessageEmitter(this, room);
@@ -45,8 +54,17 @@ export class YGOProClient extends YgoClient {
 		this._isReady = false;
 	}
 
+	get protocolVersion(): SupportedYGOProProtocolVersion {
+		return this._protocolVersion;
+	}
+
+	setProtocolVersion(version: SupportedYGOProProtocolVersion): void {
+		this._protocolVersion = version;
+	}
+
 	sendMessageToClient(message: Buffer): void {
-		this._socket.send(message);
+		const adapted = adaptServerFrameForProtocol(message, this._protocolVersion);
+		this._socket.send(adapted);
 	}
 
 	destroy(): void {

@@ -140,12 +140,46 @@ describe("YGOProClient", () => {
 			});
 		});
 
-		it("should send message to client socket", () => {
+		it("should send message to client socket directly when version is 0x1362", () => {
 			const buffer = Buffer.from([0x07, 0x08, 0x09]);
 
 			client.sendMessageToClient(buffer);
 
 			expect(mockSocket.send).toHaveBeenCalledWith(buffer);
+		});
+
+		it("should adapt message when client version is 0x1361", () => {
+			const client1361 = new YGOProClient({
+				name: "LegacyPlayer",
+				socket: mockSocket,
+				logger: mockLogger,
+				position: 0,
+				room: mockRoom,
+				host: true,
+				id: "player-id-2",
+				team: Team.PLAYER,
+				protocolVersion: 0x1361,
+			});
+
+			const confirmCards1362 = Buffer.from("0c00011f000001239f5705000200", "hex");
+			const expected1361 = Buffer.from("0b00011f0001239f5705000200", "hex");
+
+			client1361.sendMessageToClient(confirmCards1362);
+
+			expect(mockSocket.send).toHaveBeenCalledWith(expected1361);
+		});
+
+		it("should update version and adapt subsequent messages when setProtocolVersion is called", () => {
+			expect(client.protocolVersion).toBe(0x1362);
+			client.setProtocolVersion(0x1361);
+			expect(client.protocolVersion).toBe(0x1361);
+
+			const confirmCards1362 = Buffer.from("0c00011f000001239f5705000200", "hex");
+			const expected1361 = Buffer.from("0b00011f0001239f5705000200", "hex");
+
+			client.sendMessageToClient(confirmCards1362);
+
+			expect(mockSocket.send).toHaveBeenCalledWith(expected1361);
 		});
 	});
 

@@ -21,6 +21,7 @@ import { DeckError } from "@shared/deck/domain/errors/DeckError";
 import { encodeDeckErrorCode } from "@shared/deck/domain/errors/encodeDeckErrorCode";
 import { YGOProRoomState } from "../YGOProRoomState";
 import MercuryBanListMemoryRepository from "@ygopro/ban-list/infrastructure/YGOProBanListMemoryRepository";
+import { SupportedYGOProProtocolVersion } from "@ygopro/ygopro/protocol-version";
 
 export class YGOProWaitingState extends YGOProRoomState {
 	constructor(
@@ -34,8 +35,12 @@ export class YGOProWaitingState extends YGOProRoomState {
 		this.logger = logger.child({ file: "MercuryWaitingState" });
 		this.eventEmitter.on(
 			"JOIN",
-			(message: ClientMessage, room: YGOProRoom, socket: ISocket) =>
-				void this.handleJoin.bind(this)(message, room, socket),
+			(
+				message: ClientMessage,
+				room: YGOProRoom,
+				socket: ISocket,
+				protocolVersion?: SupportedYGOProProtocolVersion,
+			) => void this.handleJoin.bind(this)(message, room, socket, protocolVersion),
 		);
 		this.eventEmitter.on(
 			Commands.TRY_START as unknown as string,
@@ -68,6 +73,7 @@ export class YGOProWaitingState extends YGOProRoomState {
 		message: ClientMessage,
 		room: YGOProRoom,
 		socket: ISocket,
+		protocolVersion?: SupportedYGOProProtocolVersion,
 	): Promise<void> {
 		this.logger.info(`handleJoin: ${message.data.toString("hex")}`);
 
@@ -81,7 +87,7 @@ export class YGOProWaitingState extends YGOProRoomState {
 			await this.admitToRoom.run(
 				socket,
 				playerInfoMessage,
-				room.admissionTarget(socket, playerInfoMessage),
+				room.admissionTarget(socket, playerInfoMessage, protocolVersion),
 			);
 		});
 	}

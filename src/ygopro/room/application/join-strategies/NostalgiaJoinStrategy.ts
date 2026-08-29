@@ -69,6 +69,6 @@ export class NostalgiaJoinStrategy implements JoinStrategy {
 			room.waiting();
 		}
 
-		room.emit("JOIN", ctx.message, ctx.socket);
+		room.emit("JOIN", ctx.message, ctx.socket, ctx.protocolVersion);
 	}
 }

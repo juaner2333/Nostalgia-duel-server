@@ -414,4 +414,16 @@ describe("YGOProSideDeckingState.handleJoin — anonymous TCP takeover", () => {
 		expect(room.players).toHaveLength(2);
 		expect(room.spectators).toHaveLength(0);
 	});
+
+	it("updates player protocolVersion when reconnecting with a different supported protocol version", () => {
+		const { room, jaden } = createRoomWithPlayers();
+		expect(jaden.protocolVersion).toBe(0x1362);
+		const emitter = new EventEmitter();
+		state = new YGOProSideDeckingState(emitter, makeLogger(), {} as never, {} as never, room);
+		const newSocket = new StubSocket();
+
+		emitter.emit("JOIN", joinMessageFor("Jaden"), room, newSocket, 0x1361);
+
+		expect(jaden.protocolVersion).toBe(0x1361);
+	});
 });

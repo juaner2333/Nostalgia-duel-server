@@ -47,6 +47,11 @@ import { YGOProDeckValidator } from "@ygopro/deck/domain/YGOProDeckValidator";
 import { CardYGOProRepository } from "@ygopro/card/infrastructure/CardYGOProRepository";
 import { YGOProBanList } from "@ygopro/ban-list/domain/YGOProBanList";
 import { getNostalgiaFormat, type NostalgiaFormatId } from "@ygopro/room/domain/NostalgiaFormat";
+import { YGOProPlayerChatMessage } from "@ygopro/messages/server-to-client/YGOProPlayerChatMessage";
+import {
+	YGOPRO_COMPATIBLE_PROTOCOL_VERSION,
+	SupportedYGOProProtocolVersion,
+} from "@ygopro/ygopro/protocol-version";
 
 /**
  * Bounded reconnect window for started, non-AI rooms whose players all
@@ -400,7 +405,11 @@ export class YGOProRoom extends YgoRoom {
 		);
 	}
 
-	createSpectatorUnsafe(socket: ISocket, name: string): YGOProClient {
+	createSpectatorUnsafe(
+		socket: ISocket,
+		name: string,
+		protocolVersion?: SupportedYGOProProtocolVersion,
+	): YGOProClient {
 		const position = NetPlayerType.OBSERVER;
 
 		const client = new YGOProClient({
@@ -412,6 +421,7 @@ export class YGOProRoom extends YgoRoom {
 			id: null,
 			team: Team.SPECTATOR,
 			room: this,
+			protocolVersion,
 		});
 
 		return client;
@@ -420,7 +430,11 @@ export class YGOProRoom extends YgoRoom {
 	// Adapter that lets AdmitToRoom apply its decision on this room without
 	// knowing about sockets or wire messages. Captures the connecting socket and
 	// player info so the use case only deals in domain values.
-	admissionTarget(socket: ISocket, playerInfo: PlayerInfoMessage): AdmissionTarget {
+	admissionTarget(
+		socket: ISocket,
+		playerInfo: PlayerInfoMessage,
+		protocolVersion?: SupportedYGOProProtocolVersion,
+	): AdmissionTarget {
 		return {
 			league: this.league,
 			freeSeat: () => {
@@ -429,12 +443,19 @@ export class YGOProRoom extends YgoRoom {
 			},
 			seatPlayer: async (credential: PlayerCredential, seat: Seat) => {
 				const userId = credential.kind === "guest" ? null : credential.userId;
-				const player = this.buildPlayer(socket, playerInfo.name, userId, seat.position, seat.team);
+				const player = this.buildPlayer(
+					socket,
+					playerInfo.name,
+					userId,
+					seat.position,
+					seat.team,
+					protocolVersion,
+				);
 				player.setCredential(credential);
 				this.addPlayerUnsafe(player);
 			},
 			admitSpectator: async (credential: PlayerCredential) => {
-				const spectator = this.createSpectatorUnsafe(socket, playerInfo.name);
+				const spectator = this.createSpectatorUnsafe(socket, playerInfo.name, protocolVersion);
 				spectator.setCredential(credential);
 				this.addSpectatorUnsafe(spectator);
 			},
@@ -457,13 +478,18 @@ export class YGOProRoom extends YgoRoom {
 		};
 	}
 
-	createPlayerUnsafe(socket: ISocket, name: string, userId: string | null): YGOProClient | null {
+	createPlayerUnsafe(
+		socket: ISocket,
+		name: string,
+		userId: string | null,
+		protocolVersion?: SupportedYGOProProtocolVersion,
+	): YGOProClient | null {
 		const place = this.calculatePlaceUnsafe();
 		if (!place) {
 			return null;
 		}
 
-		return this.buildPlayer(socket, name, userId, place.position, place.team);
+		return this.buildPlayer(socket, name, userId, place.position, place.team, protocolVersion);
 	}
 
 	private buildPlayer(
@@ -472,6 +498,7 @@ export class YGOProRoom extends YgoRoom {
 		userId: string | null,
 		position: number,
 		team: number,
+		protocolVersion?: SupportedYGOProProtocolVersion,
 	): YGOProClient {
 		const isHost = !this._players.some((client: YGOProClient) => client.host);
 
@@ -484,6 +511,7 @@ export class YGOProRoom extends YgoRoom {
 			id: userId,
 			team,
 			room: this,
+			protocolVersion,
 		});
 	}
 
@@ -491,6 +519,13 @@ export class YGOProRoom extends YgoRoom {
 		player.sendMessageToClient(
 			this._messageRepository.joinGameMessage(this.hostInfo, this.banListHash),
 		);
+		if (player.protocolVersion === YGOPRO_COMPATIBLE_PROTOCOL_VERSION) {
+			player.sendMessageToClient(
+				YGOProPlayerChatMessage.create(
+					"已启用 0x1361 实时对局兼容模式；录像仍使用 0x1362 格式，建议升级客户端。",
+				),
+			);
+		}
 		this._players.push(player);
 		player.socket.roomId = this.id;
 
@@ -530,6 +565,13 @@ export class YGOProRoom extends YgoRoom {
 		spectator.sendMessageToClient(
 			this._messageRepository.joinGameMessage(this.hostInfo, this.banListHash),
 		);
+		if (spectator.protocolVersion === YGOPRO_COMPATIBLE_PROTOCOL_VERSION) {
+			spectator.sendMessageToClient(
+				YGOProPlayerChatMessage.create(
+					"已启用 0x1361 实时对局兼容模式；录像仍使用 0x1362 格式，建议升级客户端。",
+				),
+			);
+		}
 
 		this._spectators.push(spectator);
 		spectator.sendMessageToClient(

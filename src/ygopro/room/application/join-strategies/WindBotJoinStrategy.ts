@@ -79,7 +79,7 @@ export class WindBotJoinStrategy implements JoinStrategy {
 		room.waiting();
 
 		// Emit JOIN for the human client (enters team 0)
-		room.emit("JOIN", ctx.message, ctx.socket);
+		room.emit("JOIN", ctx.message, ctx.socket, ctx.protocolVersion);
 
 		// Fire-and-forget: request bot — handle failure internally.
 		// Pass () => room.finalizing so the retry loop aborts as soon as the room

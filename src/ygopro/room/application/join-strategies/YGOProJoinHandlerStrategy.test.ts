@@ -209,15 +209,12 @@ describe("YGOProJoinHandler — strategy chain integration", () => {
 			});
 		};
 
-		it("rejects 0x1361 for an unknown room before any strategy runs or a room is created", async () => {
-			const seen: string[] = [];
+		it("admits 0x1361 and passes protocolVersion to strategy", async () => {
+			let passedCtx: JoinContext | undefined;
 			const spy: JoinStrategy = {
-				matches: (ctx: JoinContext) => {
-					seen.push(`matches:${ctx.rawPass}`);
-					return true;
-				},
+				matches: () => true,
 				handle: async (ctx: JoinContext) => {
-					seen.push(`handle:${ctx.rawPass}`);
+					passedCtx = ctx;
 				},
 			};
 			JoinStrategyRegistry.setStrategies([spy]);
@@ -230,42 +227,10 @@ describe("YGOProJoinHandler — strategy chain integration", () => {
 
 			await emitJoin(handlerEmitter, "1109#1001", 0x1361);
 
-			// no strategy was matched or handled
-			expect(seen).toHaveLength(0);
-			expect(YGOProRoomList.getRooms()).toHaveLength(0);
-
-			// the two deny frames, in order: VersionError then the upgrade hint
-			expect(socket.send).toHaveBeenCalledTimes(2);
-			expect(socket.send.mock.calls[0][0].toString("hex")).toBe(VERSION_ERROR_FRAME_HEX);
-			const hint = new YGOProStocChat().fromFullPayload(socket.send.mock.calls[1][0] as Buffer);
-			expect(hint.player_type).toBe(0x09);
-			expect(hint.msg).toContain("0x1362");
-			expect(hint.msg).toContain("升级客户端");
-
-			expect(socket.close).toHaveBeenCalledTimes(1);
-		});
-
-		it("logs the protocol version mismatch as structured context", async () => {
-			const socket = makeSocket();
-			const messageRepo = makeMessageRepository();
-			const logger = makeLogger();
-			const handlerEmitter = new EventEmitter();
-			new YGOProJoinHandler(handlerEmitter, logger as never, socket as never, messageRepo as never);
-
-			await emitJoin(handlerEmitter, "1109#1001", 0x1361);
-
-			const warnCall = logger.warn.mock.calls.find(
-				(call) =>
-					typeof call[1] === "object" &&
-					call[1] !== null &&
-					(call[1] as { reason?: string }).reason === "unsupported_protocol_version",
-			);
-			expect(warnCall).toBeDefined();
-			expect(warnCall?.[1]).toEqual({
-				reason: "unsupported_protocol_version",
-				actualVersion: 0x1361,
-				expectedVersion: 0x1362,
-			});
+			expect(passedCtx).toBeDefined();
+			expect(passedCtx?.protocolVersion).toBe(0x1361);
+			expect(socket.send).not.toHaveBeenCalled();
+			expect(socket.close).not.toHaveBeenCalled();
 		});
 
 		it.each([
@@ -295,7 +260,24 @@ describe("YGOProJoinHandler — strategy chain integration", () => {
 			expect(YGOProRoomList.getRooms()).toHaveLength(0);
 			expect(socket.send).toHaveBeenCalledTimes(2);
 			expect(socket.send.mock.calls[0][0].toString("hex")).toBe(VERSION_ERROR_FRAME_HEX);
+			const hint = new YGOProStocChat().fromFullPayload(socket.send.mock.calls[1][0] as Buffer);
+			expect(hint.player_type).toBe(0x09);
+			expect(hint.msg).toContain("0x1362");
+			expect(hint.msg).toContain("升级客户端");
 			expect(socket.close).toHaveBeenCalledTimes(1);
+
+			const warnCall = logger.warn.mock.calls.find(
+				(call) =>
+					typeof call[1] === "object" &&
+					call[1] !== null &&
+					(call[1] as { reason?: string }).reason === "unsupported_protocol_version",
+			);
+			expect(warnCall).toBeDefined();
+			expect(warnCall?.[1]).toEqual({
+				reason: "unsupported_protocol_version",
+				actualVersion: version,
+				expectedVersion: 0x1362,
+			});
 		});
 
 		it("still admits 0x1362 without sending an upgrade hint", async () => {

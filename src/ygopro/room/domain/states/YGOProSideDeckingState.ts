@@ -23,6 +23,7 @@ import {
 } from "@shared/room/domain/findReconnectingPlayer";
 import { config } from "../../../../config";
 import { ReconnectionTokenIssuer } from "@shared/room/application/reconnect/ReconnectionTokenIssuer";
+import { SupportedYGOProProtocolVersion } from "@ygopro/ygopro/protocol-version";
 import { ReconnectionAckMessage } from "@shared/messages/server-to-client/ReconnectionAckMessage";
 import {
 	ChatColor,
@@ -51,8 +52,12 @@ export class YGOProSideDeckingState extends YGOProRoomState {
 		this.logger = logger.child({ file: "MercurySideDeckingState" });
 		this.eventEmitter.on(
 			"JOIN",
-			(message: ClientMessage, room: YGOProRoom, socket: ISocket) =>
-				void this.handleJoin.bind(this)(message, room, socket),
+			(
+				message: ClientMessage,
+				room: YGOProRoom,
+				socket: ISocket,
+				protocolVersion?: SupportedYGOProProtocolVersion,
+			) => void this.handleJoin.bind(this)(message, room, socket, protocolVersion),
 		);
 
 		this.eventEmitter.on(
@@ -198,7 +203,12 @@ export class YGOProSideDeckingState extends YGOProRoomState {
 		}
 	}
 
-	private handleJoin(message: ClientMessage, room: YGOProRoom, socket: ISocket): void {
+	private handleJoin(
+		message: ClientMessage,
+		room: YGOProRoom,
+		socket: ISocket,
+		protocolVersion?: SupportedYGOProProtocolVersion,
+	): void {
 		this.logger.info("handleJoin");
 
 		const playerInfoMessage = new PlayerInfoMessage(message.previousMessage, message.data.length);
@@ -220,7 +230,7 @@ export class YGOProSideDeckingState extends YGOProRoomState {
 				name: playerInfoMessage.name,
 				roomPlayers: seatedPlayerNames,
 			});
-			const spectator = room.createSpectatorUnsafe(socket, playerInfoMessage.name);
+			const spectator = room.createSpectatorUnsafe(socket, playerInfoMessage.name, protocolVersion);
 			room.addSpectatorUnsafe(spectator);
 			spectator.sendMessageToClient(Buffer.from(new YGOProStocDuelStart().toFullPayload()));
 			spectator.sendMessageToClient(Buffer.from(new YGOProStocWaitingSide().toFullPayload()));
@@ -245,6 +255,9 @@ export class YGOProSideDeckingState extends YGOProRoomState {
 			name: playerInfoMessage.name,
 			roomPlayers: seatedPlayerNames,
 		});
+		if (protocolVersion) {
+			playerAlreadyInRoom.setProtocolVersion(protocolVersion);
+		}
 		room.reconnect(playerAlreadyInRoom, socket);
 		playerAlreadyInRoom.sendMessageToClient(room.messageSender.duelStartMessage());
 		if (!playerAlreadyInRoom.isReady) {

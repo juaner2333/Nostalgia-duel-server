@@ -310,12 +310,22 @@ describe("YGOProWaitingState.handleJoin", () => {
 	it("delegates the join to AdmitToRoom with the room's admission target", async () => {
 		await emitJoin(mockRoom, mockSocket);
 
-		expect(mockRoom.admissionTarget).toHaveBeenCalledWith(mockSocket, expect.anything());
+		expect(mockRoom.admissionTarget).toHaveBeenCalledWith(mockSocket, expect.anything(), undefined);
 		expect(mockAdmitToRoom.run).toHaveBeenCalledWith(
 			mockSocket,
 			expect.anything(),
 			admissionTarget,
 		);
+	});
+
+	it("forwards protocolVersion to room.admissionTarget when provided", async () => {
+		const message = makeJoinMessage();
+		await new Promise<void>((resolve) => {
+			setImmediate(resolve);
+			eventEmitter.emit("JOIN", message, mockRoom, mockSocket, 0x1361);
+		});
+
+		expect(mockRoom.admissionTarget).toHaveBeenCalledWith(mockSocket, expect.anything(), 0x1361);
 	});
 
 	it("rejects a duplicate name without delegating to AdmitToRoom", async () => {

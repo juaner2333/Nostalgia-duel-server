@@ -116,8 +116,8 @@ export abstract class YgoRoom {
 
 	abstract shouldValidateDeck(): boolean;
 
-	emit(event: string, message: unknown, socket: ISocket): void {
-		this.emitter.emit(event, message, this, socket);
+	emit(event: string, message: unknown, socket: ISocket, ...extra: unknown[]): void {
+		this.emitter.emit(event, message, this, socket, ...extra);
 	}
 
 	emitRoomEvent(event: string, message: unknown, client?: YgoClient): void {

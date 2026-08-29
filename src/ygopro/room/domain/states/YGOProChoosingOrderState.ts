@@ -16,6 +16,7 @@ import {
 import { TurnPlayerResult, YGOProCtosTpResult, YGOProStocDuelStart } from "ygopro-msg-encode";
 import { ReconnectionTokenIssuer } from "@shared/room/application/reconnect/ReconnectionTokenIssuer";
 import { ReconnectionAckMessage } from "@shared/messages/server-to-client/ReconnectionAckMessage";
+import { SupportedYGOProProtocolVersion } from "@ygopro/ygopro/protocol-version";
 
 export class YGOProChoosingOrderState extends YGOProRoomState {
 	constructor(
@@ -28,8 +29,12 @@ export class YGOProChoosingOrderState extends YGOProRoomState {
 
 		this.eventEmitter.on(
 			"JOIN",
-			(message: ClientMessage, room: YGOProRoom, socket: ISocket) =>
-				void this.handleJoin.bind(this)(message, room, socket),
+			(
+				message: ClientMessage,
+				room: YGOProRoom,
+				socket: ISocket,
+				protocolVersion?: SupportedYGOProProtocolVersion,
+			) => void this.handleJoin.bind(this)(message, room, socket, protocolVersion),
 		);
 		this.eventEmitter.on(
 			Commands.TURN_CHOICE as unknown as string,
@@ -83,7 +88,12 @@ export class YGOProChoosingOrderState extends YGOProRoomState {
 		room.dueling();
 	}
 
-	private handleJoin(message: ClientMessage, room: YGOProRoom, socket: ISocket): void {
+	private handleJoin(
+		message: ClientMessage,
+		room: YGOProRoom,
+		socket: ISocket,
+		protocolVersion?: SupportedYGOProProtocolVersion,
+	): void {
 		this.logger.info("handleJoin");
 
 		const playerInfoMessage = new PlayerInfoMessage(message.previousMessage, message.data.length);
@@ -105,7 +115,7 @@ export class YGOProChoosingOrderState extends YGOProRoomState {
 				name: playerInfoMessage.name,
 				roomPlayers: seatedPlayerNames,
 			});
-			const spectator = room.createSpectatorUnsafe(socket, playerInfoMessage.name);
+			const spectator = room.createSpectatorUnsafe(socket, playerInfoMessage.name, protocolVersion);
 			room.addSpectatorUnsafe(spectator);
 			spectator.sendMessageToClient(Buffer.from(new YGOProStocDuelStart().toFullPayload()));
 			room.sendDeckCountMessage(spectator);
@@ -130,6 +140,9 @@ export class YGOProChoosingOrderState extends YGOProRoomState {
 			name: playerInfoMessage.name,
 			roomPlayers: seatedPlayerNames,
 		});
+		if (protocolVersion) {
+			playerAlreadyInRoom.setProtocolVersion(protocolVersion);
+		}
 		room.reconnect(playerAlreadyInRoom, socket);
 		playerAlreadyInRoom.sendMessageToClient(room.messageSender.duelStartMessage());
 		room.sendDeckCountMessage(playerAlreadyInRoom);

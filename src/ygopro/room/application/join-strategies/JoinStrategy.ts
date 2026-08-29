@@ -6,6 +6,8 @@ import { ISocket } from "@shared/socket/domain/ISocket";
 import { Logger } from "@shared/logger/domain/Logger";
 import { MessageRepository } from "@ygopro/room/domain/MessageRepository";
 
+import { SupportedYGOProProtocolVersion } from "@ygopro/ygopro/protocol-version";
+
 /**
  * Everything handleJoinGame has available at the point it dispatches.
  * Strategies must not invent fields that don't come from the actual handler params.
@@ -31,6 +33,8 @@ export interface JoinContext {
 	logger: Logger;
 	/** The original ClientMessage — needed to emit the JOIN event to the room state machine */
 	message: ClientMessage;
+	/** Validated YGOPro protocol version of the client */
+	protocolVersion: SupportedYGOProProtocolVersion;
 }
 
 /**

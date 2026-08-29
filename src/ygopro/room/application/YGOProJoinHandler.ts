@@ -9,7 +9,10 @@ import { PlayerInfoMessage } from "@ygopro/messages/client-to-server/PlayerInfoM
 
 import { ErrorMessageType, YGOProCtosJoinGame } from "ygopro-msg-encode";
 import { MessageRepository } from "@ygopro/room/domain/MessageRepository";
-import { YGOPRO_PROTOCOL_VERSION } from "@ygopro/ygopro/protocol-version";
+import {
+	YGOPRO_PROTOCOL_VERSION,
+	isSupportedYGOProProtocolVersion,
+} from "@ygopro/ygopro/protocol-version";
 import { VersionErrorClientMessage } from "@ygopro/messages/server-to-client/VersionErrorClientMessage";
 import { YGOProPlayerChatMessage } from "@ygopro/messages/server-to-client/YGOProPlayerChatMessage";
 
@@ -47,12 +50,12 @@ export class YGOProJoinHandler implements JoinMessageHandler {
 		const playerInfoMessage = new PlayerInfoMessage(message.previousMessage, message.data.length);
 		const joinMessage = new YGOProCtosJoinGame().fromPayload(message.data);
 
-		// Every new JOIN_GAME must speak the supported protocol version, no matter
-		// what room (or room state machine) it targets. Already-admitted players do
+		// Every new JOIN_GAME must speak a supported protocol version (0x1361 or 0x1362),
+		// no matter what room (or room state machine) it targets. Already-admitted players do
 		// not re-join through this handler, so this is evaluated exactly once per
 		// new connection. The reject happens before room identity parsing, join
 		// strategy selection, room lookup/creation, and any room state event.
-		if (joinMessage.version !== YGOPRO_PROTOCOL_VERSION) {
+		if (!isSupportedYGOProProtocolVersion(joinMessage.version)) {
 			this.logger.warn("Join rejected before admission", {
 				reason: "unsupported_protocol_version",
 				actualVersion: joinMessage.version,
@@ -89,6 +92,7 @@ export class YGOProJoinHandler implements JoinMessageHandler {
 			messageRepository: this.messageRepository,
 			logger: this.logger,
 			message,
+			protocolVersion: joinMessage.version,
 		};
 
 		const strategy = this.registry.resolve(ctx);

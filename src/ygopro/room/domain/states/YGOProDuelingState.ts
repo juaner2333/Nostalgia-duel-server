@@ -19,6 +19,7 @@ import { YGOProClient } from "../../../client/domain/YGOProClient";
 import { DuelRecord } from "../DuelRecord";
 import { FinalizeYGOProRoom } from "../../application/FinalizeYGOProRoom";
 import { YGOProRoom } from "../YGOProRoom";
+import { SupportedYGOProProtocolVersion } from "@ygopro/ygopro/protocol-version";
 import {
 	findReconnectingPlayer,
 	logReconnectJudgement,
@@ -65,8 +66,12 @@ export class YGOProDuelingState extends YGOProRoomState {
 
 		this.eventEmitter.on(
 			"JOIN",
-			(message: ClientMessage, room: YGOProRoom, socket: ISocket) =>
-				void this.handleJoin.bind(this)(message, room, socket),
+			(
+				message: ClientMessage,
+				room: YGOProRoom,
+				socket: ISocket,
+				protocolVersion?: SupportedYGOProProtocolVersion,
+			) => void this.handleJoin.bind(this)(message, room, socket, protocolVersion),
 		);
 
 		this.eventEmitter.on(
@@ -221,7 +226,12 @@ export class YGOProDuelingState extends YGOProRoomState {
 		this.ocgCore.advance();
 	}
 
-	private handleJoin(message: ClientMessage, room: YGOProRoom, socket: ISocket): void {
+	private handleJoin(
+		message: ClientMessage,
+		room: YGOProRoom,
+		socket: ISocket,
+		protocolVersion?: SupportedYGOProProtocolVersion,
+	): void {
 		this.logger.info("handleJoin");
 
 		const playerInfoMessage = new PlayerInfoMessage(message.previousMessage, message.data.length);
@@ -243,7 +253,7 @@ export class YGOProDuelingState extends YGOProRoomState {
 				name: playerInfoMessage.name,
 				roomPlayers: seatedPlayerNames,
 			});
-			const spectator = room.createSpectatorUnsafe(socket, playerInfoMessage.name);
+			const spectator = room.createSpectatorUnsafe(socket, playerInfoMessage.name, protocolVersion);
 			room.addSpectatorUnsafe(spectator);
 			spectator.sendMessageToClient(Buffer.from(new YGOProStocDuelStart().toFullPayload()));
 			room.sendPreviousDuelsHistoricalMessages(spectator);
@@ -269,6 +279,9 @@ export class YGOProDuelingState extends YGOProRoomState {
 			name: playerInfoMessage.name,
 			roomPlayers: seatedPlayerNames,
 		});
+		if (protocolVersion) {
+			playerAlreadyInRoom.setProtocolVersion(protocolVersion);
+		}
 		this.room.reconnect(playerAlreadyInRoom, socket);
 	}
 

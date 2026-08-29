@@ -128,7 +128,7 @@ describe("WSYGOProServer · protocol version gate", () => {
 		server.close();
 	});
 
-	it("delivers the VersionError and upgrade-hint frames before closing a 0x1361 join", async () => {
+	it("delivers the VersionError and upgrade-hint frames before closing an unsupported 0x1360 join", async () => {
 		const port = await waitForListening();
 		const client = await connectClient(port);
 
@@ -138,7 +138,7 @@ describe("WSYGOProServer · protocol version gate", () => {
 			messages.push(toBuffer(data));
 		});
 
-		client.send(buildFirstPacket("Syrus", "1109#1001", 0x1361));
+		client.send(buildFirstPacket("Syrus", "1109#1001", 0x1360));
 		await closeSeen;
 
 		// exactly two messages, delivered before the close event, no room created
@@ -150,6 +150,37 @@ describe("WSYGOProServer · protocol version gate", () => {
 		expect(hint.msg).toContain("升级客户端");
 
 		expect(YGOProRoomList.getRooms()).toHaveLength(0);
+	});
+
+	it("accepts a 0x1361 join over WebSocket and sends compatibility chat hint", async () => {
+		const port = await waitForListening();
+		const client = await connectClient(port);
+
+		const messages: Buffer[] = [];
+		client.on("message", (data: WebSocket.RawData) => {
+			messages.push(toBuffer(data));
+		});
+
+		client.send(buildFirstPacket("Syrus", "1109#1001", 0x1361));
+
+		for (
+			let attempt = 0;
+			attempt < 200 && messages.findIndex((m) => commandOf(m) === 0x12) === -1;
+			attempt++
+		) {
+			await sleep(10);
+		}
+		await sleep(50);
+
+		expect(YGOProRoomList.findByAdmissionKey("1109#1001")).not.toBeNull();
+		const commands = messages.map(commandOf);
+		expect(commands).toContain(0x12);
+		expect(commands).toContain(0x19); // compatibility chat hint
+
+		const hint = new YGOProStocChat().fromFullPayload(messages.find((m) => commandOf(m) === 0x19)!);
+		expect(hint.msg).toContain("0x1361 实时对局兼容模式");
+
+		client.close();
 	});
 
 	it("accepts a 0x1362 join over WebSocket without sending an upgrade hint", async () => {
@@ -176,7 +207,7 @@ describe("WSYGOProServer · protocol version gate", () => {
 		expect(YGOProRoomList.findByAdmissionKey("1109#1001")).not.toBeNull();
 		const commands = messages.map(commandOf);
 		expect(commands).toContain(0x12);
-		// the upgrade hint (STOC_CHAT 0x19) is never sent to a supported client
+		// the upgrade hint (STOC_CHAT 0x19) is never sent to a supported 0x1362 client
 		expect(commands).not.toContain(0x19);
 
 		client.close();

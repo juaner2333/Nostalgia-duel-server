@@ -20,6 +20,7 @@ function makeContext(rawPass: string): JoinContext {
 		messageRepository: {} as JoinContext["messageRepository"],
 		logger: { info: jest.fn() } as unknown as JoinContext["logger"],
 		message: {} as JoinContext["message"],
+		protocolVersion: 0x1362,
 	};
 }
 
@@ -58,7 +59,12 @@ describe("NostalgiaJoinStrategy", () => {
 			expect.objectContaining({ formatId: "1103", roomId: "1001", rankedOverride: undefined }),
 		);
 		expect(room.waiting).toHaveBeenCalledTimes(1);
-		expect(room.emit).toHaveBeenCalledWith("JOIN", context.message, context.socket);
+		expect(room.emit).toHaveBeenCalledWith(
+			"JOIN",
+			context.message,
+			context.socket,
+			context.protocolVersion,
+		);
 	});
 
 	it("keeps same-number rooms isolated by format", async () => {

@@ -53,9 +53,9 @@ const buildFrame = (command, payload) => {
 };
 
 const playerInfoFrame = (name) => buildFrame(0x10, encodeUtf16LE(name, 20));
-const joinGameFrame = (pass) => {
+const joinGameFrame = (pass, version = 0x1362) => {
 	const payload = Buffer.alloc(48);
-	payload.writeUInt16LE(0x1362, 0); // 协议版本
+	payload.writeUInt16LE(version, 0); // 协议版本
 	payload.writeUInt16LE(0xcccc, 2);
 	payload.writeUInt32LE(42, 4);
 	encodeUtf16LE(pass, 20).copy(payload, 8);
@@ -133,11 +133,11 @@ async function buildDeck(formatId) {
  * HS_TYPE_CHANGE (0x13)；观战者等待 STOC_JOIN_GAME (0x12) +
  * HS_WATCH_CHANGE (0x22)。
  */
-function connect(name, pass, waitCommands = [0x12, 0x13]) {
+function connect(name, pass, waitCommands = [0x12, 0x13], version = 0x1362) {
 	return new Promise((resolve, reject) => {
 		const socket = net.connect(PORT, "127.0.0.1", () => {
 			socket.write(playerInfoFrame(name));
-			socket.write(joinGameFrame(pass));
+			socket.write(joinGameFrame(pass, version));
 		});
 		const frames = [];
 		let buffer = Buffer.alloc(0);
@@ -208,8 +208,18 @@ function waitForCount(frames, command, count, timeoutMs = 15000) {
 async function runFormat(formatId) {
 	const deck = await buildDeck(formatId);
 	const suffix = Date.now().toString(36);
-	const host = await connect(`Smoke-${formatId}-A-${suffix}`, `${formatId}#1001`);
-	const guest = await connect(`Smoke-${formatId}-B-${suffix}`, `${formatId}#1001`);
+	const host = await connect(
+		`Smoke-${formatId}-A-${suffix}`,
+		`${formatId}#1001`,
+		[0x12, 0x13],
+		0x1362,
+	);
+	const guest = await connect(
+		`Smoke-${formatId}-B-${suffix}`,
+		`${formatId}#1001`,
+		[0x12, 0x13],
+		0x1361,
+	);
 
 	// 第三个连接：房间已满，应被准入为观战者（OBSERVER），收到 JOIN 确认与
 	// 观众数广播；同时所有在场客户端会再次收到 HS_WATCH_CHANGE。
@@ -217,6 +227,7 @@ async function runFormat(formatId) {
 		`Smoke-${formatId}-Obs-${suffix}`,
 		`${formatId}#1001`,
 		[0x12, 0x22], // STOC_JOIN_GAME + HS_WATCH_CHANGE
+		0x1361,
 	);
 	// host 在玩家加入时已收到过 1 次 HS_WATCH_CHANGE（观众 0）；观战者加入后
 	// 应再收到 1 次（观众 1）——证明观战者被房间真正接纳。

@@ -17,6 +17,7 @@ import { Team } from "@shared/room/Team";
 import { YGOProRoomState } from "../YGOProRoomState";
 import { ReconnectionTokenIssuer } from "@shared/room/application/reconnect/ReconnectionTokenIssuer";
 import { ReconnectionAckMessage } from "@shared/messages/server-to-client/ReconnectionAckMessage";
+import { SupportedYGOProProtocolVersion } from "@ygopro/ygopro/protocol-version";
 
 export class YGOProRockPaperScissorState extends YGOProRoomState {
 	private handResult = [0, 0];
@@ -34,8 +35,12 @@ export class YGOProRockPaperScissorState extends YGOProRoomState {
 		);
 		this.eventEmitter.on(
 			"JOIN",
-			(message: ClientMessage, room: YGOProRoom, socket: ISocket) =>
-				void this.handleJoin.bind(this)(message, room, socket),
+			(
+				message: ClientMessage,
+				room: YGOProRoom,
+				socket: ISocket,
+				protocolVersion?: SupportedYGOProProtocolVersion,
+			) => void this.handleJoin.bind(this)(message, room, socket, protocolVersion),
 		);
 		this.eventEmitter.on(
 			"EXPRESS_RECONNECT",
@@ -75,7 +80,12 @@ export class YGOProRockPaperScissorState extends YGOProRoomState {
 		player.clearReconnecting();
 	}
 
-	private handleJoin(message: ClientMessage, room: YGOProRoom, socket: ISocket): void {
+	private handleJoin(
+		message: ClientMessage,
+		room: YGOProRoom,
+		socket: ISocket,
+		protocolVersion?: SupportedYGOProProtocolVersion,
+	): void {
 		this.logger.info("handleJoin");
 
 		const playerInfoMessage = new PlayerInfoMessage(message.previousMessage, message.data.length);
@@ -97,7 +107,7 @@ export class YGOProRockPaperScissorState extends YGOProRoomState {
 				name: playerInfoMessage.name,
 				roomPlayers: seatedPlayerNames,
 			});
-			const spectator = room.createSpectatorUnsafe(socket, playerInfoMessage.name);
+			const spectator = room.createSpectatorUnsafe(socket, playerInfoMessage.name, protocolVersion);
 			room.addSpectatorUnsafe(spectator);
 			spectator.sendMessageToClient(room.messageSender.duelStartMessage());
 			room.sendDeckCountMessage(spectator);
@@ -122,6 +132,9 @@ export class YGOProRockPaperScissorState extends YGOProRoomState {
 			name: playerInfoMessage.name,
 			roomPlayers: seatedPlayerNames,
 		});
+		if (protocolVersion) {
+			playerAlreadyInRoom.setProtocolVersion(protocolVersion);
+		}
 		room.reconnect(playerAlreadyInRoom, socket);
 
 		playerAlreadyInRoom.sendMessageToClient(room.messageSender.duelStartMessage());

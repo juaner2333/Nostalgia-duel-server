@@ -17,7 +17,7 @@
 - **THEN** 不存在 EDOPro 决斗监听器、端口映射、入口规则或健康检查
 
 ### Requirement: 保持 YGOPro TCP 线协议兼容
-服务器必须（SHALL）继续接受二字节小端长度前缀的 YGOPro TCP 帧，长度值包含一字节命令和消息负载。加入序列依次为 `ExternalAddress (0x17)`、`PlayerInfo (0x10)` 和 `JoinGame (0x12)`；`PlayerInfo` 使用 20 个 UTF-16LE 字符槽，`JoinGame` 使用协议版本 `0x1362`、两个 `0xCC` 字节、一个 32 位保留/游戏 ID 字段和 20 个 UTF-16LE 字符槽的房间口令。
+服务器必须（SHALL）继续接受二字节小端长度前缀的 YGOPro TCP 帧，长度值包含一字节命令和消息负载。加入序列依次为 `ExternalAddress (0x17)`、`PlayerInfo (0x10)` 和 `JoinGame (0x12)`；`PlayerInfo` 使用 20 个 UTF-16LE 字符槽，`JoinGame` 支持基准协议版本 `0x1362` 及兼容协议版本 `0x1361`、两个 `0xCC` 字节、一个 32 位保留/游戏 ID 字段和 20 个 UTF-16LE 字符槽的房间口令。下发到 0x1361 客户端的帧必须按线协议在客户端边界自动完成适配。
 
 #### Scenario: 接受固定 YGOPro 首包序列
 - **WHEN** TCP 连接发送服务端测试目录中的 `ExternalAddress`、`PlayerInfo` 和 `JoinGame` 固定二进制样本

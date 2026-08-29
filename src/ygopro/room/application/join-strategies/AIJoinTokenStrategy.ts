@@ -72,7 +72,7 @@ export class AIJoinTokenStrategy implements JoinStrategy {
 		// Emit JOIN for the bot client — the waiting state will call createPlayerUnsafe + addPlayerUnsafe
 		// (or createSpectatorUnsafe if slots are full, but for a windbot room there should be a free slot).
 		// handleJoin queues the player creation on room.mutex.
-		room.emit("JOIN", ctx.message, ctx.socket);
+		room.emit("JOIN", ctx.message, ctx.socket, ctx.protocolVersion);
 
 		// Queue an empty critical section on the SAME mutex. async-mutex is FIFO, so this
 		// runs only AFTER handleJoin's player-creation section completes — deterministic,

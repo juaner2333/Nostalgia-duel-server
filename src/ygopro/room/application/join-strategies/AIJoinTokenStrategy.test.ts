@@ -72,6 +72,7 @@ const makeCtx = (rawPass: string, overrides: Partial<JoinContext> = {}): JoinCon
 		logger: makeLogger(),
 		checkIfUserCanJoin: { check: jest.fn().mockResolvedValue(true) },
 		message: { data: Buffer.alloc(0), previousMessage: Buffer.alloc(0) },
+		protocolVersion: 0x1362,
 		...overrides,
 	} as unknown as JoinContext;
 };
@@ -214,7 +215,12 @@ describe("AIJoinTokenStrategy", () => {
 
 				await strategy.handle(ctx);
 
-				expect(roomEmitSpy).toHaveBeenCalledWith("JOIN", expect.anything(), ctx.socket);
+				expect(roomEmitSpy).toHaveBeenCalledWith(
+					"JOIN",
+					expect.anything(),
+					ctx.socket,
+					ctx.protocolVersion,
+				);
 			});
 
 			it("marks the room as an AI room (noHost + noReconnect) so it tears down when the human leaves", async () => {

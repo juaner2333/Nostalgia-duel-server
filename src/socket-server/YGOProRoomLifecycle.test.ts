@@ -143,6 +143,7 @@ import {
 	YGOProStocHsPlayerChange,
 } from "ygopro-msg-encode";
 
+import { YGOProClient } from "@ygopro/client/domain/YGOProClient";
 import { YGOProServer } from "./YGOProServer";
 
 jest.setTimeout(10_000);
@@ -466,7 +467,7 @@ describe("YGOProRoom · two-socket lifecycle contract", () => {
 	it.each([
 		"rps",
 		"dueling",
-	] as const)("rejects a 0x1361 join during %s with only the version frames and no room side effects", async (phase) => {
+	] as const)("rejects an unsupported 0x1360 join during %s with only the version frames and no room side effects", async (phase) => {
 		const { port } = await waitForListening();
 		const { host, guest } = await createRoomAtPhase(port, phase);
 
@@ -478,7 +479,7 @@ describe("YGOProRoom · two-socket lifecycle contract", () => {
 		const tap = new FrameTap(intruder);
 		const closed = new Promise<void>((resolve) => intruder.on("close", () => resolve()));
 		intruder.write(buildPlayerInfoFrame("Syrus"));
-		intruder.write(buildJoinGameFrameWithVersion("1109#1001", 0x1361));
+		intruder.write(buildJoinGameFrameWithVersion("1109#1001", 0x1360));
 		await Promise.all([tap.waitFor((frames) => frames.length >= 2), closed]);
 
 		// exactly the VersionError frame followed by the upgrade hint — nothing else
@@ -502,7 +503,7 @@ describe("YGOProRoom · two-socket lifecycle contract", () => {
 		intruder.destroy();
 	});
 
-	it("does not take over an active player's seat via name reconnect for a 0x1361 join", async () => {
+	it("does not take over an active player's seat via name reconnect for an unsupported 0x1360 join", async () => {
 		const { port } = await waitForListening();
 		const { host, guest } = await createRoomAtPhase(port, "dueling");
 
@@ -518,7 +519,7 @@ describe("YGOProRoom · two-socket lifecycle contract", () => {
 		const tap = new FrameTap(intruder);
 		const closed = new Promise<void>((resolve) => intruder.on("close", () => resolve()));
 		intruder.write(buildPlayerInfoFrame("Chazz"));
-		intruder.write(buildJoinGameFrameWithVersion("1109#1001", 0x1361));
+		intruder.write(buildJoinGameFrameWithVersion("1109#1001", 0x1360));
 		await Promise.all([tap.waitFor((frames) => frames.length >= 2), closed]);
 
 		// only version frames; the reconnect path never emits join/sync messages
@@ -537,6 +538,30 @@ describe("YGOProRoom · two-socket lifecycle contract", () => {
 
 		host.socket.destroy();
 		intruder.destroy();
+	});
+
+	it("takes over an active player's seat via name reconnect for a 0x1361 join during dueling", async () => {
+		const { port } = await waitForListening();
+		const { host, guest } = await createRoomAtPhase(port, "dueling");
+
+		guest.socket.destroy();
+		await new Promise((resolve) => setTimeout(resolve, 150));
+
+		const room = YGOProRoomList.findByAdmissionKey("1109#1001");
+
+		const reconnectClient = await connect(port);
+		const tap = new FrameTap(reconnectClient);
+		reconnectClient.write(buildPlayerInfoFrame("Chazz"));
+		reconnectClient.write(buildJoinGameFrameWithVersion("1109#1001", 0x1361));
+
+		await tap.waitFor((frames) => hasCommand(frames, 0x12) && hasCommand(frames, 0x13));
+
+		const chazzPlayer = room?.players.find((p) => p.name === "Chazz") as YGOProClient | undefined;
+		expect(chazzPlayer).toBeDefined();
+		expect(chazzPlayer?.protocolVersion).toBe(0x1361);
+
+		host.socket.destroy();
+		reconnectClient.destroy();
 	});
 
 	it("rejects an unknown card and broadcasts ready state to both players", async () => {
