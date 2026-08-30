@@ -771,6 +771,13 @@ export class YGOProRoom extends YgoRoom {
 		player.sendMessageToClient(
 			this._messageRepository.joinGameMessage(this.hostInfo, this.banListHash),
 		);
+		if (player.protocolVersion === YGOPRO_COMPATIBLE_PROTOCOL_VERSION) {
+			player.sendMessageToClient(
+				YGOProPlayerChatMessage.create(
+					"已启用 0x1361 实时对局兼容模式；录像仍使用 0x1362 格式，建议升级客户端。",
+				),
+			);
+		}
 		const type = player.host ? player.position | 0x10 : player.position;
 		player.sendMessageToClient(this._messageRepository.typeChangeMessageFromType(type));
 		this._players.forEach((_player: YGOProClient) => {

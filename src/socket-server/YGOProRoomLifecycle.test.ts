@@ -554,7 +554,12 @@ describe("YGOProRoom · two-socket lifecycle contract", () => {
 		reconnectClient.write(buildPlayerInfoFrame("Chazz"));
 		reconnectClient.write(buildJoinGameFrameWithVersion("1109#1001", 0x1361));
 
-		await tap.waitFor((frames) => hasCommand(frames, 0x12) && hasCommand(frames, 0x13));
+		await tap.waitFor(
+			(frames) => hasCommand(frames, 0x12) && hasCommand(frames, 0x13) && hasCommand(frames, 0x19),
+		);
+
+		const hint = new YGOProStocChat().fromFullPayload(tap.framesWithCommand(0x19)[0]);
+		expect(hint.msg).toContain("0x1361 实时对局兼容模式");
 
 		const chazzPlayer = room?.players.find((p) => p.name === "Chazz") as YGOProClient | undefined;
 		expect(chazzPlayer).toBeDefined();

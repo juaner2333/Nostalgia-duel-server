@@ -4,7 +4,7 @@
 
 ### Features
 
-* **protocol:** reject non-0x1362 clients with a readable upgrade hint instead of a silent close
+* **protocol:** support 0x1361 client live duel compatibility mode alongside baseline 0x1362, and reject other unsupported protocol versions with a readable upgrade hint
 
 ## [2.14.0](https://github.com/diangogav/EDOpro-server-ts/compare/v2.13.2...v2.14.0) (2026-08-05)
 

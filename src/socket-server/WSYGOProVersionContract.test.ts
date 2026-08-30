@@ -2,10 +2,10 @@
  * Real WebSocket contract for the YGOPro protocol version gate.
  *
  * Drives a real WSYGOProServer over a real `ws` client on a temporary port and
- * asserts that an unsupported protocol version (0x1361) receives exactly two
+ * asserts that an unsupported protocol version (e.g. 0x1360) receives exactly two
  * frames — the YGOPro VersionError followed by the readable upgrade hint —
  * and that both frames are delivered before the connection closes. Also
- * verifies a valid 0x1362 join still works and receives no upgrade hint.
+ * verifies that both 0x1361 and 0x1362 joins succeed over WebSocket.
  */
 
 jest.mock("../web-socket-server/WebSocketSingleton", () => {

@@ -15,6 +15,7 @@ import { Deck } from "@shared/deck/domain/Deck";
 import { Logger } from "@shared/logger/domain/Logger";
 import { LoggerMock } from "@test-support/mocks/logger/LoggerMock";
 import { YGOProRoomMother } from "@test-support/mothers/room/YGOProRoomMother";
+import { YGOProStocChat } from "ygopro-msg-encode";
 
 /** ISocket whose lifecycle mirrors the TCP adapter (destroy detaches first). */
 class StubSocket implements ISocket {
@@ -415,7 +416,7 @@ describe("YGOProSideDeckingState.handleJoin — anonymous TCP takeover", () => {
 		expect(room.spectators).toHaveLength(0);
 	});
 
-	it("updates player protocolVersion when reconnecting with a different supported protocol version", () => {
+	it("updates player protocolVersion and sends compatibility hint when reconnecting with 0x1361", () => {
 		const { room, jaden } = createRoomWithPlayers();
 		expect(jaden.protocolVersion).toBe(0x1362);
 		const emitter = new EventEmitter();
@@ -425,5 +426,10 @@ describe("YGOProSideDeckingState.handleJoin — anonymous TCP takeover", () => {
 		emitter.emit("JOIN", joinMessageFor("Jaden"), room, newSocket, 0x1361);
 
 		expect(jaden.protocolVersion).toBe(0x1361);
+		expect(newSocket.commands()).toContain(0x19);
+		const chatFrame = newSocket.sends.find((f) => f[2] === 0x19);
+		expect(chatFrame).toBeDefined();
+		const hint = new YGOProStocChat().fromFullPayload(chatFrame!);
+		expect(hint.msg).toContain("0x1361 实时对局兼容模式");
 	});
 });
