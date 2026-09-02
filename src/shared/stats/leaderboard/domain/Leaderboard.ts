@@ -12,6 +12,9 @@ export type LeaderboardResponse = {
 	format: string;
 	scope: "season" | "overall";
 	season?: string;
+	page?: number;
+	pageSize?: number;
+	total?: number;
 	leaderboard: LeaderboardEntry[];
 };
 

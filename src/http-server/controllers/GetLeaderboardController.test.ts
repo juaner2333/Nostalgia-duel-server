@@ -114,4 +114,66 @@ describe("GetLeaderboardController", () => {
 			}),
 		);
 	});
+
+	it("passes search, page, pageSize to useCase and includes total in response", async () => {
+		req = {
+			params: { format: "1103" },
+			query: {
+				scope: "season",
+				season: "2026-09",
+				search: "Alice",
+				page: "2",
+				pageSize: "50",
+			},
+		};
+
+		getLeaderboard.run.mockResolvedValue({
+			format: "1103",
+			scope: "season",
+			season: "2026-09",
+			page: 2,
+			pageSize: 50,
+			total: 75,
+			leaderboard: [],
+		});
+
+		await controller.run(req as Request, res as Response);
+
+		expect(getLeaderboard.run).toHaveBeenCalledWith({
+			format: "1103",
+			scope: "season",
+			season: "2026-09",
+			search: "Alice",
+			page: 2,
+			pageSize: 50,
+		});
+		expect(res.status).toHaveBeenCalledWith(200);
+		expect(res.json).toHaveBeenCalledWith(
+			expect.objectContaining({
+				total: 75,
+				page: 2,
+				pageSize: 50,
+			}),
+		);
+	});
+
+	it("returns 400 when page or pageSize is not a valid positive integer", async () => {
+		req = {
+			params: { format: "1103" },
+			query: {
+				scope: "season",
+				season: "2026-09",
+				page: "invalid",
+			},
+		};
+
+		await controller.run(req as Request, res as Response);
+
+		expect(res.status).toHaveBeenCalledWith(400);
+		expect(res.json).toHaveBeenCalledWith(
+			expect.objectContaining({
+				error: expect.stringContaining("Invalid 'page'"),
+			}),
+		);
+	});
 });

@@ -33,8 +33,12 @@ export function parseRankedPass(rawPass: string): NostalgiaFormatId {
 	return formatId as NostalgiaFormatId;
 }
 
+export function isRankedSpectatorPass(rawPass: string): boolean {
+	return /^\d{4}#TT\d+$/.test(rawPass);
+}
+
 export function isRankedPass(rawPass: string): boolean {
-	return rawPass === "TT" || /^\d{4}#TT$/.test(rawPass);
+	return rawPass === "TT" || /^\d{4}#TT$/.test(rawPass) || isRankedSpectatorPass(rawPass);
 }
 
 export class DirectNostalgiaRankedJoin {

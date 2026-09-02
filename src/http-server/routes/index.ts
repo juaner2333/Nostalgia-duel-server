@@ -9,6 +9,9 @@ import { GetDatabaseCardsController } from "../controllers/GetDatabaseCardsContr
 import { GetDatabasesController } from "../controllers/GetDatabasesController";
 import { GetResourceVersionController } from "../controllers/GetResourceVersionController";
 import { GetLeaderboardController } from "../controllers/GetLeaderboardController";
+import { LeaderboardPageController } from "../controllers/LeaderboardPageController";
+import { GetReplayListController } from "../controllers/GetReplayListController";
+import { DownloadReplayController } from "../controllers/DownloadReplayController";
 import { GetRoomListController } from "../controllers/GetRoomListController";
 import { InspectPageController } from "../controllers/InspectPageController";
 import { RoomListController } from "../controllers/RoomListController";
@@ -48,6 +51,16 @@ export function loadRoutes(app: Express, logger: Logger, tickets: TicketReposito
 
 	app.get("/api/cards", RateLimitMiddleware, async (req, res) => {
 		await new SearchCardsController().run(req, res);
+	});
+
+	app.get("/leaderboards/:format", (req, res) => new LeaderboardPageController().run(req, res));
+
+	app.get("/api/replays/:format", RateLimitMiddleware, async (req, res) => {
+		await new GetReplayListController().run(req, res);
+	});
+
+	app.get("/api/replays/:format/:replayId", RateLimitMiddleware, async (req, res) => {
+		await new DownloadReplayController().run(req, res);
 	});
 
 	app.get("/api/leaderboards/:format", RateLimitMiddleware, async (req, res) => {

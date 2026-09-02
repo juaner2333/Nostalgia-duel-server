@@ -353,5 +353,6 @@ npm run smoke:duel -- 706
 
 - [`testing.md`](./testing.md)：测试约定
 - [`historical-card-rulings.md`](./historical-card-rulings.md)：2011 历史裁定台账
+- [`nostalgia-ranked-play-and-leaderboards.md`](./nostalgia-ranked-play-and-leaderboards.md)：怀旧排位与决斗专区页面说明
 - [`ops-runbook-bundled-resources.md`](./ops-runbook-bundled-resources.md)：资源发布和回滚
 - [`duel-command.md`](./duel-command.md)：云主机运维快捷命令

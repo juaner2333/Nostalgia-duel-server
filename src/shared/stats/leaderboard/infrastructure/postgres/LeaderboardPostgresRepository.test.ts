@@ -1,4 +1,4 @@
-import { LeaderboardPostgresRepository } from "./LeaderboardPostgresRepository";
+import { LeaderboardPostgresRepository, escapeLike } from "./LeaderboardPostgresRepository";
 import { dataSource } from "../../../../../evolution-types/src/data-source";
 
 jest.mock("../../../../../evolution-types/src/data-source", () => ({
@@ -18,6 +18,10 @@ describe("LeaderboardPostgresRepository", () => {
 		jest.clearAllMocks();
 	});
 
+	it("escapes LIKE wildcards correctly", () => {
+		expect(escapeLike("100%_hero")).toBe("100\\%\\_hero");
+	});
+
 	it("queries season leaderboard and calculates winRate and rank", async () => {
 		(dataSource.query as jest.Mock).mockResolvedValue([
 			{
@@ -26,6 +30,8 @@ describe("LeaderboardPostgresRepository", () => {
 				points: 10,
 				wins: 5,
 				losses: 1,
+				rank: 1,
+				totalCount: 2,
 			},
 			{
 				userId: "u2",
@@ -33,32 +39,37 @@ describe("LeaderboardPostgresRepository", () => {
 				points: 5,
 				wins: 3,
 				losses: 2,
+				rank: 2,
+				totalCount: 2,
 			},
 		]);
 
 		const result = await repository.getSeasonLeaderboard("1109", 202609);
 
 		expect(dataSource.query).toHaveBeenCalledTimes(1);
-		expect(result).toEqual([
-			{
-				rank: 1,
-				userId: "u1",
-				username: "Player1",
-				points: 10,
-				wins: 5,
-				losses: 1,
-				winRate: 0.8333,
-			},
-			{
-				rank: 2,
-				userId: "u2",
-				username: "Player2",
-				points: 5,
-				wins: 3,
-				losses: 2,
-				winRate: 0.6,
-			},
-		]);
+		expect(result).toEqual({
+			total: 2,
+			entries: [
+				{
+					rank: 1,
+					userId: "u1",
+					username: "Player1",
+					points: 10,
+					wins: 5,
+					losses: 1,
+					winRate: 0.8333,
+				},
+				{
+					rank: 2,
+					userId: "u2",
+					username: "Player2",
+					points: 5,
+					wins: 3,
+					losses: 2,
+					winRate: 0.6,
+				},
+			],
+		});
 	});
 
 	it("queries overall leaderboard and aggregates stats", async () => {
@@ -69,23 +80,52 @@ describe("LeaderboardPostgresRepository", () => {
 				points: "25",
 				wins: "12",
 				losses: "3",
+				rank: 1,
+				totalCount: 1,
 			},
 		]);
 
 		const result = await repository.getOverallLeaderboard("1103");
 
 		expect(dataSource.query).toHaveBeenCalledTimes(1);
-		expect(result).toEqual([
+		expect(result).toEqual({
+			total: 1,
+			entries: [
+				{
+					rank: 1,
+					userId: "u1",
+					username: "Player1",
+					points: 25,
+					wins: 12,
+					losses: 3,
+					winRate: 0.8,
+				},
+			],
+		});
+	});
+
+	it("queries season leaderboard with search and pagination", async () => {
+		(dataSource.query as jest.Mock).mockResolvedValue([
 			{
-				rank: 1,
-				userId: "u1",
-				username: "Player1",
-				points: 25,
-				wins: 12,
+				userId: "u5",
+				username: "AliceHero",
+				points: 30,
+				wins: 15,
 				losses: 3,
-				winRate: 0.8,
+				rank: 5,
+				totalCount: 1,
 			},
 		]);
+
+		const result = await repository.getSeasonLeaderboard("1103", 202609, {
+			search: "Alice",
+			page: 1,
+			pageSize: 50,
+		});
+
+		expect(result.total).toBe(1);
+		expect(result.entries[0].rank).toBe(5);
+		expect(result.entries[0].username).toBe("AliceHero");
 	});
 
 	it("gets player monthly stats when player exists in season list", async () => {
@@ -96,6 +136,8 @@ describe("LeaderboardPostgresRepository", () => {
 				points: 10,
 				wins: 5,
 				losses: 1,
+				rank: 1,
+				totalCount: 2,
 			},
 			{
 				userId: "u2",
@@ -103,6 +145,8 @@ describe("LeaderboardPostgresRepository", () => {
 				points: 5,
 				wins: 3,
 				losses: 2,
+				rank: 2,
+				totalCount: 2,
 			},
 		]);
 

@@ -37,11 +37,36 @@ export class GetLeaderboardController {
 			return;
 		}
 
+		let page: number | undefined;
+		if (req.query.page !== undefined) {
+			const parsed = Number(req.query.page);
+			if (isNaN(parsed) || parsed < 1 || !Number.isInteger(parsed)) {
+				res.status(400).json({ error: "Invalid 'page' parameter: must be a positive integer" });
+				return;
+			}
+			page = parsed;
+		}
+
+		let pageSize: number | undefined;
+		if (req.query.pageSize !== undefined) {
+			const parsed = Number(req.query.pageSize);
+			if (isNaN(parsed) || parsed < 1 || !Number.isInteger(parsed)) {
+				res.status(400).json({ error: "Invalid 'pageSize' parameter: must be a positive integer" });
+				return;
+			}
+			pageSize = parsed;
+		}
+
+		const search = typeof req.query.search === "string" ? req.query.search : undefined;
+
 		try {
 			const result = await this.getLeaderboard.run({
 				format,
 				scope,
 				season,
+				search,
+				page,
+				pageSize,
 			});
 
 			res.status(200).json(result);

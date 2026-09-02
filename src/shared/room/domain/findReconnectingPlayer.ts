@@ -69,7 +69,7 @@ export function findReconnectingPlayer(params: {
 	}
 
 	if (params.ranked) {
-		if (candidate.id && params.userId && candidate.id !== params.userId) {
+		if (!params.userId || (candidate.id && candidate.id !== params.userId)) {
 			return { outcome: "rejected", reason: "user_mismatch" };
 		}
 	} else {

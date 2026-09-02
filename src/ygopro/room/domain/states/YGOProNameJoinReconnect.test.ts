@@ -367,6 +367,34 @@ describe("YGOProDuelingState.handleJoin — anonymous TCP takeover", () => {
 		expect(commandsOf(jaden)).toContain(DUEL_START_COMMAND);
 		expect(jadenSocket.destroyed).toBe(true);
 	});
+
+	it("seats an anonymous same-name joiner as spectator in a ranked dueling room and never calls room.reconnect", () => {
+		const { room, jaden, jadenSocket } = createRoomWithPlayers();
+		Object.defineProperty(room, "ranked", { value: true, configurable: true });
+		(jaden as any)._id = "u1";
+		const reconnectSpy = jest.spyOn(room, "reconnect");
+		const sendPrevHistoricalSpy = jest
+			.spyOn(room, "sendPreviousDuelsHistoricalMessages")
+			.mockImplementation();
+		const sendCurrHistoricalSpy = jest
+			.spyOn(room, "sendCurrentDuelHistoricalMessages")
+			.mockImplementation();
+
+		const state = buildState(makeOcgCore(), room);
+		const spectatorSocket = new StubSocket("203.0.113.10");
+
+		state.handleJoin(joinMessageFor("Jaden"), room, spectatorSocket);
+
+		expect(reconnectSpy).not.toHaveBeenCalled();
+		expect(jadenSocket.destroyed).toBe(false);
+		expect(jaden.socket).toBe(jadenSocket);
+		expect(room.players).toHaveLength(2);
+		expect(room.spectators).toHaveLength(1);
+		expect(room.spectators[0].socket).toBe(spectatorSocket);
+		expect(spectatorSocket.commands()).toContain(DUEL_START_COMMAND);
+		expect(sendPrevHistoricalSpy).toHaveBeenCalledWith(room.spectators[0]);
+		expect(sendCurrHistoricalSpy).toHaveBeenCalledWith(room.spectators[0]);
+	});
 });
 
 // ---------------------------------------------------------------------------

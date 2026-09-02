@@ -9,6 +9,9 @@ export type GetLeaderboardRequest = {
 	format: string;
 	scope: "season" | "overall";
 	season?: string;
+	search?: string;
+	page?: number;
+	pageSize?: number;
 };
 
 export class GetLeaderboard {
@@ -19,16 +22,27 @@ export class GetLeaderboard {
 			throw new Error(`Invalid format: must be one of ${SUPPORTED_LEADERBOARD_FORMATS.join(", ")}`);
 		}
 
+		const options = {
+			search: request.search?.trim() ? request.search.trim() : undefined,
+			page: request.page,
+			pageSize: request.pageSize,
+		};
+
 		if (request.scope === "overall") {
 			if (request.season !== undefined) {
 				throw new Error("The 'season' parameter is not allowed when scope is 'overall'");
 			}
-			const leaderboard = await this.repository.getOverallLeaderboard(request.format);
+			const result = await this.repository.getOverallLeaderboard(request.format, options);
+			const entries = Array.isArray(result) ? result : result.entries;
+			const total = Array.isArray(result) ? result.length : result.total;
 
 			return {
 				format: request.format,
 				scope: "overall",
-				leaderboard,
+				page: request.page,
+				pageSize: request.pageSize,
+				total,
+				leaderboard: entries,
 			};
 		}
 
@@ -38,13 +52,22 @@ export class GetLeaderboard {
 			}
 
 			const numericSeason = parseInt(request.season.replace("-", ""), 10);
-			const leaderboard = await this.repository.getSeasonLeaderboard(request.format, numericSeason);
+			const result = await this.repository.getSeasonLeaderboard(
+				request.format,
+				numericSeason,
+				options,
+			);
+			const entries = Array.isArray(result) ? result : result.entries;
+			const total = Array.isArray(result) ? result.length : result.total;
 
 			return {
 				format: request.format,
 				scope: "season",
 				season: request.season,
-				leaderboard,
+				page: request.page,
+				pageSize: request.pageSize,
+				total,
+				leaderboard: entries,
 			};
 		}
 

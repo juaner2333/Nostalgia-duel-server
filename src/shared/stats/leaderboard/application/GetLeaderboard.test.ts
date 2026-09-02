@@ -63,17 +63,20 @@ describe("GetLeaderboard UseCase", () => {
 	});
 
 	it("returns overall leaderboard across all seasons", async () => {
-		repository.getOverallLeaderboard.mockResolvedValue([
-			{
-				rank: 1,
-				userId: "u1",
-				username: "Player1",
-				points: 50,
-				wins: 25,
-				losses: 5,
-				winRate: 0.8333,
-			},
-		]);
+		repository.getOverallLeaderboard.mockResolvedValue({
+			entries: [
+				{
+					rank: 1,
+					userId: "u1",
+					username: "Player1",
+					points: 50,
+					wins: 25,
+					losses: 5,
+					winRate: 0.8333,
+				},
+			],
+			total: 1,
+		});
 
 		const result = await useCase.run({
 			format: "1103",
@@ -83,11 +86,48 @@ describe("GetLeaderboard UseCase", () => {
 		expect(result.format).toBe("1103");
 		expect(result.scope).toBe("overall");
 		expect(result.leaderboard).toHaveLength(1);
+		expect(result.total).toBe(1);
 	});
 
 	it("rejects overall scope when season parameter is provided", async () => {
 		await expect(
 			useCase.run({ format: "1103", scope: "overall", season: "2026-09" }),
 		).rejects.toThrow("The 'season' parameter is not allowed when scope is 'overall'");
+	});
+
+	it("supports search, page, and pageSize options", async () => {
+		repository.getSeasonLeaderboard.mockResolvedValue({
+			entries: [
+				{
+					rank: 5,
+					userId: "u5",
+					username: "AliceHero",
+					points: 20,
+					wins: 10,
+					losses: 2,
+					winRate: 0.8333,
+				},
+			],
+			total: 1,
+		});
+
+		const result = await useCase.run({
+			format: "1103",
+			scope: "season",
+			season: "2026-09",
+			search: "Alice",
+			page: 1,
+			pageSize: 50,
+		});
+
+		expect(result.total).toBe(1);
+		expect(result.page).toBe(1);
+		expect(result.pageSize).toBe(50);
+		expect(result.leaderboard[0].username).toBe("AliceHero");
+		expect(repository.getSeasonLeaderboard).toHaveBeenCalledWith("1103", 202609, {
+			search: "Alice",
+			page: 1,
+			pageSize: 50,
+		});
 	});
 });

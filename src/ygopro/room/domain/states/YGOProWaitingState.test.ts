@@ -404,4 +404,14 @@ describe("YGOProWaitingState.handleToDuel (spectator -> player)", () => {
 
 		expect(room.spectatorToPlayerUnsafe).toHaveBeenCalledWith(spectator);
 	});
+
+	it("does NOT seat any spectator in an isDirectRanked room", async () => {
+		const room = makeRoom(RoomLeague.External);
+		room.isDirectRanked = true;
+		const spectator = makeSpectator({ kind: "verified", userId: "u" });
+
+		await emitToDuel(room, spectator);
+
+		expect(room.spectatorToPlayerUnsafe).not.toHaveBeenCalled();
+	});
 });

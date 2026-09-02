@@ -1,0 +1,98 @@
+# 怀旧排位与决斗专区页面说明 (Nostalgia Ranked Play & Leaderboards)
+
+本文档说明怀旧决斗服务器的排位决斗、专区页面与观战/录像机制。
+
+---
+
+## 1. 决斗专区页面 (`/leaderboards/:format`)
+
+服务端为 `1103` 与 `1109` 格式提供自包含的轻量 Web 决斗专区页面（免除外部字体、CDN 与前端框架依赖）：
+
+- **访问路径**：`http://<host>:<http_port>/leaderboards/1103` 及 `/leaderboards/1109`
+- **准入与状态**：
+  - 无需身份认证，公开可访问。
+  - 若 `RANK_ENABLED=false`（排位系统未启用），返回 503 状态码。
+  - 若访问未注册的格式（如 `/leaderboards/9999`），返回 404 状态码。
+  - 页面品牌固定为 `Nostalgia Duel Server · <format> 决斗专区`，全中文界面。
+
+### 三 Tab 结构与行为
+
+1. **房间列表 Tab (`rooms`)**：
+   - 消费 `GET /api/getrooms`，仅筛选当前格式的活动房间。
+   - 顶部提供统计信息条：房间总数、对局中房间数、在线玩家总数、最后更新时间。
+   - 列表展示：房名/观战号、类型（排位 / 普通）、模式（MATCH）、玩家、状态（对局中 / 等待中）与操作按钮。
+   - **排位房观战**：排位房间显示为“观战号: `<roomid>`”，未开打时玩家列显示“等待匹配中”以保护匹配隐蔽性；点击“复制观战号”可复制 `format#TT<roomid>`。
+   - **普通房加入**：普通房间显示房间名；点击“复制房间名”可复制 `format#<roomid>`。
+   - 仅支持手动刷新，无自动背景轮询。
+
+2. **录像下载 Tab (`replays`)**：
+   - 消费 `GET /api/replays/:format` 分页接口（默认每页 20 条，按对局结束时间倒序）。
+   - 列表展示：结束时间（北京时间）、对战双方昵称、录像大小、下载操作。
+   - 搜索与重置：支持按玩家昵称子串搜索；回车或点击“搜索”回到第 1 页；“清空”重置列表。
+   - 点击“下载 .yrp”直接下载录像文件（指向 `GET /api/replays/:format/:replayId`），下载文件名遵循 `<结束时间> <玩家1> VS <玩家2>.yrp` 规范。
+
+3. **天梯排行 Tab (`ladder`)**：
+   - 默认根据客户端 `Asia/Shanghai` 时区计算当前月赛季并加载月榜（`scope=season&season=YYYY-MM`）；可切换查看历史月榜或总榜（`scope=overall`）。
+   - 分页每页固定 50 条；支持按玩家昵称搜索，搜索结果展示真实昵称并保留全局排位名次。
+   - **隐私打码保护**：在无搜索关键词时，名次位于后 30%（即 `rank / total >= 0.7`）的玩家昵称在前端展示层打码为 `******`。
+   - 前三名高亮展示；总场次列等于胜场加败场。
+
+---
+
+## 2. 排位房观战机制
+
+- **观战标识格式**：`format#TT<spectatorId>`（例如 `1103#TT4821`、`1109#TT4821`）。
+- **加入准入规则**：
+  - 仅在目标排位房处于**对局中 (`DUELING`)** 或 **换备中 (`SIDE_DECKING`)** 时方可加入。
+  - 处于等待匹配中 (`WAITING`) 或终结中 (`FINALIZING`) 的房间将直接拒绝观战，且拒绝提示中严格不泄露已就座玩家的昵称。
+  - 观战者不占用排位席位，不写入匹配占用/预留列表。
+- **观战者隔离与永久阻断**：
+  - 排位房中的观战者无法通过 `TO_DUEL` 命令转正为玩家入座。
+  - 观战者的进出与网络断开完全不影响排位 MATCH 的终结结算、小局推进与天梯积分计算。
+  - 换备完成进入下一小局后，观战者保持留在观众席并接收观战视角消息。
+
+---
+
+## 3. 排位只读 API 规范
+
+### 3.1 录像列表 API (`GET /api/replays/:format`)
+
+- **查询参数**：
+  - `page`（可选，默认 1）
+  - `pageSize`（可选，默认 20，最大 100）
+  - `search`（可选，玩家昵称子串匹配，SQL 侧安全转义 `%` 与 `_`）
+- **返回结构**：
+  ```json
+  {
+    "format": "1103",
+    "page": 1,
+    "pageSize": 20,
+    "total": 42,
+    "replays": [
+      {
+        "replayId": "uuid",
+        "endedAt": "2026-09-02 23:45:10",
+        "player1Name": "Alice",
+        "player2Name": "Bob",
+        "size": 12345
+      }
+    ]
+  }
+  ```
+- **安全与过滤**：排除无效/撤销（`anulled=true`）的比赛；响应不包含 bytea 二进制与 `userId`/IP 等账号隐私字段。
+
+### 3.2 录像下载 API (`GET /api/replays/:format/:replayId`)
+
+- **响应格式**：`application/octet-stream` 流式传输原始 `.yrp` 二进制数据。
+- **标头规范**：`Content-Disposition: attachment; filename="<北京时间> <玩家1> VS <玩家2>.yrp"; filename*=UTF-8''...`。
+- **校验**：验证 `replayId` 且归属指定的 `format`；不存在或不匹配时返回 404。
+
+### 3.3 排行榜 API 增量扩展 (`GET /api/leaderboards/:format`)
+
+- **查询参数**：
+  - `scope`: `"season" | "overall"`（必填）
+  - `season`: `"YYYY-MM"`（`scope=season` 时必填，`scope=overall` 时禁止携带）
+  - `search`: string（可选，玩家昵称子串匹配）
+  - `page`: number（可选，正整数）
+  - `pageSize`: number（可选，正整数）
+- **响应**：在保持既有 `rank`, `userId`, `username`, `points`, `wins`, `losses`, `winRate` 契约不变的基础上，增量返回 `page`, `pageSize`, `total` 字段。

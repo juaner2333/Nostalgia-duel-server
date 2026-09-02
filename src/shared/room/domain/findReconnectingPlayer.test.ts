@@ -5,6 +5,7 @@ import { findReconnectingPlayer } from "./findReconnectingPlayer";
 
 const player = (
 	overrides: Partial<{
+		id: string | null;
 		name: string;
 		isStrongAuth: boolean;
 		closed: boolean;
@@ -13,6 +14,7 @@ const player = (
 	}> = {},
 ): YgoClient =>
 	({
+		id: overrides.id ?? null,
 		name: overrides.name ?? "Jaden",
 		isStrongAuth: overrides.isStrongAuth ?? false,
 		ipAddress: overrides.ipAddress ?? "1.1.1.1",
@@ -24,12 +26,13 @@ const player = (
 
 describe("findReconnectingPlayer", () => {
 	it("matches a disconnected legacy player by name in a ranked room", () => {
-		const p = player();
+		const p = player({ id: "u1" });
 		const result = findReconnectingPlayer({
 			players: [p],
 			name: "Jaden",
 			transport: "tcp",
 			ranked: true,
+			userId: "u1",
 		});
 		expect(result).toEqual({ outcome: "takeover", player: p });
 	});
@@ -46,14 +49,39 @@ describe("findReconnectingPlayer", () => {
 	});
 
 	it("matches even a still-open socket in a ranked room — a backgrounded mobile client leaves a half-open socket that never reports closed, so the by-name reconnect must take it over (last-join-wins)", () => {
-		const p = player({ closed: false });
+		const p = player({ id: "u1", closed: false });
 		const result = findReconnectingPlayer({
 			players: [p],
 			name: "Jaden",
 			transport: "tcp",
 			ranked: true,
+			userId: "u1",
 		});
 		expect(result).toEqual({ outcome: "takeover", player: p });
+	});
+
+	it("rejects an anonymous same-name joiner in a ranked room — spectators never take over seats", () => {
+		const p = player({ id: "u1" });
+		const result = findReconnectingPlayer({
+			players: [p],
+			name: "Jaden",
+			transport: "tcp",
+			ranked: true,
+			userId: undefined,
+		});
+		expect(result).toEqual({ outcome: "rejected", reason: "user_mismatch" });
+	});
+
+	it("rejects a ranked reconnect when user IDs do not match", () => {
+		const p = player({ id: "u1" });
+		const result = findReconnectingPlayer({
+			players: [p],
+			name: "Jaden",
+			transport: "tcp",
+			ranked: true,
+			userId: "u2",
+		});
+		expect(result).toEqual({ outcome: "rejected", reason: "user_mismatch" });
 	});
 
 	it("takes over a still-open casual TCP socket", () => {
