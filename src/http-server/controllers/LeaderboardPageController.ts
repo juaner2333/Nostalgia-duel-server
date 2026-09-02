@@ -831,9 +831,25 @@ export function renderLeaderboardPage(formatId: string): string {
 				loadingRow.appendChild(loadingTd);
 				tbody.appendChild(loadingRow);
 
-				if (ladderState.scope === "season" && (!ladderState.season || !/^\d{4}-\d{2}$/.test(ladderState.season))) {
-					ladderState.season = getBeijingMonth();
-					document.getElementById("ladder-season-input").value = ladderState.season;
+				if (ladderState.scope === "season") {
+					var inputElem = document.getElementById("ladder-season-input");
+					var inputVal = inputElem ? inputElem.value.trim() : "";
+					if (inputVal) {
+						var m = inputVal.match(/^(\d{4})-(\d{1,2})$/);
+						if (m) {
+							var monthNum = parseInt(m[2], 10);
+							if (monthNum >= 1 && monthNum <= 12) {
+								var normMonth = monthNum < 10 ? ("0" + monthNum) : String(monthNum);
+								ladderState.season = m[1] + "-" + normMonth;
+							}
+						}
+					}
+					if (!ladderState.season || !/^\d{4}-\d{2}$/.test(ladderState.season)) {
+						ladderState.season = getBeijingMonth();
+					}
+					if (inputElem) {
+						inputElem.value = ladderState.season;
+					}
 				}
 
 				var url = "/api/leaderboards/" + FORMAT + "?scope=" + ladderState.scope +
@@ -962,6 +978,22 @@ export function renderLeaderboardPage(formatId: string): string {
 				document.getElementById("btn-scope-overall").classList.remove("btn-primary");
 				document.getElementById("ladder-season-input").style.display = "inline-block";
 				document.getElementById("btn-query-month").style.display = "inline-block";
+				var inputElem = document.getElementById("ladder-season-input");
+				var val = inputElem ? inputElem.value.trim() : "";
+				if (val) {
+					var m = val.match(/^(\d{4})-(\d{1,2})$/);
+					if (m) {
+						var monthNum = parseInt(m[2], 10);
+						if (monthNum >= 1 && monthNum <= 12) {
+							var normMonth = monthNum < 10 ? ("0" + monthNum) : String(monthNum);
+							ladderState.season = m[1] + "-" + normMonth;
+						}
+					}
+				}
+				if (!ladderState.season) {
+					ladderState.season = getBeijingMonth();
+					if (inputElem) inputElem.value = ladderState.season;
+				}
 				ladderState.page = 1;
 				loadLadder();
 			});
@@ -977,22 +1009,37 @@ export function renderLeaderboardPage(formatId: string): string {
 			});
 
 			document.getElementById("btn-query-month").addEventListener("click", function() {
-				var val = document.getElementById("ladder-season-input").value;
-				if (!/^\d{4}-\d{2}$/.test(val)) {
+				var inputElem = document.getElementById("ladder-season-input");
+				var val = inputElem ? inputElem.value.trim() : "";
+				var m = val.match(/^(\d{4})-(\d{1,2})$/);
+				if (!m) {
 					showToast("请输入有效月份格式 (YYYY-MM)");
 					return;
 				}
-				ladderState.season = val;
+				var monthNum = parseInt(m[2], 10);
+				if (monthNum < 1 || monthNum > 12) {
+					showToast("月份必须在 01 至 12 之间");
+					return;
+				}
+				var normMonth = monthNum < 10 ? ("0" + monthNum) : String(monthNum);
+				ladderState.season = m[1] + "-" + normMonth;
+				if (inputElem) inputElem.value = ladderState.season;
 				ladderState.page = 1;
 				loadLadder();
 			});
 
 			document.getElementById("ladder-season-input").addEventListener("change", function() {
-				var val = this.value;
-				if (/^\d{4}-\d{2}$/.test(val)) {
-					ladderState.season = val;
-					ladderState.page = 1;
-					loadLadder();
+				var val = this.value.trim();
+				var m = val.match(/^(\d{4})-(\d{1,2})$/);
+				if (m) {
+					var monthNum = parseInt(m[2], 10);
+					if (monthNum >= 1 && monthNum <= 12) {
+						var normMonth = monthNum < 10 ? ("0" + monthNum) : String(monthNum);
+						ladderState.season = m[1] + "-" + normMonth;
+						this.value = ladderState.season;
+						ladderState.page = 1;
+						loadLadder();
+					}
 				}
 			});
 
