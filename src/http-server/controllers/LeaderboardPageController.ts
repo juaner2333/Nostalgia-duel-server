@@ -1030,15 +1030,19 @@ export function renderLeaderboardPage(formatId: string): string {
 			document.getElementById("btn-query-month").addEventListener("click", function() {
 				var inputElem = document.getElementById("ladder-season-input");
 				var val = inputElem ? inputElem.value.trim() : "";
-				var parsed = parseSeasonInput(val);
-				if (!parsed) {
-					showToast("请输入有效月份格式 (如 2026-02)");
-					return;
-				}
+				var parsed = parseSeasonInput(val) || parseSeasonInput(ladderState.season) || getBeijingMonth();
 				ladderState.season = parsed;
 				if (inputElem) inputElem.value = ladderState.season;
 				ladderState.page = 1;
 				loadLadder();
+			});
+
+			document.getElementById("ladder-season-input").addEventListener("input", function() {
+				var val = this.value.trim();
+				var parsed = parseSeasonInput(val);
+				if (parsed) {
+					ladderState.season = parsed;
+				}
 			});
 
 			document.getElementById("ladder-season-input").addEventListener("change", function() {
@@ -1111,6 +1115,10 @@ export class LeaderboardPageController {
 			});
 			return;
 		}
+
+		res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+		res.setHeader("Pragma", "no-cache");
+		res.setHeader("Expires", "0");
 
 		const html = renderLeaderboardPage(format);
 		res.type("html").status(200).send(html);
