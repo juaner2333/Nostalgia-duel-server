@@ -789,7 +789,10 @@ export function renderLeaderboardPage(formatId: string): string {
 					downloadLink.className = "btn btn-copy btn-primary";
 					downloadLink.href = "/api/replays/" + FORMAT + "/" + encodeURIComponent(rep.replayId);
 					downloadLink.textContent = "下载 .yrp";
-					downloadLink.setAttribute("download", "");
+					var safeTime = (rep.endedAt || "replay").replace(/[:/]/g, "-");
+					var safeP1 = p1.replace(/[/\\?%*:|"<>]/g, "_");
+					var safeP2 = p2.replace(/[/\\?%*:|"<>]/g, "_");
+					downloadLink.setAttribute("download", safeTime + " " + safeP1 + " VS " + safeP2 + ".yrp");
 					tdAction.appendChild(downloadLink);
 					row.appendChild(tdAction);
 
