@@ -47,11 +47,24 @@ export class GetLeaderboard {
 		}
 
 		if (request.scope === "season") {
-			if (!request.season || !/^\d{4}-\d{2}$/.test(request.season)) {
+			if (!request.season) {
 				throw new Error("Invalid season: format must be YYYY-MM");
 			}
 
-			const numericSeason = parseInt(request.season.replace("-", ""), 10);
+			const seasonMatch = request.season.match(/^(\d{4})-(\d{1,2})$/);
+			if (!seasonMatch) {
+				throw new Error("Invalid season: format must be YYYY-MM");
+			}
+
+			const normalizedYear = seasonMatch[1];
+			const monthNumber = parseInt(seasonMatch[2], 10);
+			if (monthNumber < 1 || monthNumber > 12) {
+				throw new Error("Invalid season: month must be between 01 and 12");
+			}
+			const normalizedMonth = String(monthNumber).padStart(2, "0");
+			const normalizedSeason = `${normalizedYear}-${normalizedMonth}`;
+			const numericSeason = parseInt(`${normalizedYear}${normalizedMonth}`, 10);
+
 			const result = await this.repository.getSeasonLeaderboard(
 				request.format,
 				numericSeason,
@@ -63,7 +76,7 @@ export class GetLeaderboard {
 			return {
 				format: request.format,
 				scope: "season",
-				season: request.season,
+				season: normalizedSeason,
 				page: request.page,
 				pageSize: request.pageSize,
 				total,

@@ -460,7 +460,7 @@ export function renderLeaderboardPage(formatId: string): string {
 
 			function getBeijingMonth() {
 				try {
-					var parts = new Intl.DateTimeFormat("zh-CN", {
+					var parts = new Intl.DateTimeFormat("en-US", {
 						timeZone: "Asia/Shanghai",
 						year: "numeric",
 						month: "2-digit"
@@ -470,7 +470,8 @@ export function renderLeaderboardPage(formatId: string): string {
 						if (parts[i].type === "year") y = parts[i].value;
 						if (parts[i].type === "month") m = parts[i].value;
 					}
-					if (y && m) return y + "-" + m;
+					if (m && m.length < 2) m = "0" + m;
+					if (y && m && /^\d{4}$/.test(y) && /^\d{2}$/.test(m)) return y + "-" + m;
 				} catch (e) {}
 				var d = new Date();
 				var utc = d.getTime() + (d.getTimezoneOffset() * 60000);
