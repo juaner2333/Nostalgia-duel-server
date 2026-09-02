@@ -29,12 +29,12 @@ export class DownloadReplayController {
 				replayId,
 			});
 
-			const safeFilename = result.filename.replace(/"/g, "");
+			const safeAsciiFilename = `replay-${result.replayId.replace(/[^a-zA-Z0-9_-]/g, "")}.yrp`;
 			const encodedFilename = encodeURIComponent(result.filename);
 			res.setHeader("Content-Type", "application/octet-stream");
 			res.setHeader(
 				"Content-Disposition",
-				`attachment; filename="${safeFilename}"; filename*=UTF-8''${encodedFilename}`,
+				`attachment; filename="${safeAsciiFilename}"; filename*=UTF-8''${encodedFilename}`,
 			);
 			res.status(200).send(result.replayData);
 		} catch (error: any) {

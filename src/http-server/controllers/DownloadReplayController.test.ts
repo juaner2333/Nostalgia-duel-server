@@ -62,7 +62,7 @@ describe("DownloadReplayController", () => {
 		expect(res.setHeader).toHaveBeenCalledWith("Content-Type", "application/octet-stream");
 		expect(res.setHeader).toHaveBeenCalledWith(
 			"Content-Disposition",
-			expect.stringContaining("Alice VS Bob.yrp"),
+			expect.stringContaining("filename*=UTF-8''"),
 		);
 		expect(res.send).toHaveBeenCalledWith(fakeBinary);
 	});
