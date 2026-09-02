@@ -476,7 +476,8 @@ export function renderLeaderboardPage(formatId: string): string {
 				var utc = d.getTime() + (d.getTimezoneOffset() * 60000);
 				var bj = new Date(utc + (3600000 * 8));
 				var year = bj.getFullYear();
-				var month = String(bj.getMonth() + 1).padStart(2, "0");
+				var monthNum = bj.getMonth() + 1;
+				var month = monthNum < 10 ? ("0" + monthNum) : String(monthNum);
 				return year + "-" + month;
 			}
 
@@ -829,6 +830,11 @@ export function renderLeaderboardPage(formatId: string): string {
 				loadingRow.appendChild(loadingTd);
 				tbody.appendChild(loadingRow);
 
+				if (ladderState.scope === "season" && (!ladderState.season || !/^\d{4}-\d{2}$/.test(ladderState.season))) {
+					ladderState.season = getBeijingMonth();
+					document.getElementById("ladder-season-input").value = ladderState.season;
+				}
+
 				var url = "/api/leaderboards/" + FORMAT + "?scope=" + ladderState.scope +
 					"&page=" + ladderState.page + "&pageSize=" + ladderState.pageSize;
 				if (ladderState.scope === "season" && ladderState.season) {
@@ -840,7 +846,16 @@ export function renderLeaderboardPage(formatId: string): string {
 
 				fetch(url)
 					.then(function(res) {
-						if (!res.ok) throw new Error("加载排行榜失败: " + res.status);
+						if (!res.ok) {
+							return res.json().then(function(d) {
+								throw new Error(d && d.error ? d.error : ("HTTP " + res.status));
+							}).catch(function(e) {
+								if (e && e.message && e.message.indexOf("HTTP") === -1) {
+									throw e;
+								}
+								throw new Error("HTTP " + res.status);
+							});
+						}
 						return res.json();
 					})
 					.then(function(data) {
@@ -851,12 +866,14 @@ export function renderLeaderboardPage(formatId: string): string {
 					})
 					.catch(function(err) {
 						if (reqId !== ladderState.requestId) return;
+						console.error("加载排行榜失败:", err);
 						tbody.innerHTML = "";
 						var errRow = document.createElement("tr");
 						var errTd = document.createElement("td");
 						errTd.colSpan = 7;
 						errTd.className = "info-box error";
-						errTd.textContent = "加载排行榜失败，请重试";
+						var msg = (err && err.message) ? ("加载排行榜失败 (" + err.message + ")，请重试") : "加载排行榜失败，请重试";
+						errTd.textContent = msg;
 						errRow.appendChild(errTd);
 						tbody.appendChild(errRow);
 						document.getElementById("ladder-pager").style.display = "none";
@@ -967,6 +984,15 @@ export function renderLeaderboardPage(formatId: string): string {
 				ladderState.season = val;
 				ladderState.page = 1;
 				loadLadder();
+			});
+
+			document.getElementById("ladder-season-input").addEventListener("change", function() {
+				var val = this.value;
+				if (/^\d{4}-\d{2}$/.test(val)) {
+					ladderState.season = val;
+					ladderState.page = 1;
+					loadLadder();
+				}
 			});
 
 			document.getElementById("btn-search-ladder").addEventListener("click", function() {

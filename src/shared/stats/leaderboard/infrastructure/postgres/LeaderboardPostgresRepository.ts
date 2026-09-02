@@ -41,13 +41,13 @@ export class LeaderboardPostgresRepository implements LeaderboardRepository {
 			WITH ranked_stats AS (
 				SELECT
 					ps.user_id AS "userId",
-					u.username AS "username",
+					COALESCE(u.username, '未知玩家') AS "username",
 					ps.points AS "points",
 					ps.wins AS "wins",
 					ps.losses AS "losses",
-					ROW_NUMBER() OVER (ORDER BY ps.points DESC, ps.wins DESC, u.username ASC) AS "rank"
+					ROW_NUMBER() OVER (ORDER BY ps.points DESC, ps.wins DESC, COALESCE(u.username, '') ASC) AS "rank"
 				FROM player_stats ps
-				JOIN users u ON u.id = ps.user_id
+				LEFT JOIN users u ON u.id = ps.user_id
 				WHERE ps.format_id = $1 AND ps.season = $2 AND (ps.wins + ps.losses) > 0
 			)
 			SELECT
@@ -126,12 +126,12 @@ export class LeaderboardPostgresRepository implements LeaderboardRepository {
 			WITH aggregated_stats AS (
 				SELECT
 					ps.user_id AS "userId",
-					u.username AS "username",
+					COALESCE(u.username, '未知玩家') AS "username",
 					SUM(ps.points)::int AS "points",
 					SUM(ps.wins)::int AS "wins",
 					SUM(ps.losses)::int AS "losses"
 				FROM player_stats ps
-				JOIN users u ON u.id = ps.user_id
+				LEFT JOIN users u ON u.id = ps.user_id
 				WHERE ps.format_id = $1
 				GROUP BY ps.user_id, u.username
 				HAVING (SUM(ps.wins) + SUM(ps.losses)) > 0
