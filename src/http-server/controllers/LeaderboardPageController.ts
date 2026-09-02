@@ -472,7 +472,7 @@ export function renderLeaderboardPage(formatId: string): string {
 						if (parts[i].type === "month") m = parts[i].value;
 					}
 					if (m && m.length < 2) m = "0" + m;
-					if (y && m && /^\d{4}$/.test(y) && /^\d{2}$/.test(m)) return y + "-" + m;
+					if (y && m && /^\\d{4}$/.test(y) && /^\\d{2}$/.test(m)) return y + "-" + m;
 				} catch (e) {}
 				var d = new Date();
 				var utc = d.getTime() + (d.getTimezoneOffset() * 60000);
@@ -486,8 +486,8 @@ export function renderLeaderboardPage(formatId: string): string {
 			function parseSeasonInput(raw) {
 				if (!raw) return null;
 				var str = String(raw).trim();
-				var m = str.match(/^(\d{4})[^\d]?(\d{1,2})[^\d]?$/) ||
-				        str.match(/^(\d{4})[^\d]+(\d{1,2})/);
+				var m = str.match(/^(\\d{4})[^\\d]?(\\d{1,2})[^\\d]?$/) ||
+				        str.match(/^(\\d{4})[^\\d]+(\\d{1,2})/);
 				if (m) {
 					var year = m[1];
 					var month = parseInt(m[2], 10);
@@ -495,7 +495,7 @@ export function renderLeaderboardPage(formatId: string): string {
 						return year + "-" + (month < 10 ? "0" + month : String(month));
 					}
 				}
-				var m2 = str.match(/^(\d{2})[^\d]+(\d{1,2})/);
+				var m2 = str.match(/^(\\d{2})[^\\d]+(\\d{1,2})/);
 				if (m2) {
 					var yearNum = parseInt(m2[1], 10);
 					var y2 = yearNum < 50 ? String(2000 + yearNum) : String(1900 + yearNum);
@@ -504,7 +504,7 @@ export function renderLeaderboardPage(formatId: string): string {
 						return y2 + "-" + (month2 < 10 ? "0" + month2 : String(month2));
 					}
 				}
-				var m3 = str.match(/^(\d{4})(\d{2})$/);
+				var m3 = str.match(/^(\\d{4})(\\d{2})$/);
 				if (m3) {
 					var y3 = m3[1];
 					var month3 = parseInt(m3[2], 10);
