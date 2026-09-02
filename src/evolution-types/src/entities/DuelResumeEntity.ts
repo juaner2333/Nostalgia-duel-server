@@ -3,13 +3,17 @@ import {
 	CreateDateColumn,
 	DeleteDateColumn,
 	Entity,
+	Index,
 	PrimaryColumn,
+	Unique,
 	UpdateDateColumn,
 } from "typeorm";
 
 @Entity({
 	name: "duels",
 })
+@Unique("UQ_duels_user_replay", ["userId", "replayId"])
+@Index("IDX_duels_replay", ["replayId"])
 export class DuelResumeEntity {
 	@PrimaryColumn()
 	id: string;
@@ -17,8 +21,11 @@ export class DuelResumeEntity {
 	@Column({ name: "user_id" })
 	userId: string;
 
-	@Column({ name: "game_id" })
+	@Column({ name: "game_id", type: "uuid" })
 	gameId: string;
+
+	@Column({ name: "replay_id", type: "uuid" })
+	replayId: string;
 
 	@Column({ name: "player_names", type: "simple-array" })
 	playerNames: string[];

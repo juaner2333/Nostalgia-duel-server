@@ -5,7 +5,6 @@
 const mockBootstrapYgoproResources = jest.fn();
 const mockBootstrapPersistence = jest.fn();
 const mockBootstrapStatsSubscriptions = jest.fn();
-const mockBootstrapMatchmaking = jest.fn();
 const mockBootstrapWindbot = jest.fn().mockReturnValue(undefined);
 const mockComposeJoinStrategies = jest.fn().mockReturnValue({});
 const mockSetStrategies = jest.fn();
@@ -21,9 +20,6 @@ jest.mock("./bootstrap/bootstrapPersistence", () => ({
 }));
 jest.mock("./bootstrap/bootstrapStatsSubscriptions", () => ({
 	bootstrapStatsSubscriptions: (...args: unknown[]) => mockBootstrapStatsSubscriptions(...args),
-}));
-jest.mock("./bootstrap/bootstrapMatchmaking", () => ({
-	bootstrapMatchmaking: (...args: unknown[]) => mockBootstrapMatchmaking(...args),
 }));
 jest.mock("./http-server/Server", () => ({
 	Server: jest.fn().mockImplementation(() => ({ initialize: mockServerInitialize })),
@@ -83,18 +79,16 @@ describe("server startup boundary", () => {
 		mockBootstrapYgoproResources.mockResolvedValue(undefined);
 		mockBootstrapPersistence.mockResolvedValue(undefined);
 		mockBootstrapStatsSubscriptions.mockResolvedValue(undefined);
-		mockBootstrapMatchmaking.mockResolvedValue(undefined);
 	});
 
 	it("verifies resources before persistence and before any port listener opens", async () => {
 		await start();
 
-		const [resources, persistence, stats, http, matchmaking, tcp, ws] = invocationOrder([
+		const [resources, persistence, stats, http, tcp, ws] = invocationOrder([
 			mockBootstrapYgoproResources,
 			mockBootstrapPersistence,
 			mockBootstrapStatsSubscriptions,
 			mockServerInitialize,
-			mockBootstrapMatchmaking,
 			mockYgoproServerInitialize,
 			mockWsYgoproServerInitialize,
 		]);
@@ -102,8 +96,7 @@ describe("server startup boundary", () => {
 		expect(resources).toBeLessThan(persistence);
 		expect(persistence).toBeLessThan(stats);
 		expect(stats).toBeLessThan(http);
-		expect(http).toBeLessThan(matchmaking);
-		expect(matchmaking).toBeLessThan(tcp);
+		expect(http).toBeLessThan(tcp);
 		expect(tcp).toBeLessThan(ws);
 	});
 
@@ -114,7 +107,6 @@ describe("server startup boundary", () => {
 
 		expect(mockBootstrapPersistence).not.toHaveBeenCalled();
 		expect(mockBootstrapStatsSubscriptions).not.toHaveBeenCalled();
-		expect(mockBootstrapMatchmaking).not.toHaveBeenCalled();
 		expect(mockServerInitialize).not.toHaveBeenCalled();
 		expect(mockYgoproServerInitialize).not.toHaveBeenCalled();
 		expect(mockWsYgoproServerInitialize).not.toHaveBeenCalled();

@@ -9,6 +9,7 @@ export class DuelResumeCreator {
 	async run(payload: {
 		userId: string;
 		gameId: string;
+		replayId: string;
 		playerNames: string[];
 		opponentNames: string[];
 		date: Date;

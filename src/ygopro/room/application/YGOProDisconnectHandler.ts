@@ -1,4 +1,3 @@
-import { AbortMatchmakingRoom } from "@ygopro/matchmaking/application/AbortMatchmakingRoom";
 import { YGOProClient } from "@ygopro/client/domain/YGOProClient";
 import { DuelState } from "@shared/room/domain/YgoRoom";
 import { ISocket } from "@shared/socket/domain/ISocket";
@@ -6,6 +5,7 @@ import { ISocket } from "@shared/socket/domain/ISocket";
 import { YGOProRoom } from "../domain/YGOProRoom";
 import { FinalizeYGOProRoom } from "./FinalizeYGOProRoom";
 import { YGOProRoomFinder } from "./YGOProRoomFinder";
+import { RankedRoomRegistry } from "../ranked/domain/RankedRoomRegistry";
 
 export class YGOProDisconnectHandler {
 	constructor(
@@ -27,23 +27,11 @@ export class YGOProDisconnectHandler {
 	}
 
 	private handle(room: YGOProRoom): void {
-		// A matchmaking reservation owns the whole two-player WAITING lobby. If
-		// either socket leaves, close the room and release both queue identities;
-		// the connected survivor will immediately re-enter the pool client-side.
-		if (room.isMatchmaking && room.duelState === DuelState.WAITING) {
-			AbortMatchmakingRoom.run(room);
-			return;
-		}
-
 		// On `close` the leaver's socket is already closed, so this also catches
 		// the last WAITING player leaving — finalize instead of leaking a zombie.
-		// Started, non-AI, NON-matchmaking rooms get a bounded reconnect grace
-		// instead: both players may recover by name before the unified teardown
-		// runs. Matchmaking starts with a reservation that is atomic per proposal
-		// (no 90s grace) — isMatchmaking survives into the started duel, so it is
-		// excluded explicitly here.
+		// Started, non-AI rooms get a bounded reconnect grace instead.
 		if (room.hasNoConnectedPlayers) {
-			if (room.duelState !== DuelState.WAITING && !room.noHost && !room.isMatchmaking) {
+			if (room.duelState !== DuelState.WAITING && !room.noHost) {
 				room.startReconnectGrace(() => FinalizeYGOProRoom.run(room));
 				return;
 			}
@@ -70,8 +58,26 @@ export class YGOProDisconnectHandler {
 		}
 
 		if (room.duelState === DuelState.WAITING) {
+			if (player.id) {
+				RankedRoomRegistry.getInstance().releaseOccupancy(player.id);
+			}
+			if (room.isDirectRanked) {
+				RankedRoomRegistry.getInstance().releaseReservation(room.id);
+			}
 			room.playerLeave(player);
 			player.destroy();
+			return;
+		}
+
+		if (room.isDirectRanked) {
+			room.startPlayerDisconnectTimer(player, () => {
+				if (room.finalizing) return;
+				const otherPlayer = room.players.find((p) => p !== player && !p.socket.closed);
+				if (otherPlayer instanceof YGOProClient) {
+					room.forfeitMatch(player);
+				}
+				FinalizeYGOProRoom.run(room);
+			});
 		}
 	}
 

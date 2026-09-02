@@ -4,14 +4,14 @@ export type UserProfileProperties = {
 	id: string;
 	username: string;
 	password: string;
-	email: string;
+	email: string | null;
 	avatar: string | null;
 };
 export class UserProfile {
 	readonly id: string;
 	readonly username: string;
 	readonly password: string;
-	readonly email: string;
+	readonly email: string | null;
 	readonly avatar: string | null;
 
 	private constructor({ id, username, password, email, avatar }: UserProfileProperties) {
@@ -26,13 +26,13 @@ export class UserProfile {
 		id,
 		username,
 		password,
-		email,
+		email = null,
 		avatar,
 	}: {
 		id: string;
 		username: string;
 		password: string;
-		email: string;
+		email?: string | null;
 		avatar: string | null;
 	}): Promise<UserProfile> {
 		const passwordHashed = await bcrypt.hash(password, 10);
@@ -50,7 +50,7 @@ export class UserProfile {
 		id: string;
 		username: string;
 		password: string;
-		email: string;
+		email: string | null;
 		avatar: string | null;
 	}): UserProfile {
 		return new UserProfile(data);

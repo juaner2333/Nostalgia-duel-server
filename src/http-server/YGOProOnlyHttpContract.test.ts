@@ -23,7 +23,8 @@ jest.mock("@ygopro/ygopro/YGOProResourceLoader", () => ({
 	YGOProResourceLoader: { isInitialized: false, get: () => null },
 }));
 
-import type { Request, Response } from "express";
+import express, { type Request, type Response } from "express";
+import { loadRoutes } from "./routes";
 
 import YGOProBanListMemoryRepository from "@ygopro/ban-list/infrastructure/YGOProBanListMemoryRepository";
 import YGOProRoomList from "@ygopro/room/infrastructure/YGOProRoomList";
@@ -245,5 +246,19 @@ describe("YGOPro-only HTTP contract", () => {
 		expect(ygoproSend).toHaveBeenCalledTimes(1);
 		const frame = ygoproSend.mock.calls[0][0] as Buffer;
 		expect(frame[2]).toBe(0x19); // YGOPro STOC_CHAT
+	});
+
+	it("does not mount any matchmaking routes", () => {
+		const app = express();
+		const mockTickets = {} as any;
+		const logger = new LoggerMock();
+
+		loadRoutes(app, logger, mockTickets);
+
+		const stack = (app._router || (app as any).router)?.stack || [];
+		const routes = stack.filter((r: any) => r.route).map((r: any) => r.route.path);
+
+		expect(routes).not.toContain("/api/matchmaking/queue");
+		expect(routes).not.toContain("/api/matchmaking/status");
 	});
 });

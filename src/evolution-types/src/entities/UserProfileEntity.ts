@@ -25,8 +25,8 @@ export class UserProfileEntity {
 	@Column({ name: "secure_password", type: "varchar", nullable: true })
 	securePassword: string | null;
 
-	@Column({ unique: true })
-	email: string;
+	@Column({ unique: true, type: "varchar", nullable: true })
+	email: string | null;
 
 	@Column("simple-json", { nullable: true })
 	avatar: string | null;

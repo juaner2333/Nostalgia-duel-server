@@ -108,6 +108,7 @@ async function run() {
 				const { id: matchId } = await matchResumeCreator.run({
 					userId,
 					gameId,
+					formatId: data.banlistName ?? "1109",
 					bestOf: data.bestOf,
 					playerNames,
 					opponentNames,
@@ -128,6 +129,7 @@ async function run() {
 						await duelResumeCreator.run({
 							userId,
 							gameId,
+							replayId: randomUUID(),
 							playerNames,
 							opponentNames,
 							date: new Date(data.date),

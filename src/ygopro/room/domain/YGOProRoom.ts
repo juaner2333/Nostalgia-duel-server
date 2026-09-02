@@ -18,6 +18,8 @@ import { RoomType } from "@shared/room/domain/RoomType";
 import { MessageRepository } from "@ygopro/room/domain/MessageRepository";
 import { ISocket } from "@shared/socket/domain/ISocket";
 import { Deck } from "@shared/deck/domain/Deck";
+import { EventBus } from "@shared/event-bus/EventBus";
+import { GameOverDomainEvent } from "@shared/room/domain/match/domain/domain-events/GameOverDomainEvent";
 
 import MercuryBanListMemoryRepository from "../../ban-list/infrastructure/YGOProBanListMemoryRepository";
 import { YGOProClient } from "../../client/domain/YGOProClient";
@@ -64,7 +66,7 @@ export interface NostalgiaRoomCreationOptions {
 	createdBySocketId: string;
 	messageRepository: MessageRepository;
 	banListHash: number;
-	rankedOverride?: boolean;
+	eventBus?: EventBus;
 }
 
 export class YGOProRoom extends YgoRoom {
@@ -99,9 +101,9 @@ export class YGOProRoom extends YgoRoom {
 	windbot?: { name: string; deck: string };
 	noHost: boolean = false;
 	noReconnect: boolean = false;
-	/** True only for rooms pre-created by the matchmaking queue. Their WAITING
-	 * lifecycle is atomic: if either participant leaves, the reservation aborts. */
-	isMatchmaking: boolean = false;
+	/** True only for direct nostalgia ranked rooms (#TT). */
+	isDirectRanked: boolean = false;
+	public eventBus?: EventBus;
 
 	// Set to true when the room begins teardown (removeRoom entry point in YGOProDuelingState).
 	// The WindBotJoinStrategy retry-abort callback reads this to stop retrying when the room
@@ -257,7 +259,7 @@ export class YGOProRoom extends YgoRoom {
 			team1: 1,
 			league: RoomLeague.determine({
 				casual: false,
-				rankedOverride: options.rankedOverride,
+				rankedOverride: undefined,
 				hasPin: false,
 			}),
 			createdBySocketId: options.createdBySocketId,
@@ -271,6 +273,59 @@ export class YGOProRoom extends YgoRoom {
 
 		room._logger = options.logger.child({ file: "NostalgiaRoom" });
 		room.emitter = options.emitter;
+		room.eventBus = options.eventBus;
+
+		return room;
+	}
+
+	static createDirectRanked(options: {
+		id: number;
+		formatId: NostalgiaFormatId;
+		logger: Logger;
+		emitter: EventEmitter;
+		createdBySocketId: string;
+		messageRepository: MessageRepository;
+		banListHash: number;
+		eventBus?: EventBus;
+	}): YGOProRoom {
+		const format = getNostalgiaFormat(options.formatId);
+		if (!format) {
+			throw new Error(`Unsupported nostalgia format: ${options.formatId}`);
+		}
+		const room = new YGOProRoom({
+			id: options.id,
+			name: `${format.id}#TT`,
+			password: "",
+			hostInfo: {
+				lflist: options.banListHash,
+				rule: format.rule,
+				mode: format.mode,
+				duel_rule: format.duelRule,
+				no_check_deck: 0,
+				no_shuffle_deck: 0,
+				start_lp: format.startLp,
+				start_hand: 5,
+				draw_count: 1,
+				time_limit: 300,
+				max_deck_points: 100,
+				best_of: format.bestOf,
+			},
+			team0: 1,
+			team1: 1,
+			league: RoomLeague.External,
+			createdBySocketId: options.createdBySocketId,
+			bestOf: format.bestOf,
+			startLp: format.startLp,
+			messageRepository: options.messageRepository,
+			banListHash: options.banListHash,
+			formatId: format.id,
+			externalRoomId: "TT",
+		});
+
+		room.isDirectRanked = true;
+		room._logger = options.logger.child({ file: "NostalgiaRankedRoom" });
+		room.emitter = options.emitter;
+		room.eventBus = options.eventBus;
 
 		return room;
 	}
@@ -681,7 +736,7 @@ export class YGOProRoom extends YgoRoom {
 
 		const displayCountDecks: (Deck | null)[] = [0, 1].map((team) => {
 			const player = this.getTeamPlayers(team)[0];
-			return player.deck;
+			return player?.deck ?? null;
 		});
 
 		const team = client.team;
@@ -715,6 +770,7 @@ export class YGOProRoom extends YgoRoom {
 		// A successful seat takeover ends any pending reconnect grace: the room is
 		// no longer abandoned, so the scheduled teardown must not run.
 		this.cancelReconnectGrace();
+		this.cancelPlayerDisconnectTimer(player);
 
 		const previousSocket = player.socket;
 		// Detach the old socket's room message + disconnect-close callbacks BEFORE
@@ -738,6 +794,78 @@ export class YGOProRoom extends YgoRoom {
 			);
 			player.sendMessageToClient(playerEnterMessageBuffer);
 		});
+	}
+
+	private readonly _playerDisconnectTimers: Map<number, NodeJS.Timeout> = new Map();
+
+	public startPlayerDisconnectTimer(player: YGOProClient, onTimeout: () => void): void {
+		if (this._playerDisconnectTimers.has(player.position)) {
+			return;
+		}
+		const timer = setTimeout(() => {
+			this._playerDisconnectTimers.delete(player.position);
+			onTimeout();
+		}, this.reconnectGraceMs);
+		this._playerDisconnectTimers.set(player.position, timer);
+	}
+
+	public cancelPlayerDisconnectTimer(player: YGOProClient): void {
+		const timer = this._playerDisconnectTimers.get(player.position);
+		if (timer) {
+			clearTimeout(timer);
+			this._playerDisconnectTimers.delete(player.position);
+		}
+	}
+
+	public cancelAllPlayerDisconnectTimers(): void {
+		for (const timer of this._playerDisconnectTimers.values()) {
+			clearTimeout(timer);
+		}
+		this._playerDisconnectTimers.clear();
+	}
+
+	public forfeitMatch(loser: YGOProClient): void {
+		const winner = this._players.find((p) => p !== loser);
+		if (!winner) return;
+
+		if (this._match) {
+			const ips = this._players.map((p) => ({ name: p.name, ipAddress: p.ipAddress }));
+			while (!this._match.isFinished()) {
+				this._match.duelWinner(winner.team, 1, ips);
+			}
+		}
+
+		const replays = this._duelRecords
+			.map((record, index) => {
+				try {
+					const yrp = record.toYrp(this);
+					return {
+						duelIndex: index + 1,
+						replayData: Buffer.from(yrp.toYrp()),
+						startedAt: record.startTime,
+						endedAt: record.endTime ?? record.startTime,
+					};
+				} catch {
+					return null;
+				}
+			})
+			.filter((r): r is NonNullable<typeof r> => r !== null);
+
+		this.eventBus?.publish(
+			GameOverDomainEvent.DOMAIN_EVENT,
+			new GameOverDomainEvent({
+				bestOf: this.bestOf,
+				players: this.matchPlayersHistory,
+				date: new Date(),
+				banListHash: this.banListHash,
+				banListName: this.banListName ?? "N/A",
+				ranked: this.ranked,
+				formatId: this.formatId,
+				externalRoomId: this.externalRoomId,
+				admissionKey: this.admissionKey,
+				replays,
+			}),
+		);
 	}
 
 	/**
@@ -805,6 +933,7 @@ export class YGOProRoom extends YgoRoom {
 	 * or worker can outlive a finalized room.
 	 */
 	public disposeRoomState(): void {
+		this.cancelAllPlayerDisconnectTimers();
 		this._roomState?.removeAllListener();
 		this._roomState = null;
 	}

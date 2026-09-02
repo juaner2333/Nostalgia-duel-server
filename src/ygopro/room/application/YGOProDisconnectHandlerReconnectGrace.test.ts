@@ -36,6 +36,7 @@ import { PlayerInfoMessageMother } from "@test-support/mothers/PlayerInfoMessage
 import { YGOProSideDeckingState } from "../domain/states/YGOProSideDeckingState";
 
 import { RECONNECT_GRACE_MS } from "../domain/YGOProRoom";
+import { RankedRoomRegistry } from "../ranked/domain/RankedRoomRegistry";
 
 jest.useFakeTimers();
 
@@ -93,6 +94,7 @@ const buildPlayer = (
 	socket: SocketStub,
 	team: Team,
 	host: boolean,
+	id: string | null = null,
 ): YGOProClient =>
 	new YGOProClient({
 		name,
@@ -100,7 +102,7 @@ const buildPlayer = (
 		logger: makeLogger(),
 		position: team === Team.PLAYER ? 0 : 1,
 		host,
-		id: null,
+		id,
 		team,
 		room,
 	});
@@ -109,6 +111,7 @@ const createStartedRoom = (
 	id: number,
 	logger: jest.Mocked<Logger>,
 	state: DuelState = DuelState.DUELING,
+	playerIds: [string | null, string | null] = [null, null],
 ): {
 	room: YGOProRoom;
 	creator: YGOProClient;
@@ -128,14 +131,17 @@ const createStartedRoom = (
 	(room as unknown as { _state: DuelState })._state = state;
 
 	const creatorSocket = new SocketStub();
-	const creator = buildPlayer(room, "Creator", creatorSocket, Team.PLAYER, true);
-	room.addPlayerUnsafe(creator);
-
 	const guestSocket = new SocketStub();
-	const guest = buildPlayer(room, "Guest", guestSocket, Team.OPPONENT, false);
+	creatorSocket.roomId = id;
+	guestSocket.roomId = id;
+
+	const creator = buildPlayer(room, "Creator", creatorSocket, Team.PLAYER, true, playerIds[0]);
+	const guest = buildPlayer(room, "Guest", guestSocket, Team.OPPONENT, false, playerIds[1]);
+	room.addPlayerUnsafe(creator);
 	room.addPlayerUnsafe(guest);
 
 	MercuryRoomList.addRoom(room);
+
 	return { room, creator, guest, creatorSocket, guestSocket };
 };
 
@@ -310,26 +316,6 @@ describe("YGOProDisconnectHandler — 90s reconnect grace for started rooms", ()
 		expect(graceLogs(logger)).toEqual([]);
 	});
 
-	it("finalizes a STARTED matchmaking room immediately — no 90s grace (proposal: non-matchmaking duels only)", () => {
-		const logger = makeLogger();
-		const { room, creatorSocket, guestSocket, creator, guest } = createStartedRoom(91019, logger);
-		const roomId = room.id;
-		// isMatchmaking survives the reservation into the started duel; the flag
-		// is never cleared, so the grace gate must exclude it explicitly.
-		room.isMatchmaking = true;
-
-		creatorSocket.closed = true;
-		disconnect(creator.socket.id as string, new YGOProRoomFinder());
-		guestSocket.closed = true;
-		disconnect(guest.socket.id as string, new YGOProRoomFinder());
-
-		expect(room.finalizing).toBe(true);
-		expect(MercuryRoomList.findById(roomId)).toBeNull();
-		expect(graceLogs(logger)).toEqual([]);
-		// no timer is pending for a matchmaking room
-		expect(jest.getTimerCount()).toBe(0);
-	});
-
 	it("does not start a grace when only one player of a started room disconnects", () => {
 		const logger = makeLogger();
 		const { room, creatorSocket, creator } = createStartedRoom(91017, logger);
@@ -393,5 +379,26 @@ describe("YGOProDisconnectHandler — 90s reconnect grace for started rooms", ()
 		expect((room as unknown as { _roomState: unknown })._roomState).toBeNull();
 		// the room is removed as usual
 		expect(MercuryRoomList.findById(room.id)).toBeNull();
+	});
+
+	it("releases occupancy and reservation when a player leaves a direct ranked WAITING room", () => {
+		const logger = makeLogger();
+		const { room, creatorSocket, creator } = createStartedRoom(91021, logger, DuelState.WAITING, [
+			"user-p1",
+			null,
+		]);
+		Object.defineProperty(room, "isDirectRanked", { value: true, configurable: true });
+		const registry = RankedRoomRegistry.getInstance();
+		registry.recordOccupancy("user-p1", room.id, "1109");
+		registry.reserveSeat(room.id);
+		registry.reserveSeat(room.id);
+		expect(registry.getReservations(room.id)).toBe(2);
+		expect(registry.getOccupancy("user-p1")).not.toBeNull();
+
+		creatorSocket.closed = false;
+		disconnect(creator.socket.id as string, new YGOProRoomFinder());
+
+		expect(registry.getOccupancy("user-p1")).toBeNull();
+		expect(registry.getReservations(room.id)).toBe(1);
 	});
 });

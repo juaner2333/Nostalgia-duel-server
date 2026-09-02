@@ -4,11 +4,16 @@ export class PlayerInfoMessage {
 	public static readonly MAX_BYTES_LENGTH: number = 40;
 	public readonly name: string;
 	public readonly password: string | null;
+	public readonly rankedPin: string | null;
 	public readonly hasMercurySignature: boolean;
 
 	constructor(buffer: Buffer, length: number) {
 		const data = BufferToUTF16(buffer, length);
 		this.hasMercurySignature = data.includes("$");
+
+		const rankedMatch = /^([^$]+)\$(\d{4})$/.exec(data);
+		this.rankedPin = rankedMatch ? rankedMatch[2] : null;
+
 		const separatorIndex = data.indexOf(":");
 
 		if (separatorIndex === -1) {

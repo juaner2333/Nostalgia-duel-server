@@ -8,6 +8,7 @@ import {
 } from "ygopro-msg-encode";
 
 import { DuelRecordMother } from "@test-support/mothers/room/DuelRecordMother";
+import { YGOProYrp } from "ygopro-yrp-encode";
 
 import { DuelRecord } from "./DuelRecord";
 
@@ -105,6 +106,40 @@ describe("DuelRecord.toEvrpFrames()", () => {
 			for (const stoc of decodeFrames(record.toEvrpFrames())) {
 				expect(stoc).toBeInstanceOf(YGOProStocGameMsg);
 			}
+		});
+	});
+
+	describe("DuelRecord.toYrp() raw bytes serialization", () => {
+		it("produces valid raw .yrp/.yrp2 bytes decodable by YGOProYrp.fromYrp", () => {
+			const mockRoom = {
+				hostInfo: {
+					start_lp: 8000,
+					start_hand: 5,
+					draw_count: 1,
+					rule: 2,
+					mode: 1,
+					duel_rule: 2,
+					no_check_deck: 0,
+					no_shuffle_deck: 0,
+					best_of: 3,
+					max_deck_points: 0,
+					lflist: 0,
+					time_limit: 180,
+				},
+				isTag: false,
+			};
+
+			const yrp = record.toYrp(mockRoom);
+			const yrpBytes = yrp.toYrp();
+
+			expect(yrpBytes).toBeInstanceOf(Uint8Array);
+			expect(yrpBytes.length).toBeGreaterThan(0);
+
+			const parsed = new YGOProYrp().fromYrp(yrpBytes);
+			expect(parsed.hostName).toBe(record.players[0]?.name || "");
+			expect(parsed.clientName).toBe(record.players[1]?.name || "");
+			expect(parsed.startLp).toBe(8000);
+			expect(parsed.header?.id).toBe(0x32707279);
 		});
 	});
 });

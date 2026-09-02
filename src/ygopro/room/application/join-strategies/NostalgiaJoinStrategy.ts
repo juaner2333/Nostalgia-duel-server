@@ -63,7 +63,6 @@ export class NostalgiaJoinStrategy implements JoinStrategy {
 				createdBySocketId: ctx.socketId,
 				messageRepository: ctx.messageRepository,
 				banListHash,
-				rankedOverride: ctx.socket.resolvedUserId ? true : undefined,
 			});
 			YGOProRoomList.addRoom(room);
 			room.waiting();

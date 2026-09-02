@@ -2,6 +2,7 @@ export class MatchResume {
 	readonly id: string;
 	readonly userId: string;
 	readonly gameId: string;
+	readonly formatId: string;
 	readonly bestOf: number;
 	readonly playerNames: string[];
 	readonly opponentNames: string[];
@@ -20,6 +21,7 @@ export class MatchResume {
 		id,
 		userId,
 		gameId,
+		formatId,
 		bestOf,
 		playerNames,
 		opponentNames,
@@ -37,6 +39,7 @@ export class MatchResume {
 		id: string;
 		userId: string;
 		gameId: string;
+		formatId: string;
 		bestOf: number;
 		playerNames: string[];
 		opponentNames: string[];
@@ -54,6 +57,7 @@ export class MatchResume {
 		this.id = id;
 		this.userId = userId;
 		this.gameId = gameId;
+		this.formatId = formatId;
 		this.bestOf = bestOf;
 		this.playerNames = playerNames;
 		this.opponentNames = opponentNames;
@@ -73,6 +77,7 @@ export class MatchResume {
 		id,
 		userId,
 		gameId,
+		formatId,
 		bestOf,
 		playerNames,
 		opponentNames,
@@ -90,6 +95,7 @@ export class MatchResume {
 		id: string;
 		userId: string;
 		gameId: string;
+		formatId: string;
 		bestOf: number;
 		playerNames: string[];
 		opponentNames: string[];
@@ -108,6 +114,7 @@ export class MatchResume {
 			id,
 			userId,
 			gameId,
+			formatId,
 			bestOf,
 			playerNames,
 			opponentNames,
@@ -128,6 +135,7 @@ export class MatchResume {
 		id: string;
 		userId: string;
 		gameId: string;
+		formatId: string;
 		bestOf: number;
 		playerNames: string[];
 		opponentNames: string[];

@@ -230,6 +230,7 @@ export class YGOProDuelingState extends YGOProRoomState {
 			name: playerInfoMessage.name,
 			transport: socket.transport,
 			ranked: room.ranked,
+			userId: socket.resolvedUserId,
 		});
 		const seatedPlayerNames = room.players.map((player) => player.name);
 
@@ -677,6 +678,25 @@ export class YGOProDuelingState extends YGOProRoomState {
 	}
 
 	private dispatchGameOverDomainEvent(): void {
+		const replays = this.room.duelRecords
+			.map((record, index) => {
+				try {
+					const yrp = record.toYrp(this.room);
+					return {
+						duelIndex: index + 1,
+						replayData: Buffer.from(yrp.toYrp()),
+						startedAt: record.startTime,
+						endedAt: record.endTime ?? record.startTime,
+					};
+				} catch (err) {
+					this.logger.error("Failed to serialize replay for duel " + (index + 1), {
+						error: String(err),
+					});
+					return null;
+				}
+			})
+			.filter((r): r is NonNullable<typeof r> => r !== null);
+
 		this.eventBus.publish(
 			GameOverDomainEvent.DOMAIN_EVENT,
 			new GameOverDomainEvent({
@@ -689,6 +709,7 @@ export class YGOProDuelingState extends YGOProRoomState {
 				formatId: this.room.formatId,
 				externalRoomId: this.room.externalRoomId,
 				admissionKey: this.room.admissionKey,
+				replays,
 			}),
 		);
 	}

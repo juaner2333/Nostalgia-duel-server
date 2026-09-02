@@ -172,6 +172,16 @@ describe("YGOProSideDeckingState — side-deck timeout lifecycle", () => {
 		expect(jest.getTimerCount()).toBe(0);
 		expect(WebSocketSingleton.getInstance().broadcast).not.toHaveBeenCalled();
 	});
+
+	it("forfeits match when a player times out in a direct ranked room", () => {
+		const forfeitMatchSpy = jest.spyOn(room, "forfeitMatch").mockImplementation(() => undefined);
+		Object.defineProperty(room, "isDirectRanked", { value: true, configurable: true });
+
+		jest.advanceTimersByTime(SIDE_TIMEOUT_MS);
+
+		expect(forfeitMatchSpy).toHaveBeenCalledWith(players[0]);
+		expect(room.finalizing).toBe(true);
+	});
 });
 
 // ---- helpers ----

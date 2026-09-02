@@ -55,7 +55,7 @@ describe("NostalgiaJoinStrategy", () => {
 		await strategy.handle(context);
 
 		expect(create).toHaveBeenCalledWith(
-			expect.objectContaining({ formatId: "1103", roomId: "1001", rankedOverride: undefined }),
+			expect.objectContaining({ formatId: "1103", roomId: "1001" }),
 		);
 		expect(room.waiting).toHaveBeenCalledTimes(1);
 		expect(room.emit).toHaveBeenCalledWith("JOIN", context.message, context.socket);

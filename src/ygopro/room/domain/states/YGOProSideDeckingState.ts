@@ -141,6 +141,9 @@ export class YGOProSideDeckingState extends YGOProRoomState {
 				ChatColor.BABYBLUE,
 			);
 			this.sendChatToPlayer(player, "Time is up! You have been disconnected.", ChatColor.RED);
+			if (this.room.isDirectRanked) {
+				this.room.forfeitMatch(player);
+			}
 			// A side-deck timeout ends the whole room: destroying just the player's
 			// socket leaves the room stuck in sideDecking (timers, seats and the
 			// room-list entry all survive). Run the unified teardown, which is
@@ -207,6 +210,7 @@ export class YGOProSideDeckingState extends YGOProRoomState {
 			name: playerInfoMessage.name,
 			transport: socket.transport,
 			ranked: room.ranked,
+			userId: socket.resolvedUserId,
 		});
 		const seatedPlayerNames = room.players.map((player) => player.name);
 

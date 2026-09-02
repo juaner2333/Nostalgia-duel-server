@@ -2,15 +2,13 @@ import { Express } from "express";
 
 import { TicketRepository } from "../../shared/ticket/domain/TicketRepository";
 import { Logger } from "../../shared/logger/domain/Logger";
-import { CancelMatchmakingController } from "../controllers/CancelMatchmakingController";
 import { CreateRoomController } from "../controllers/CreateRoomController";
-import { EnqueueMatchmakingController } from "../controllers/EnqueueMatchmakingController";
-import { MatchmakingStatusController } from "../controllers/MatchmakingStatusController";
 import { GetBanListDetailController } from "../controllers/GetBanListDetailController";
 import { GetBanListsController } from "../controllers/GetBanListsController";
 import { GetDatabaseCardsController } from "../controllers/GetDatabaseCardsController";
 import { GetDatabasesController } from "../controllers/GetDatabasesController";
 import { GetResourceVersionController } from "../controllers/GetResourceVersionController";
+import { GetLeaderboardController } from "../controllers/GetLeaderboardController";
 import { GetRoomListController } from "../controllers/GetRoomListController";
 import { InspectPageController } from "../controllers/InspectPageController";
 import { RoomListController } from "../controllers/RoomListController";
@@ -23,18 +21,6 @@ export function loadRoutes(app: Express, logger: Logger, tickets: TicketReposito
 	app.get("/", (req, res) => new InspectPageController().run(req, res));
 
 	app.get("/api/getrooms", (req, res) => new GetRoomListController().run(req, res));
-
-	app.post("/api/matchmaking/queue", (req, res) =>
-		new EnqueueMatchmakingController(logger, tickets).run(req, res),
-	);
-
-	app.get("/api/matchmaking/status", RateLimitMiddleware, (req, res) =>
-		new MatchmakingStatusController().run(req, res),
-	);
-
-	app.delete("/api/matchmaking/queue", RateLimitMiddleware, (req, res) =>
-		new CancelMatchmakingController().run(req, res),
-	);
 
 	app.get("/api/rooms", (req, res) => new RoomListController().run(req, res));
 
@@ -62,6 +48,10 @@ export function loadRoutes(app: Express, logger: Logger, tickets: TicketReposito
 
 	app.get("/api/cards", RateLimitMiddleware, async (req, res) => {
 		await new SearchCardsController().run(req, res);
+	});
+
+	app.get("/api/leaderboards/:format", RateLimitMiddleware, async (req, res) => {
+		await new GetLeaderboardController().run(req, res);
 	});
 
 	app.use("/api/admin", AuthAdminMiddleware);

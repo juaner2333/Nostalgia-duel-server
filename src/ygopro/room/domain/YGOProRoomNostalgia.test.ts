@@ -83,6 +83,28 @@ describe("YGOProRoom nostalgia factory", () => {
 		});
 	});
 
+	it.each([
+		"1103",
+		"1109",
+	] as const)("creates direct ranked room %s with External league and isDirectRanked true", (formatId) => {
+		const room = YGOProRoom.createDirectRanked({
+			id: Number(formatId),
+			formatId,
+			logger: new LoggerMock(),
+			emitter: new EventEmitter(),
+			createdBySocketId: `socket-${formatId}`,
+			messageRepository: new MessageRepositoryMock(),
+			banListHash: Number(formatId),
+		});
+
+		expect(room.formatId).toBe(formatId);
+		expect(room.externalRoomId).toBe("TT");
+		expect(room.isDirectRanked).toBe(true);
+		expect(room.league.type).toBe("external");
+		expect(room.league.isRanked).toBe(true);
+		expect(room.noHost).toBe(false);
+	});
+
 	it("keeps spectators and their disconnects isolated between same-number environments", async () => {
 		const emitter1103 = new EventEmitter();
 		const emitter1109 = new EventEmitter();

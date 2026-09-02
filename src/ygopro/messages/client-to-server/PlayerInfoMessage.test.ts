@@ -45,4 +45,78 @@ describe("PlayerInfoMessage", () => {
 		expect(message.password).toBeNull();
 		expect(message.hasMercurySignature).toBe(true);
 	});
+
+	describe("rankedPin parsing and fixed samples", () => {
+		it("extracts 4-digit ranked PIN when format is exact nickname$1234", () => {
+			const raw = "Duelist$1234";
+			const buffer = Buffer.from(raw, "utf16le");
+			const message = new PlayerInfoMessage(buffer, buffer.length);
+
+			expect(message.name).toBe("Duelist");
+			expect(message.rankedPin).toBe("1234");
+			expect(message.password).toBeNull();
+		});
+
+		it("returns null rankedPin when string lacks $ delimiter", () => {
+			const raw = "Duelist1234";
+			const buffer = Buffer.from(raw, "utf16le");
+			const message = new PlayerInfoMessage(buffer, buffer.length);
+
+			expect(message.name).toBe("Duelist1234");
+			expect(message.rankedPin).toBeNull();
+		});
+
+		it("returns null rankedPin when string contains multiple $ delimiters", () => {
+			const raw = "Due$list$1234";
+			const buffer = Buffer.from(raw, "utf16le");
+			const message = new PlayerInfoMessage(buffer, buffer.length);
+
+			expect(message.name).toBe("Due");
+			expect(message.rankedPin).toBeNull();
+		});
+
+		it("returns null rankedPin when PIN is not exactly 4 digits", () => {
+			const cases = ["Duelist$123", "Duelist$12345", "Duelist$abcd", "Duelist$12a4"];
+			for (const raw of cases) {
+				const buffer = Buffer.from(raw, "utf16le");
+				const message = new PlayerInfoMessage(buffer, buffer.length);
+				expect(message.name).toBe("Duelist");
+				expect(message.rankedPin).toBeNull();
+			}
+		});
+
+		it("returns null rankedPin when nickname before $ is empty", () => {
+			const raw = "$1234";
+			const buffer = Buffer.from(raw, "utf16le");
+			const message = new PlayerInfoMessage(buffer, buffer.length);
+
+			expect(message.name).toBe("");
+			expect(message.rankedPin).toBeNull();
+		});
+
+		it("verifies fixed UTF-16LE binary sample for PlayerInfo with rankedPin", () => {
+			// "Test$9876" in UTF-16LE:
+			// 'T' (0x54, 0x00), 'e' (0x65, 0x00), 's' (0x73, 0x00), 't' (0x74, 0x00),
+			// '$' (0x24, 0x00), '9' (0x39, 0x00), '8' (0x38, 0x00), '7' (0x37, 0x00), '6' (0x36, 0x00)
+			const fixedBuffer = Buffer.from([
+				0x54, 0x00, 0x65, 0x00, 0x73, 0x00, 0x74, 0x00, 0x24, 0x00, 0x39, 0x00, 0x38, 0x00, 0x37,
+				0x00, 0x36, 0x00,
+			]);
+			const message = new PlayerInfoMessage(fixedBuffer, fixedBuffer.length);
+
+			expect(message.name).toBe("Test");
+			expect(message.rankedPin).toBe("9876");
+			expect(message.password).toBeNull();
+		});
+
+		it("ensures display name does not leak the ranked PIN", () => {
+			const raw = "SuperPlayer$4321";
+			const buffer = Buffer.from(raw, "utf16le");
+			const message = new PlayerInfoMessage(buffer, buffer.length);
+
+			expect(message.name).toBe("SuperPlayer");
+			expect(message.name).not.toContain("4321");
+			expect(message.name).not.toContain("$");
+		});
+	});
 });

@@ -7,7 +7,6 @@ import { config } from "./config";
 import { bootstrapYgoproResources } from "./bootstrap/bootstrapYgoproResources";
 import { bootstrapPersistence } from "./bootstrap/bootstrapPersistence";
 import { bootstrapStatsSubscriptions } from "./bootstrap/bootstrapStatsSubscriptions";
-import { bootstrapMatchmaking } from "./bootstrap/bootstrapMatchmaking";
 import { Server } from "./http-server/Server";
 import { YGOProServer } from "./socket-server/YGOProServer";
 import { WSYGOProServer } from "./socket-server/WSYGOProServer";
@@ -52,9 +51,6 @@ export async function start(): Promise<void> {
 	if (windbotModule) {
 		logger.info("🤖 Windbot enabled");
 	}
-
-	// After windbot so the queue's bot-fallback availability check reflects it.
-	bootstrapMatchmaking(logger);
 
 	ygoproServer.initialize();
 	wsYgoproServer.initialize();

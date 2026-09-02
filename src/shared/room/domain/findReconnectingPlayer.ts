@@ -22,7 +22,11 @@ import { ISocket, SocketTransport } from "@shared/socket/domain/ISocket";
  * stable reason string (`player_not_found`, `strong_auth`, `transport_mismatch`).
  */
 
-export type ReconnectRejectionReason = "player_not_found" | "strong_auth" | "transport_mismatch";
+export type ReconnectRejectionReason =
+	| "player_not_found"
+	| "strong_auth"
+	| "transport_mismatch"
+	| "user_mismatch";
 
 export type ReconnectEligibility =
 	| { outcome: "takeover"; player: YgoClient }
@@ -47,7 +51,15 @@ export function findReconnectingPlayer(params: {
 	name: string;
 	transport: SocketTransport;
 	ranked: boolean;
+	userId?: string | null;
 }): ReconnectEligibility {
+	if (params.userId) {
+		const candidate = params.players.find((client) => client.id === params.userId);
+		if (candidate) {
+			return { outcome: "takeover", player: candidate };
+		}
+	}
+
 	const candidate = params.players.find((client) => client.name === params.name);
 	if (!candidate) {
 		return { outcome: "rejected", reason: "player_not_found" };
@@ -56,7 +68,11 @@ export function findReconnectingPlayer(params: {
 		return { outcome: "rejected", reason: "strong_auth" };
 	}
 
-	if (!params.ranked) {
+	if (params.ranked) {
+		if (candidate.id && params.userId && candidate.id !== params.userId) {
+			return { outcome: "rejected", reason: "user_mismatch" };
+		}
+	} else {
 		if (candidate.socket.transport !== "tcp" || params.transport !== "tcp") {
 			return { outcome: "rejected", reason: "transport_mismatch" };
 		}

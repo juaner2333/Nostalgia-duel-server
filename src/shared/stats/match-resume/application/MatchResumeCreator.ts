@@ -9,6 +9,7 @@ export class MatchResumeCreator {
 	async run(payload: {
 		userId: string;
 		gameId: string;
+		formatId: string;
 		bestOf: number;
 		playerNames: string[];
 		opponentNames: string[];

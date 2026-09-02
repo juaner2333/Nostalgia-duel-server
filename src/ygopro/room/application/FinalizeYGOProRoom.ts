@@ -4,6 +4,7 @@ import { YGOProRoom } from "../domain/YGOProRoom";
 import MercuryRoomList from "@ygopro/room/infrastructure/YGOProRoomList";
 import WebSocketSingleton from "../../../web-socket-server/WebSocketSingleton";
 import { ReconnectionTokenIssuer } from "@shared/room/application/reconnect/ReconnectionTokenIssuer";
+import { RankedRoomRegistry } from "../ranked/domain/RankedRoomRegistry";
 
 /**
  * Canonical teardown for a YGOPro room. Centralizes the sequence previously
@@ -43,6 +44,8 @@ export class FinalizeYGOProRoom {
 				client.destroy();
 			}
 		});
+
+		RankedRoomRegistry.getInstance().releaseRoomOccupancies(room.id);
 
 		MercuryRoomList.deleteRoom(room);
 

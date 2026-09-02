@@ -84,6 +84,7 @@ export class YGOProRockPaperScissorState extends YGOProRoomState {
 			name: playerInfoMessage.name,
 			transport: socket.transport,
 			ranked: room.ranked,
+			userId: socket.resolvedUserId,
 		});
 		const seatedPlayerNames = room.players.map((player) => player.name);
 

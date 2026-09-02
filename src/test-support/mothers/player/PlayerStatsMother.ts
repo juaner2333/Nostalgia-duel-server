@@ -6,6 +6,7 @@ export class PlayerStatsMother {
 		return PlayerStats.from({
 			id: faker.string.uuid(),
 			banListName: faker.lorem.word(),
+			formatId: "1109",
 			wins: faker.number.int(),
 			losses: faker.number.int(),
 			points: faker.number.int(),

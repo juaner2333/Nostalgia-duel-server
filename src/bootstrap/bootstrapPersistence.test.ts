@@ -10,10 +10,16 @@ jest.mock("@shared/db/redis/infrastructure/Redis", () => ({
 jest.mock("src/evolution-types/src/PostgresTypeORM", () => ({
 	PostgresTypeORM: jest.fn(),
 }));
+jest.mock("src/evolution-types/src/data-source", () => ({
+	dataSource: {
+		showMigrations: jest.fn().mockResolvedValue(false),
+	},
+}));
 
 import { Redis } from "@shared/db/redis/infrastructure/Redis";
 import { Logger } from "@shared/logger/domain/Logger";
 import { PostgresTypeORM } from "src/evolution-types/src/PostgresTypeORM";
+import { dataSource } from "src/evolution-types/src/data-source";
 
 import { config } from "src/config";
 
@@ -35,6 +41,7 @@ describe("bootstrapPersistence", () => {
 	beforeEach(() => {
 		jest.clearAllMocks();
 		config.ranking.enabled = true;
+		(dataSource.showMigrations as jest.Mock).mockResolvedValue(false);
 	});
 
 	it("connects Postgres and Redis when ranking is enabled", async () => {
@@ -47,6 +54,21 @@ describe("bootstrapPersistence", () => {
 
 		expect(postgresConnect).toHaveBeenCalledTimes(1);
 		expect(redisConnect).toHaveBeenCalledTimes(1);
+	});
+
+	it("throws error and aborts when pending migrations exist", async () => {
+		const postgresConnect = jest.fn();
+		const postgresClose = jest.fn();
+		MockPostgres.mockImplementation(() => ({
+			connect: postgresConnect,
+			close: postgresClose,
+		}));
+		(dataSource.showMigrations as jest.Mock).mockResolvedValue(true);
+
+		await expect(bootstrapPersistence(fakeLogger())).rejects.toThrow(
+			"Pending database migrations detected",
+		);
+		expect(postgresClose).toHaveBeenCalled();
 	});
 
 	it("skips Postgres but still connects Redis when ranking is disabled", async () => {

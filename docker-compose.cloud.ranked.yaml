@@ -1,0 +1,56 @@
+# 云主机排位模式部署（镜像直拉 + 内部 PostgreSQL，无 Valkey / Redis）
+#
+# 部署步骤：
+#   1. 配置 .env：SERVER_IMAGE, POSTGRES_PASSWORD, POSTGRES_DATA_DIR (绝对路径), ADMIN_API_KEY
+#   2. 启动数据库：docker compose -f docker-compose.cloud.ranked.yaml up -d postgres
+#   3. 执行迁移：docker compose -f docker-compose.cloud.ranked.yaml run --rm nostalgia-duel-server npm run migration:run:prod
+#   4. 启动服务：docker compose -f docker-compose.cloud.ranked.yaml up -d
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: nostalgia-ranked-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-nostalgia_duel}
+      TZ: Asia/Shanghai
+    volumes:
+      - ${POSTGRES_DATA_DIR:?POSTGRES_DATA_DIR is required}:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-nostalgia_duel}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  nostalgia-duel-server:
+    image: ${SERVER_IMAGE}
+    container_name: nostalgia-duel-server
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      USE_REDIS: false
+      RANK_ENABLED: true
+      ADMIN_API_KEY: ${ADMIN_API_KEY}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-nostalgia_duel}
+      YGOPRO_PORT: ${YGOPRO_PORT:-706}
+      HTTP_PORT: ${HTTP_PORT:-7922}
+      WEBSOCKET_PORT: ${WEBSOCKET_PORT:-4000}
+      TZ: Asia/Shanghai
+    ports:
+      - "${YGOPRO_PORT:-706}:${YGOPRO_PORT:-706}"
+      - "${HTTP_PORT:-7922}:${HTTP_PORT:-7922}"
+      - "${WEBSOCKET_PORT:-4000}:${WEBSOCKET_PORT:-4000}"
+      - "4002:4002"
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535

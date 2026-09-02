@@ -1,5 +1,12 @@
 import { PlayerMatchSummary } from "src/shared/player/domain/Player";
 
+export type GameOverReplayData = {
+	duelIndex: number;
+	replayData: Buffer;
+	startedAt: Date;
+	endedAt: Date;
+};
+
 export type GameOverData = {
 	bestOf: number;
 	date: Date;
@@ -10,6 +17,7 @@ export type GameOverData = {
 	formatId?: string;
 	externalRoomId?: string;
 	admissionKey?: string;
+	replays?: GameOverReplayData[];
 };
 
 export class GameOverDomainEvent {

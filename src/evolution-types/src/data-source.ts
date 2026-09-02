@@ -2,18 +2,12 @@ import { join } from "path";
 import { DataSource, DataSourceOptions } from "typeorm";
 
 import { config } from "./config";
-import { AchievementEntity } from "./entities/AchievementEntity";
+import { DuelReplayEntity } from "./entities/DuelReplayEntity";
 import { DuelResumeEntity } from "./entities/DuelResumeEntity";
-import { LightningRankingEntity } from "./entities/LightningRankingEntity";
-import { LightningTournamentEntity } from "./entities/LightningTournamentEntity";
 import { MatchResumeEntity } from "./entities/MatchResumeEntity";
 import { PlayerStatsEntity } from "./entities/PlayerStatsEntity";
-import { TournamentEntity } from "./entities/TournamentEntity";
-import { UserAchievementEntity } from "./entities/UserAchievementEntity";
 import { UserBanEntity } from "./entities/UserBanEntity";
 import { UserProfileEntity } from "./entities/UserProfileEntity";
-import { UnrankedMatchEntity } from "./entities/UnrankedMatchEntity";
-import { UnrankedDuelEntity } from "./entities/UnrankedDuelEntity";
 
 const options: DataSourceOptions = {
 	type: "postgres",
@@ -23,22 +17,19 @@ const options: DataSourceOptions = {
 	password: config.postgres.password,
 	database: config.postgres.database,
 	synchronize: false,
-	logging: true,
+	logging: false,
 	entities: [
 		UserProfileEntity,
+		UserBanEntity,
 		MatchResumeEntity,
+		DuelReplayEntity,
 		DuelResumeEntity,
 		PlayerStatsEntity,
-		TournamentEntity,
-		AchievementEntity,
-		UserAchievementEntity,
-		LightningTournamentEntity,
-		UserBanEntity,
-		LightningRankingEntity,
-		UnrankedMatchEntity,
-		UnrankedDuelEntity,
 	],
 	subscribers: [],
-	migrations: [join(__dirname, "/migrations/*.ts")],
+	migrations: [
+		join(__dirname, "/migrations/*.ts"),
+		join(__dirname, "/migrations/*.js"),
+	],
 };
 export const dataSource = new DataSource(options);

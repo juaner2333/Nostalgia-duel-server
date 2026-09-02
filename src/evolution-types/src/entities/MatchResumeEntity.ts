@@ -3,9 +3,11 @@ import {
 	CreateDateColumn,
 	DeleteDateColumn,
 	Entity,
+	Index,
 	JoinColumn,
 	ManyToOne,
 	PrimaryColumn,
+	Unique,
 	UpdateDateColumn,
 } from "typeorm";
 
@@ -14,6 +16,8 @@ import { UserProfileEntity } from "./UserProfileEntity";
 @Entity({
 	name: "matches",
 })
+@Unique("UQ_matches_game_user", ["gameId", "userId"])
+@Index("IDX_matches_format_season_user", ["formatId", "season", "userId"])
 export class MatchResumeEntity {
 	@PrimaryColumn()
 	id: string;
@@ -21,8 +25,11 @@ export class MatchResumeEntity {
 	@Column({ name: "user_id" })
 	userId: string;
 
-	@Column({ name: "game_id" })
+	@Column({ name: "game_id", type: "uuid" })
 	gameId: string;
+
+	@Column({ name: "format_id" })
+	formatId: string;
 
 	@Column({ name: "best_of" })
 	bestOf: number;

@@ -15,6 +15,7 @@ export class PlayerStatsPostgresRepository implements PlayerStatsRepository {
 		if (!playerStatsResponse) {
 			return PlayerStats.initialize({
 				banListName,
+				formatId: banListName,
 				userId,
 				season: config.season,
 			});
@@ -29,11 +30,12 @@ export class PlayerStatsPostgresRepository implements PlayerStatsRepository {
 		const playerStatsEntity = repository.create({
 			id: playerStats.id,
 			banListName: playerStats.banListName,
+			formatId: playerStats.formatId,
 			wins: playerStats.wins,
 			losses: playerStats.losses,
 			points: playerStats.points,
 			userId: playerStats.userId,
-			season: config.season,
+			season: playerStats.season,
 		});
 
 		await repository.save(playerStatsEntity);

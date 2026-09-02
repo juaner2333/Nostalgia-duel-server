@@ -1,3 +1,4 @@
+import "reflect-metadata";
 import { ContainerBuilder } from "diod";
 
 import { EventBus } from "../event-bus/EventBus";

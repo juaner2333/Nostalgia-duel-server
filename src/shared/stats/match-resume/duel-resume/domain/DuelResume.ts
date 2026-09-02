@@ -2,6 +2,7 @@ export class DuelResume {
 	readonly id: string;
 	readonly userId: string;
 	readonly gameId: string;
+	readonly replayId: string;
 	readonly playerNames: string[];
 	readonly opponentNames: string[];
 	readonly date: Date;
@@ -17,6 +18,7 @@ export class DuelResume {
 		id,
 		userId,
 		gameId,
+		replayId,
 		playerNames,
 		opponentNames,
 		date,
@@ -31,6 +33,7 @@ export class DuelResume {
 		id: string;
 		userId: string;
 		gameId: string;
+		replayId: string;
 		playerNames: string[];
 		opponentNames: string[];
 		date: Date;
@@ -45,6 +48,7 @@ export class DuelResume {
 		this.id = id;
 		this.userId = userId;
 		this.gameId = gameId;
+		this.replayId = replayId;
 		this.playerNames = playerNames;
 		this.opponentNames = opponentNames;
 		this.date = date;
@@ -61,6 +65,7 @@ export class DuelResume {
 		id,
 		userId,
 		gameId,
+		replayId,
 		playerNames,
 		opponentNames,
 		date,
@@ -75,6 +80,7 @@ export class DuelResume {
 		id: string;
 		userId: string;
 		gameId: string;
+		replayId: string;
 		playerNames: string[];
 		opponentNames: string[];
 		date: Date;
@@ -90,6 +96,7 @@ export class DuelResume {
 			id,
 			userId,
 			gameId,
+			replayId,
 			playerNames,
 			opponentNames,
 			date,
@@ -107,6 +114,7 @@ export class DuelResume {
 		id: string;
 		userId: string;
 		gameId: string;
+		replayId: string;
 		playerNames: string[];
 		opponentNames: string[];
 		date: Date;
