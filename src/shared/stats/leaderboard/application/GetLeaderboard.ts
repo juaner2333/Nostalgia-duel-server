@@ -51,17 +51,35 @@ export class GetLeaderboard {
 				throw new Error("Invalid season: format must be YYYY-MM");
 			}
 
-			const seasonMatch = request.season.match(/^(\d{4})-(\d{1,2})$/);
-			if (!seasonMatch) {
-				throw new Error("Invalid season: format must be YYYY-MM");
+			const str = String(request.season).trim();
+			let normalizedYear = "";
+			let monthNumber = 0;
+
+			const m1 =
+				str.match(/^(\d{4})[^\d]?(\d{1,2})[^\d]?$/) || str.match(/^(\d{4})[^\d]+(\d{1,2})/);
+			if (m1) {
+				normalizedYear = m1[1];
+				monthNumber = parseInt(m1[2], 10);
+			} else {
+				const m2 = str.match(/^(\d{2})[^\d]+(\d{1,2})/);
+				if (m2) {
+					const y2 = parseInt(m2[1], 10);
+					normalizedYear = y2 < 50 ? String(2000 + y2) : String(1900 + y2);
+					monthNumber = parseInt(m2[2], 10);
+				} else {
+					const m3 = str.match(/^(\d{4})(\d{2})$/);
+					if (m3) {
+						normalizedYear = m3[1];
+						monthNumber = parseInt(m3[2], 10);
+					}
+				}
 			}
 
-			const normalizedYear = seasonMatch[1];
-			const monthNumber = parseInt(seasonMatch[2], 10);
-			if (monthNumber < 1 || monthNumber > 12) {
-				throw new Error("Invalid season: month must be between 01 and 12");
+			if (!normalizedYear || monthNumber < 1 || monthNumber > 12) {
+				throw new Error("Invalid season: format must be YYYY-MM (e.g. 2026-02)");
 			}
-			const normalizedMonth = String(monthNumber).padStart(2, "0");
+
+			const normalizedMonth = monthNumber < 10 ? `0${monthNumber}` : String(monthNumber);
 			const normalizedSeason = `${normalizedYear}-${normalizedMonth}`;
 			const numericSeason = parseInt(`${normalizedYear}${normalizedMonth}`, 10);
 

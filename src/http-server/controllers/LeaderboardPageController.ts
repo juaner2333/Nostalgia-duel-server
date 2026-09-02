@@ -482,6 +482,38 @@ export function renderLeaderboardPage(formatId: string): string {
 				return year + "-" + month;
 			}
 
+			function parseSeasonInput(raw) {
+				if (!raw) return null;
+				var str = String(raw).trim();
+				var m = str.match(/^(\d{4})[^\d]?(\d{1,2})[^\d]?$/) ||
+				        str.match(/^(\d{4})[^\d]+(\d{1,2})/);
+				if (m) {
+					var year = m[1];
+					var month = parseInt(m[2], 10);
+					if (month >= 1 && month <= 12) {
+						return year + "-" + (month < 10 ? "0" + month : String(month));
+					}
+				}
+				var m2 = str.match(/^(\d{2})[^\d]+(\d{1,2})/);
+				if (m2) {
+					var yearNum = parseInt(m2[1], 10);
+					var y2 = yearNum < 50 ? String(2000 + yearNum) : String(1900 + yearNum);
+					var month2 = parseInt(m2[2], 10);
+					if (month2 >= 1 && month2 <= 12) {
+						return y2 + "-" + (month2 < 10 ? "0" + month2 : String(month2));
+					}
+				}
+				var m3 = str.match(/^(\d{4})(\d{2})$/);
+				if (m3) {
+					var y3 = m3[1];
+					var month3 = parseInt(m3[2], 10);
+					if (month3 >= 1 && month3 <= 12) {
+						return y3 + "-" + (month3 < 10 ? "0" + month3 : String(month3));
+					}
+				}
+				return null;
+			}
+
 			function formatBytes(bytes) {
 				if (!bytes || bytes <= 0) return "0 B";
 				var k = 1024;
@@ -834,17 +866,10 @@ export function renderLeaderboardPage(formatId: string): string {
 				if (ladderState.scope === "season") {
 					var inputElem = document.getElementById("ladder-season-input");
 					var inputVal = inputElem ? inputElem.value.trim() : "";
-					if (inputVal) {
-						var m = inputVal.match(/^(\d{4})-(\d{1,2})$/);
-						if (m) {
-							var monthNum = parseInt(m[2], 10);
-							if (monthNum >= 1 && monthNum <= 12) {
-								var normMonth = monthNum < 10 ? ("0" + monthNum) : String(monthNum);
-								ladderState.season = m[1] + "-" + normMonth;
-							}
-						}
-					}
-					if (!ladderState.season || !/^\d{4}-\d{2}$/.test(ladderState.season)) {
+					var parsedInput = parseSeasonInput(inputVal);
+					if (parsedInput) {
+						ladderState.season = parsedInput;
+					} else if (!ladderState.season || !parseSeasonInput(ladderState.season)) {
 						ladderState.season = getBeijingMonth();
 					}
 					if (inputElem) {
@@ -980,17 +1005,11 @@ export function renderLeaderboardPage(formatId: string): string {
 				document.getElementById("btn-query-month").style.display = "inline-block";
 				var inputElem = document.getElementById("ladder-season-input");
 				var val = inputElem ? inputElem.value.trim() : "";
-				if (val) {
-					var m = val.match(/^(\d{4})-(\d{1,2})$/);
-					if (m) {
-						var monthNum = parseInt(m[2], 10);
-						if (monthNum >= 1 && monthNum <= 12) {
-							var normMonth = monthNum < 10 ? ("0" + monthNum) : String(monthNum);
-							ladderState.season = m[1] + "-" + normMonth;
-						}
-					}
-				}
-				if (!ladderState.season) {
+				var parsed = parseSeasonInput(val);
+				if (parsed) {
+					ladderState.season = parsed;
+					if (inputElem) inputElem.value = ladderState.season;
+				} else if (!ladderState.season) {
 					ladderState.season = getBeijingMonth();
 					if (inputElem) inputElem.value = ladderState.season;
 				}
@@ -1011,18 +1030,12 @@ export function renderLeaderboardPage(formatId: string): string {
 			document.getElementById("btn-query-month").addEventListener("click", function() {
 				var inputElem = document.getElementById("ladder-season-input");
 				var val = inputElem ? inputElem.value.trim() : "";
-				var m = val.match(/^(\d{4})-(\d{1,2})$/);
-				if (!m) {
-					showToast("请输入有效月份格式 (YYYY-MM)");
+				var parsed = parseSeasonInput(val);
+				if (!parsed) {
+					showToast("请输入有效月份格式 (如 2026-02)");
 					return;
 				}
-				var monthNum = parseInt(m[2], 10);
-				if (monthNum < 1 || monthNum > 12) {
-					showToast("月份必须在 01 至 12 之间");
-					return;
-				}
-				var normMonth = monthNum < 10 ? ("0" + monthNum) : String(monthNum);
-				ladderState.season = m[1] + "-" + normMonth;
+				ladderState.season = parsed;
 				if (inputElem) inputElem.value = ladderState.season;
 				ladderState.page = 1;
 				loadLadder();
@@ -1030,16 +1043,12 @@ export function renderLeaderboardPage(formatId: string): string {
 
 			document.getElementById("ladder-season-input").addEventListener("change", function() {
 				var val = this.value.trim();
-				var m = val.match(/^(\d{4})-(\d{1,2})$/);
-				if (m) {
-					var monthNum = parseInt(m[2], 10);
-					if (monthNum >= 1 && monthNum <= 12) {
-						var normMonth = monthNum < 10 ? ("0" + monthNum) : String(monthNum);
-						ladderState.season = m[1] + "-" + normMonth;
-						this.value = ladderState.season;
-						ladderState.page = 1;
-						loadLadder();
-					}
+				var parsed = parseSeasonInput(val);
+				if (parsed) {
+					ladderState.season = parsed;
+					this.value = ladderState.season;
+					ladderState.page = 1;
+					loadLadder();
 				}
 			});
 
