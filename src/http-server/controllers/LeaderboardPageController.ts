@@ -373,6 +373,7 @@ export function renderLeaderboardPage(formatId: string): string {
 					<button id="btn-scope-overall" class="btn">总榜</button>
 					<input type="month" id="ladder-season-input" />
 					<button id="btn-query-month" class="btn">查询月份</button>
+					<span id="ladder-active-label" class="badge">2026-09 赛季</span>
 				</div>
 				<div class="controls-group">
 					<input type="text" id="ladder-search-input" placeholder="搜索玩家昵称" />
@@ -851,6 +852,26 @@ export function renderLeaderboardPage(formatId: string): string {
 
 			document.getElementById("ladder-season-input").value = ladderState.season;
 
+			function updateLadderActiveLabel() {
+				var label = document.getElementById("ladder-active-label");
+				if (label) {
+					label.textContent = ladderState.scope === "season" ? (ladderState.season + " 赛季") : "全赛季总榜";
+				}
+			}
+
+			function setSeasonAndQuery(rawVal) {
+				var parsed = parseSeasonInput(rawVal);
+				if (parsed) {
+					ladderState.season = parsed;
+				} else if (!ladderState.season) {
+					ladderState.season = getBeijingMonth();
+				}
+				ladderState.page = 1;
+				var inputElem = document.getElementById("ladder-season-input");
+				if (inputElem) inputElem.value = ladderState.season;
+				loadLadder();
+			}
+
 			function loadLadder() {
 				var reqId = ++ladderState.requestId;
 				var tbody = document.getElementById("ladder-tbody");
@@ -864,18 +885,15 @@ export function renderLeaderboardPage(formatId: string): string {
 				tbody.appendChild(loadingRow);
 
 				if (ladderState.scope === "season") {
-					var inputElem = document.getElementById("ladder-season-input");
-					var inputVal = inputElem ? inputElem.value.trim() : "";
-					var parsedInput = parseSeasonInput(inputVal);
-					if (parsedInput) {
-						ladderState.season = parsedInput;
-					} else if (!ladderState.season || !parseSeasonInput(ladderState.season)) {
+					if (!ladderState.season || !parseSeasonInput(ladderState.season)) {
 						ladderState.season = getBeijingMonth();
 					}
-					if (inputElem) {
+					var inputElem = document.getElementById("ladder-season-input");
+					if (inputElem && inputElem.value !== ladderState.season) {
 						inputElem.value = ladderState.season;
 					}
 				}
+				updateLadderActiveLabel();
 
 				var url = "/api/leaderboards/" + FORMAT + "?scope=" + ladderState.scope +
 					"&page=" + ladderState.page + "&pageSize=" + ladderState.pageSize;
@@ -932,7 +950,10 @@ export function renderLeaderboardPage(formatId: string): string {
 					var emptyTd = document.createElement("td");
 					emptyTd.colSpan = 7;
 					emptyTd.className = "info-box";
-					emptyTd.textContent = ladderState.search ? "没有找到符合条件的玩家" : "该格式与当前视图暂无排位记录";
+					var seasonText = ladderState.scope === "season" ? (ladderState.season + " 赛季") : "全赛季";
+					emptyTd.textContent = ladderState.search ?
+						("在 " + seasonText + " 未找到匹配「" + ladderState.search + "」的玩家") :
+						(seasonText + "暂无排位记录");
 					emptyRow.appendChild(emptyTd);
 					tbody.appendChild(emptyRow);
 					pager.style.display = "none";
@@ -1008,11 +1029,10 @@ export function renderLeaderboardPage(formatId: string): string {
 				var parsed = parseSeasonInput(val);
 				if (parsed) {
 					ladderState.season = parsed;
-					if (inputElem) inputElem.value = ladderState.season;
 				} else if (!ladderState.season) {
 					ladderState.season = getBeijingMonth();
-					if (inputElem) inputElem.value = ladderState.season;
 				}
+				if (inputElem) inputElem.value = ladderState.season;
 				ladderState.page = 1;
 				loadLadder();
 			});
@@ -1029,30 +1049,17 @@ export function renderLeaderboardPage(formatId: string): string {
 
 			document.getElementById("btn-query-month").addEventListener("click", function() {
 				var inputElem = document.getElementById("ladder-season-input");
-				var val = inputElem ? inputElem.value.trim() : "";
-				var parsed = parseSeasonInput(val) || parseSeasonInput(ladderState.season) || getBeijingMonth();
-				ladderState.season = parsed;
-				if (inputElem) inputElem.value = ladderState.season;
-				ladderState.page = 1;
-				loadLadder();
-			});
-
-			document.getElementById("ladder-season-input").addEventListener("input", function() {
-				var val = this.value.trim();
-				var parsed = parseSeasonInput(val);
-				if (parsed) {
-					ladderState.season = parsed;
-				}
+				setSeasonAndQuery(inputElem ? inputElem.value : "");
 			});
 
 			document.getElementById("ladder-season-input").addEventListener("change", function() {
-				var val = this.value.trim();
-				var parsed = parseSeasonInput(val);
+				setSeasonAndQuery(this.value);
+			});
+
+			document.getElementById("ladder-season-input").addEventListener("input", function() {
+				var parsed = parseSeasonInput(this.value);
 				if (parsed) {
 					ladderState.season = parsed;
-					this.value = ladderState.season;
-					ladderState.page = 1;
-					loadLadder();
 				}
 			});
 
