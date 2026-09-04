@@ -30,6 +30,7 @@ describe("RankedMatchPersistenceService", () => {
 			findByUsername: jest.fn(),
 			findById: jest.fn(),
 			isBanned: jest.fn(),
+			updatePassword: jest.fn(),
 		};
 
 		mockEntityManager = {

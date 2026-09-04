@@ -61,4 +61,9 @@ export class UserProfilePostgresRepository implements UserProfileRepository {
 
 		return !!futureBan;
 	}
+
+	async updatePassword(userId: string, passwordHash: string): Promise<void> {
+		const repository = dataSource.getRepository(UserProfileEntity);
+		await repository.update({ id: userId }, { password: passwordHash });
+	}
 }

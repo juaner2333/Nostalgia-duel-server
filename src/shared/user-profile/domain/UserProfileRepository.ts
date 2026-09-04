@@ -5,4 +5,5 @@ export interface UserProfileRepository {
 	findByUsername(username: string): Promise<UserProfile | null>;
 	findById(userId: string): Promise<UserProfile | null>;
 	isBanned(userId: string): Promise<boolean>;
+	updatePassword(userId: string, passwordHash: string): Promise<void>;
 }

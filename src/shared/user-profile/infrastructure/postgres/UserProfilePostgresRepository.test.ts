@@ -32,6 +32,7 @@ describe("UserProfilePostgresRepository", () => {
 		findOne: jest.Mock;
 		create: jest.Mock;
 		save: jest.Mock;
+		update: jest.Mock;
 	};
 
 	beforeEach(() => {
@@ -41,6 +42,7 @@ describe("UserProfilePostgresRepository", () => {
 			findOne: jest.fn(),
 			create: jest.fn(),
 			save: jest.fn(),
+			update: jest.fn(),
 		};
 		(dataSource.getRepository as jest.Mock).mockReturnValue(mockOrmRepo);
 		repo = new UserProfilePostgresRepository();
@@ -63,6 +65,20 @@ describe("UserProfilePostgresRepository", () => {
 			const result = await repo.findById("non-existent-id");
 
 			expect(result).toBeNull();
+		});
+	});
+
+	describe("updatePassword()", () => {
+		it("updates only the password field for the given user id", async () => {
+			mockOrmRepo.update.mockResolvedValue({ affected: 1 });
+
+			await repo.updatePassword("user-123", "new-hashed-password");
+
+			expect(mockOrmRepo.update).toHaveBeenCalledTimes(1);
+			expect(mockOrmRepo.update).toHaveBeenCalledWith(
+				{ id: "user-123" },
+				{ password: "new-hashed-password" },
+			);
 		});
 	});
 });

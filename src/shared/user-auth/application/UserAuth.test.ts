@@ -33,6 +33,7 @@ describe("UserAuth", () => {
 			findByUsername: jest.fn(),
 			findById: jest.fn(),
 			isBanned: jest.fn(),
+			updatePassword: jest.fn(),
 		};
 		userAuth = new UserAuth(repository);
 	});

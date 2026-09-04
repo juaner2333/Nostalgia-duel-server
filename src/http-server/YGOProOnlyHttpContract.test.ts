@@ -29,6 +29,7 @@ import { loadRoutes } from "./routes";
 import YGOProBanListMemoryRepository from "@ygopro/ban-list/infrastructure/YGOProBanListMemoryRepository";
 import YGOProRoomList from "@ygopro/room/infrastructure/YGOProRoomList";
 import { LoggerMock } from "@test-support/mocks/logger/LoggerMock";
+import { config } from "../config";
 
 import { cardRepositories } from "./composition/CardRepositories";
 import { CreateRoomController } from "./controllers/CreateRoomController";
@@ -64,6 +65,8 @@ function fakeResponse(): {
 			textPayload = data;
 			return this;
 		},
+		setHeader: () => res,
+		getHeader: () => undefined,
 		type: () => res,
 	} as unknown as Response;
 	return {
@@ -260,5 +263,73 @@ describe("YGOPro-only HTTP contract", () => {
 
 		expect(routes).not.toContain("/api/matchmaking/queue");
 		expect(routes).not.toContain("/api/matchmaking/status");
+	});
+
+	it("mounts POST /api/admin/users/reset-password behind admin auth, returning 401 when key is missing or invalid", async () => {
+		const app = express();
+		app.use(express.json());
+		const mockTickets = {} as any;
+		const logger = new LoggerMock();
+
+		loadRoutes(app, logger, mockTickets);
+
+		const stack = (app._router || (app as any).router)?.stack || [];
+		const routes = stack
+			.filter((r: any) => r.route)
+			.map((r: any) => ({
+				path: r.route.path,
+				methods: Object.keys(r.route.methods),
+			}));
+		expect(routes).toContainEqual({
+			path: "/api/admin/users/reset-password",
+			methods: ["post"],
+		});
+
+		const originalAdminKey = config.adminApiKey;
+		config.adminApiKey = "test-admin-key";
+
+		try {
+			// Missing key -> 401
+			const outNoKey = fakeResponse();
+			await new Promise<void>((resolve) => {
+				const req = {
+					method: "POST",
+					url: "/api/admin/users/reset-password",
+					headers: {},
+					query: {},
+					body: { username: "Duelist" },
+				} as any;
+				const originalJson = outNoKey.res.json.bind(outNoKey.res);
+				outNoKey.res.json = (data: unknown) => {
+					originalJson(data);
+					resolve();
+					return outNoKey.res;
+				};
+				(app as any).handle(req, outNoKey.res);
+			});
+			expect(outNoKey.status()).toBe(401);
+
+			// Invalid key -> 401
+			const outBadKey = fakeResponse();
+			await new Promise<void>((resolve) => {
+				const req = {
+					method: "POST",
+					url: "/api/admin/users/reset-password",
+					headers: { "admin-api-key": "wrong-key" },
+					query: {},
+					body: { username: "Duelist" },
+				} as any;
+				const originalJson = outBadKey.res.json.bind(outBadKey.res);
+				outBadKey.res.json = (data: unknown) => {
+					originalJson(data);
+					resolve();
+					return outBadKey.res;
+				};
+				(app as any).handle(req, outBadKey.res);
+			});
+			expect(outBadKey.status()).toBe(401);
+		} finally {
+			config.adminApiKey = originalAdminKey;
+		}
 	});
 });

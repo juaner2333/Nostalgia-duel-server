@@ -59,4 +59,16 @@ export class UserProfile {
 	async isValidPassword(password: string): Promise<boolean> {
 		return bcrypt.compare(password, this.password);
 	}
+
+	async rehashPassword(newPassword: string): Promise<UserProfile> {
+		const passwordHashed = await bcrypt.hash(newPassword, 10);
+
+		return new UserProfile({
+			id: this.id,
+			username: this.username,
+			password: passwordHashed,
+			email: this.email,
+			avatar: this.avatar,
+		});
+	}
 }

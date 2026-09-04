@@ -5,6 +5,7 @@ const mockFindById = jest.fn();
 const mockIsBanned = jest.fn().mockResolvedValue(false);
 const mockFindByUsername = jest.fn();
 const mockCreate = jest.fn().mockResolvedValue(undefined);
+const mockUpdatePassword = jest.fn().mockResolvedValue(undefined);
 
 jest.mock("@shared/user-profile/infrastructure/postgres/UserProfilePostgresRepository", () => ({
 	UserProfilePostgresRepository: jest.fn().mockImplementation(() => ({
@@ -12,6 +13,7 @@ jest.mock("@shared/user-profile/infrastructure/postgres/UserProfilePostgresRepos
 		isBanned: mockIsBanned,
 		findByUsername: mockFindByUsername,
 		create: mockCreate,
+		updatePassword: mockUpdatePassword,
 	})),
 }));
 
@@ -61,12 +63,14 @@ describe("DirectNostalgiaRankedJoin", () => {
 		mockIsBanned.mockReset().mockResolvedValue(false);
 		mockFindByUsername.mockReset();
 		mockCreate.mockReset().mockResolvedValue(undefined);
+		mockUpdatePassword.mockReset().mockResolvedValue(undefined);
 
 		userProfileRepository = {
 			create: mockCreate,
 			findByUsername: mockFindByUsername,
 			findById: mockFindById,
 			isBanned: mockIsBanned,
+			updatePassword: mockUpdatePassword,
 		};
 		authUseCase = new AuthenticateOrRegisterPinUser(userProfileRepository);
 

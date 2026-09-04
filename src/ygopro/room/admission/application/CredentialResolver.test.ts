@@ -27,6 +27,7 @@ describe("CredentialResolver", () => {
 			findByUsername: jest.fn(),
 			findById: jest.fn(),
 			isBanned: jest.fn(),
+			updatePassword: jest.fn(),
 		};
 		userAuth = { run: jest.fn() } as unknown as jest.Mocked<UserAuth>;
 		resolver = new CredentialResolver(repo, userAuth);

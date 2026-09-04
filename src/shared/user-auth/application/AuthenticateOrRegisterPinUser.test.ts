@@ -13,6 +13,7 @@ describe("AuthenticateOrRegisterPinUser", () => {
 			findByUsername: jest.fn(),
 			findById: jest.fn(),
 			isBanned: jest.fn(),
+			updatePassword: jest.fn(),
 		};
 		useCase = new AuthenticateOrRegisterPinUser(userProfileRepository);
 	});

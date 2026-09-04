@@ -17,6 +17,9 @@ import { InspectPageController } from "../controllers/InspectPageController";
 import { RoomListController } from "../controllers/RoomListController";
 import { SearchCardsController } from "../controllers/SearchCardsController";
 import { ServerMessagesController } from "../controllers/ServerMessagesController";
+import { ResetPasswordController } from "../controllers/ResetPasswordController";
+import { ResetUserPassword } from "../../shared/user-profile/application/ResetUserPassword";
+import { UserProfilePostgresRepository } from "../../shared/user-profile/infrastructure/postgres/UserProfilePostgresRepository";
 import { AuthAdminMiddleware } from "../middlewares/AuthAdminMiddleware";
 import { RateLimitMiddleware } from "../middlewares/RateLimitMiddleware";
 
@@ -71,5 +74,12 @@ export function loadRoutes(app: Express, logger: Logger, tickets: TicketReposito
 
 	app.post("/api/admin/message", async (req, res) => {
 		await new ServerMessagesController().run(req, res);
+	});
+
+	app.post("/api/admin/users/reset-password", async (req, res) => {
+		await new ResetPasswordController(
+			new ResetUserPassword(new UserProfilePostgresRepository()),
+			logger,
+		).run(req, res);
 	});
 }
