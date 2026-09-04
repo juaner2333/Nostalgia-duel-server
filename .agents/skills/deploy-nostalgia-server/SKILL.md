@@ -22,12 +22,12 @@ description: 发布 nostalgia-duel-server：按用户指定分支构建 Docker �
 - 镜像全名模板：`ccr.ccs.tencentyun.com/nostalgia-duel-server/nostalgia-duel-server:<TAG>`
 - 云端接入：`ssh tencent`；部署目录 `/opt/nostalgia-duel-server/`。
 - **标准部署形态 = 排位形态**：compose 文件 `docker-compose.cloud.ranked.yaml`，含 `postgres`（`nostalgia-ranked-postgres`，`postgres:16-alpine`）与 `nostalgia-duel-server` 两个服务；`RANK_ENABLED=true` / `USE_REDIS=false`；server 通过 `depends_on: postgres: condition: service_healthy` 等待 PG。
-- compose 关键环境变量（来自云端 `.env`，root 属主 0600）：`SERVER_IMAGE`（决定拉取版本）、`POSTGRES_PASSWORD`、`POSTGRES_DATA_DIR`、`SEASON`（缺省 `NaN` 落库损坏）、`HTTP_PORT`（当前 **80**，管理页面/API 端口；以 `.env` 实际值为准）。
+- compose 关键环境变量（来自云端 `.env`，root 属主 0600）：`SERVER_IMAGE`（决定拉取版本）、`POSTGRES_PASSWORD`、`POSTGRES_DATA_DIR`、`SEASON`（缺省 `NaN` 落库损坏）、`HTTP_PORT`（当前 **7922**，管理页面/API 端口；以 `.env` 实际值为准）。
 - **迁移顺序是硬约束**：server 启动入口带 pending-migration 门禁（`bootstrapPersistence` 检测到未执行迁移直接拒启）。因此必须 **PG healthy → `migration:run:prod` → 再 up server**；`run-migrations.js` 用 `runMigrations()` 执行，输出 `Successfully executed N migration(s)`，N=0 即无待执行迁移（幂等，每次部署都跑）。
 - `init.sql`（uuid-ossp 扩展，迁移的 `uuid_generate_v4()` 依赖）必须在部署目录存在且为普通文件；缺了 PG 首次初始化不会建扩展、迁移必失败。
 - `duel` 快捷命令（经 `sudo`）：`duel {up|restart|ps|logs|down|rooms}`；本技能统一用 `sudo docker compose -f /opt/nostalgia-duel-server/docker-compose.cloud.ranked.yaml ...`。
 - 旧压测形态 `docker-compose.cloud.yaml`（无 PG、`RANK_ENABLED=false`）仍保留在部署目录，仅作形态回滚之用（见 Phase 6）。
-- 本地常有 `npm run dev`（ts-node-dev）占住 706/80(7922)/4000/4002——**预检容器必须用备用宿主端口**，绝不能 kill 用户的 dev server。
+- 本地常有 `npm run dev`（ts-node-dev）占住 706/7922/4000/4002——**预检容器必须用备用宿主端口**，绝不能 kill 用户的 dev server。
 - 冒烟脚本 `scripts/smoke-duel.mjs` 硬编码连 `127.0.0.1`，对云端验证需先建 ssh 隧道指向备用本地端口。
 - 资源门禁：`npm run check:nostalgia-resources`（CI / 镜像构建 / 启动共用同一校验，构建期由 Dockerfile 自动执行）。
 

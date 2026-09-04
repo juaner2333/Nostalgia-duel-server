@@ -98,7 +98,7 @@ sudo bash -n /usr/local/bin/duel
 ## 设计要点与注意事项
 
 - **为什么都带 sudo**：compose 客户端与管理员接口需要读取 `.env`（root 600 权限，含 `ADMIN_API_KEY`）；ubuntu 账号有 NOPASSWD sudo，免密执行，无需切 root。
-- **HTTP 端口动态读取**：脚本每次执行从 `.env` 读 `HTTP_PORT`（当前 `80`），`rooms`/`message`/`reset` 均使用该值，改 `HTTP_PORT` 无需改脚本。
+- **HTTP 端口动态读取**：脚本每次执行从 `.env` 读 `HTTP_PORT`（当前 `7922`），`rooms`/`message`/`reset` 均使用该值，改 `HTTP_PORT` 无需改脚本。
 - **compose 指向排位形态**：`duel up/restart/ps/logs/down` 操作的是 `docker-compose.cloud.ranked.yaml`（与线上排位形态一致）；旧压测形态 `docker-compose.cloud.yaml` 仅用于形态回滚，勿用 `duel` 直连。
 - **管理员接口鉴权**：`admin-api-key` 等同 `.env` 的 `ADMIN_API_KEY`，脚本通过 sudo 读取并只在请求头携带，日志/输出不回显密钥；手工调用请用 `curl -H "admin-api-key: <key>"`。
 - **`.env` 属于服务器本地文件**（仓库只有 `.env.example` 模板，真实密钥不入 git）。
