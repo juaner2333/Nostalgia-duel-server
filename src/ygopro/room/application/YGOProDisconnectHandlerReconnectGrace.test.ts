@@ -381,7 +381,7 @@ describe("YGOProDisconnectHandler — 90s reconnect grace for started rooms", ()
 		expect(MercuryRoomList.findById(room.id)).toBeNull();
 	});
 
-	it("releases occupancy and reservation when a player leaves a direct ranked WAITING room", () => {
+	it("releases occupancy and does not decrement reservations when a seated player leaves a direct ranked WAITING room", () => {
 		const logger = makeLogger();
 		const { room, creatorSocket, creator } = createStartedRoom(91021, logger, DuelState.WAITING, [
 			"user-p1",
@@ -399,6 +399,7 @@ describe("YGOProDisconnectHandler — 90s reconnect grace for started rooms", ()
 		disconnect(creator.socket.id as string, new YGOProRoomFinder());
 
 		expect(registry.getOccupancy("user-p1")).toBeNull();
-		expect(registry.getReservations(room.id)).toBe(1);
+		// Seated player's reservation was released upon seating; active join reservations must not be decremented
+		expect(registry.getReservations(room.id)).toBe(2);
 	});
 });

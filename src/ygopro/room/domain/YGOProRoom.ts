@@ -1,4 +1,5 @@
 import { EventEmitter } from "stream";
+import { randomUUID } from "crypto";
 
 import { PlayerInfoMessage } from "@ygopro/messages/client-to-server/PlayerInfoMessage";
 import { YGOProRoomState } from "./YGOProRoomState";
@@ -20,6 +21,9 @@ import { ISocket } from "@shared/socket/domain/ISocket";
 import { Deck } from "@shared/deck/domain/Deck";
 import { EventBus } from "@shared/event-bus/EventBus";
 import { GameOverDomainEvent } from "@shared/room/domain/match/domain/domain-events/GameOverDomainEvent";
+import { ClientMessage } from "@shared/messages/MessageProcessor";
+
+export type RankedAdmissionResult = "seated" | "reconnected" | "spectator" | "rejected";
 
 import MercuryBanListMemoryRepository from "../../ban-list/infrastructure/YGOProBanListMemoryRepository";
 import { YGOProClient } from "../../client/domain/YGOProClient";
@@ -104,6 +108,7 @@ export class YGOProRoom extends YgoRoom {
 	/** True only for direct nostalgia ranked rooms (#TT). */
 	isDirectRanked: boolean = false;
 	public eventBus?: EventBus;
+	public readonly gameId: string;
 
 	// Set to true when the room begins teardown (removeRoom entry point in YGOProDuelingState).
 	// The WindBotJoinStrategy retry-abort callback reads this to stop retrying when the room
@@ -125,6 +130,7 @@ export class YGOProRoom extends YgoRoom {
 		banListHash,
 		formatId,
 		externalRoomId,
+		gameId,
 	}: {
 		id: number;
 		password: string;
@@ -140,6 +146,7 @@ export class YGOProRoom extends YgoRoom {
 		banListHash: number;
 		formatId: NostalgiaFormatId;
 		externalRoomId: string;
+		gameId?: string;
 	}) {
 		super({
 			team0,
@@ -151,6 +158,7 @@ export class YGOProRoom extends YgoRoom {
 			notes: "",
 			roomType: RoomType.MERCURY,
 		});
+		this.gameId = gameId ?? randomUUID();
 		this.name = name;
 		this.password = password;
 		this.formatId = formatId;
@@ -875,6 +883,7 @@ export class YGOProRoom extends YgoRoom {
 		this.eventBus?.publish(
 			GameOverDomainEvent.DOMAIN_EVENT,
 			new GameOverDomainEvent({
+				gameId: this.gameId,
 				bestOf: this.bestOf,
 				players: this.matchPlayersHistory,
 				date: new Date(),
@@ -1113,5 +1122,42 @@ export class YGOProRoom extends YgoRoom {
 		this._spectators.forEach((client: YGOProClient) => {
 			client.sendMessageToClient(message);
 		});
+	}
+
+	public removePlayerBySocket(socket: ISocket): void {
+		this._players = this._players.filter((item) => item.socket !== socket);
+	}
+
+	public removeSpectatorBySocket(socket: ISocket): void {
+		this._spectators = this._spectators.filter((item) => item.socket !== socket);
+	}
+
+	public async admitRankedJoin(
+		message: ClientMessage,
+		socket: ISocket,
+	): Promise<RankedAdmissionResult> {
+		if (socket.closed) {
+			return "rejected";
+		}
+
+		if (this.duelState === DuelState.WAITING && this._roomState instanceof YGOProWaitingState) {
+			return await this._roomState.handleJoin(message, this, socket);
+		}
+
+		this.emitter.emit("JOIN", message, this, socket);
+
+		if (socket.closed) {
+			return "rejected";
+		}
+
+		if (this.players.some((p) => p.socket === socket)) {
+			return "reconnected";
+		}
+
+		if (this.spectators.some((s) => s.socket === socket)) {
+			return "spectator";
+		}
+
+		return "rejected";
 	}
 }

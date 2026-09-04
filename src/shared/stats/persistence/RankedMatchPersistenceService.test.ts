@@ -244,4 +244,49 @@ describe("RankedMatchPersistenceService", () => {
 		// Duel 1 (i = 0) did not have a replay, so its replayId should not equal Duel 2's replayId
 		expect(savedDuels[0].replayId).not.toBe(savedDuels[1].replayId);
 	});
+
+	it("is idempotent when the same gameId is persisted twice", async () => {
+		const user1 = await UserProfile.create({
+			id: "user-1",
+			username: "Player1",
+			password: "pin",
+			email: null,
+			avatar: null,
+		});
+		userProfileRepository.findByUsername.mockResolvedValue(user1);
+
+		const gameId = "11111111-2222-3333-4444-555555555555";
+		const event = new GameOverDomainEvent({
+			gameId,
+			bestOf: 3,
+			date: new Date("2026-09-01T20:00:00Z"),
+			formatId: "1109",
+			banListHash: 1109,
+			banListName: "OCG 1109",
+			ranked: true,
+			players: [
+				{
+					id: "user-1",
+					name: "Player1",
+					team: Team.PLAYER,
+					winner: true,
+					score: 2,
+					games: [{ result: "winner", turns: 5, ipAddress: "127.0.0.1" }],
+				},
+			],
+		});
+
+		// First persist: no existing match
+		mockEntityManager.findOne.mockResolvedValueOnce(null); // existingMatch check
+		await service.persist(event);
+		const initialSaveCalls = mockEntityManager.save.mock.calls.length;
+		expect(initialSaveCalls).toBeGreaterThan(0);
+
+		// Second persist: existing match found
+		mockEntityManager.findOne.mockResolvedValueOnce({ id: "match-1", gameId }); // existingMatch check
+		await service.persist(event);
+
+		// save must not be called again
+		expect(mockEntityManager.save).toHaveBeenCalledTimes(initialSaveCalls);
+	});
 });

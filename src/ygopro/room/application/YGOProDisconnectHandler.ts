@@ -27,20 +27,6 @@ export class YGOProDisconnectHandler {
 	}
 
 	private handle(room: YGOProRoom): void {
-		// On `close` the leaver's socket is already closed, so this also catches
-		// the last WAITING player leaving — finalize instead of leaking a zombie.
-		// Started, non-AI rooms get a bounded reconnect grace instead.
-		if (room.hasNoConnectedPlayers) {
-			if (room.duelState !== DuelState.WAITING && !room.noHost) {
-				room.startReconnectGrace(() => FinalizeYGOProRoom.run(room));
-				return;
-			}
-
-			FinalizeYGOProRoom.run(room);
-
-			return;
-		}
-
 		const player = room.players.find((client) => client.socket.id === this.socket.id);
 
 		if (!(player instanceof YGOProClient)) {
@@ -61,11 +47,11 @@ export class YGOProDisconnectHandler {
 			if (player.id) {
 				RankedRoomRegistry.getInstance().releaseOccupancy(player.id);
 			}
-			if (room.isDirectRanked) {
-				RankedRoomRegistry.getInstance().releaseReservation(room.id);
-			}
 			room.playerLeave(player);
 			player.destroy();
+			if (room.hasNoConnectedPlayers) {
+				FinalizeYGOProRoom.run(room);
+			}
 			return;
 		}
 
@@ -78,6 +64,10 @@ export class YGOProDisconnectHandler {
 				}
 				FinalizeYGOProRoom.run(room);
 			});
+		}
+
+		if (room.hasNoConnectedPlayers) {
+			room.startReconnectGrace(() => FinalizeYGOProRoom.run(room));
 		}
 	}
 

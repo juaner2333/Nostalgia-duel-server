@@ -11,10 +11,10 @@ import { ReconnectionTokenIssuer } from "@shared/room/application/reconnect/Reco
 import { isNameTaken } from "@shared/room/domain/isNameTaken";
 
 import { YGOProClient } from "../../../client/domain/YGOProClient";
-import { YGOProRoom } from "../YGOProRoom";
+import { RankedAdmissionResult, YGOProRoom } from "../YGOProRoom";
 import { AdmitToRoom } from "@ygopro/room/admission/application/AdmitToRoom";
 
-import { ErrorMessageType, YGOProCtosUpdateDeck } from "ygopro-msg-encode";
+import { ErrorMessageType, PlayerChangeState, YGOProCtosUpdateDeck } from "ygopro-msg-encode";
 import { YGOProDeckCreator } from "@ygopro/deck/application/YGOProDeckCreator";
 import { YGOProDeckValidator } from "@ygopro/deck/domain/YGOProDeckValidator";
 import { DeckError } from "@shared/deck/domain/errors/DeckError";
@@ -35,7 +35,7 @@ export class YGOProWaitingState extends YGOProRoomState {
 		this.eventEmitter.on(
 			"JOIN",
 			(message: ClientMessage, room: YGOProRoom, socket: ISocket) =>
-				void this.handleJoin.bind(this)(message, room, socket),
+				void this.handleJoin(message, room, socket),
 		);
 		this.eventEmitter.on(
 			Commands.TRY_START as unknown as string,
@@ -64,25 +64,101 @@ export class YGOProWaitingState extends YGOProRoomState {
 		);
 	}
 
-	private async handleJoin(
+	public async handleJoin(
 		message: ClientMessage,
 		room: YGOProRoom,
 		socket: ISocket,
-	): Promise<void> {
+	): Promise<RankedAdmissionResult> {
 		this.logger.info(`handleJoin: ${message.data.toString("hex")}`);
 
-		const playerInfoMessage = new PlayerInfoMessage(message.previousMessage, message.data.length);
-		if (isNameTaken(room.players, playerInfoMessage.name)) {
-			this.sendExistingPlayerErrorMessage(playerInfoMessage, socket);
-			return;
+		if (socket.closed) {
+			return "rejected";
 		}
 
-		await room.mutex.runExclusive(async () => {
+		const maxByteCount =
+			message.data && message.data.length > 0
+				? message.data.length
+				: (message.previousMessage?.length ?? 40);
+		const playerInfoMessage = new PlayerInfoMessage(message.previousMessage, maxByteCount);
+
+		return await room.mutex.runExclusive(async () => {
+			if (socket.closed) {
+				return "rejected";
+			}
+
+			if (room.isDirectRanked && socket.resolvedUserId) {
+				const existingPlayer = room.players?.find((p) => p.id === socket.resolvedUserId) as
+					| YGOProClient
+					| undefined;
+
+				if (existingPlayer) {
+					this.takeoverSeat(room, existingPlayer, socket);
+					return "reconnected";
+				}
+			}
+
+			if (isNameTaken(room.players ?? [], playerInfoMessage.name)) {
+				this.sendExistingPlayerErrorMessage(playerInfoMessage, socket);
+				return "rejected";
+			}
+
+			const initialPlayerCount = room.players?.length ?? 0;
+			const initialSpectatorCount = room.spectators?.length ?? 0;
+
 			await this.admitToRoom.run(
 				socket,
 				playerInfoMessage,
 				room.admissionTarget(socket, playerInfoMessage),
 			);
+
+			if (socket.closed) {
+				room.removePlayerBySocket?.(socket);
+				room.removeSpectatorBySocket?.(socket);
+				return "rejected";
+			}
+
+			if (
+				(room.players?.length ?? 0) > initialPlayerCount &&
+				room.players?.some((p) => p.socket === socket)
+			) {
+				return "seated";
+			}
+
+			if (
+				(room.spectators?.length ?? 0) > initialSpectatorCount &&
+				room.spectators?.some((s) => s.socket === socket)
+			) {
+				return "spectator";
+			}
+
+			return "rejected";
+		});
+	}
+
+	private takeoverSeat(room: YGOProRoom, existingPlayer: YGOProClient, socket: ISocket): void {
+		const oldSocket = existingPlayer.socket;
+		if (oldSocket !== socket) {
+			oldSocket.removeAllListeners();
+			oldSocket.close();
+		}
+
+		existingPlayer.setSocket(socket);
+		socket.roomId = room.id;
+
+		socket.send(room.messageSender.joinGameMessage(room.hostInfo, room.banListHash));
+		socket.send(room.messageSender.typeChangeMessage(existingPlayer.position, existingPlayer.host));
+
+		room.clients.forEach((client: YGOProClient) => {
+			const playerEnterMessageBuffer = room.messageSender.playerEnterMessage(
+				room.getDisplayNameFor(client, existingPlayer),
+				client.position,
+			);
+			socket.send(playerEnterMessageBuffer);
+
+			if (client.deck) {
+				const state = client.isReady ? PlayerChangeState.READY : PlayerChangeState.NOTREADY;
+				socket.send(room.messageSender.playerChangeMessage(client.position, state));
+			}
 		});
 	}
 

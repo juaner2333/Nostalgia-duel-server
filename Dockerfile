@@ -22,7 +22,7 @@ RUN apt-get update -y && \
 
 WORKDIR /app
 
-COPY --from=server-builder /server/dist ./
+COPY --from=server-builder /server/dist ./dist
 COPY --from=server-builder /server/package.json ./package.json
 COPY --from=server-builder /server/node_modules ./node_modules
 COPY --from=server-builder /server/config ./config
@@ -31,4 +31,4 @@ COPY --from=server-builder /server/config ./config
 # container starts the Node.js service directly and never provisions resources.
 COPY --from=server-builder /server/nostalgia-resources ./nostalgia-resources
 
-CMD ["dumb-init", "node", "./src/index.js"]
+CMD ["dumb-init", "node", "./dist/src/index.js"]

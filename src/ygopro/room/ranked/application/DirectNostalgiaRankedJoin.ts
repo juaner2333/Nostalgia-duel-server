@@ -4,13 +4,15 @@ import { AuthFailureReason, type AuthResult } from "@shared/user-auth/domain/Aut
 import { JoinRejectionError } from "../../domain/errors/JoinRejectionError";
 import { NostalgiaFormatResourcePort } from "../../domain/NostalgiaFormatResourcePort";
 import { NostalgiaFormatResources } from "../../infrastructure/NostalgiaFormatResources";
+import { Mutex } from "async-mutex";
 import { getNostalgiaFormat, type NostalgiaFormatId } from "../../domain/NostalgiaFormat";
-import { YGOProRoom } from "../../domain/YGOProRoom";
+import { RankedAdmissionResult, YGOProRoom } from "../../domain/YGOProRoom";
 import YGOProRoomList from "../../infrastructure/YGOProRoomList";
 import { RankedRoomRegistry } from "../domain/RankedRoomRegistry";
 import { JoinContext } from "../../application/join-strategies/JoinStrategy";
 import { DuelState } from "@shared/room/domain/YgoRoom";
 import { ISocket } from "@shared/socket/domain/ISocket";
+import { FinalizeYGOProRoom } from "../../application/FinalizeYGOProRoom";
 
 import { ChatColor, YGOProStocChat } from "ygopro-msg-encode";
 import { calculateBeijingSeason } from "src/utils/calculateBeijingSeason";
@@ -98,6 +100,8 @@ export function isRankedPass(rawPass: string): boolean {
 }
 
 export class DirectNostalgiaRankedJoin {
+	private readonly allocationMutex = new Mutex();
+
 	constructor(
 		private readonly authUseCase: AuthenticateOrRegisterPinUser,
 		private readonly rankedRoomRegistry: RankedRoomRegistry = RankedRoomRegistry.getInstance(),
@@ -155,82 +159,125 @@ export class DirectNostalgiaRankedJoin {
 		const user = authResult.profile;
 		ctx.socket.resolvedUserId = user.id;
 
-		const existingOccupancy = this.rankedRoomRegistry.getOccupancy(user.id);
 		let targetRoom: YGOProRoom | null = null;
 		let isRecovering = false;
+		let isNewRoom = false;
 
-		if (existingOccupancy) {
-			const existingRoom = YGOProRoomList.findById(existingOccupancy.roomId);
-			if (existingRoom && !existingRoom.finalizing) {
-				if (ctx.rawPass !== "TT" && existingOccupancy.formatId !== targetFormat) {
-					throw new JoinRejectionError(
-						`User is currently occupied in format ${existingOccupancy.formatId} and cannot join ${targetFormat}`,
-						`你已加入 ${existingOccupancy.formatId} 排位，无法同时加入 ${targetFormat} 排位。`,
-					);
+		await this.allocationMutex.runExclusive(async () => {
+			const existingOccupancy = this.rankedRoomRegistry.getOccupancy(user.id);
+
+			if (existingOccupancy) {
+				const existingRoom = YGOProRoomList.findById(existingOccupancy.roomId);
+				if (existingRoom && !existingRoom.finalizing) {
+					if (ctx.rawPass !== "TT" && existingOccupancy.formatId !== targetFormat) {
+						throw new JoinRejectionError(
+							`User is currently occupied in format ${existingOccupancy.formatId} and cannot join ${targetFormat}`,
+							`你已加入 ${existingOccupancy.formatId} 排位，无法同时加入 ${targetFormat} 排位。`,
+						);
+					}
+					targetRoom = existingRoom;
+					isRecovering = true;
+				} else {
+					this.rankedRoomRegistry.releaseOccupancy(user.id);
 				}
-				targetRoom = existingRoom;
-				isRecovering = true;
-			} else {
-				this.rankedRoomRegistry.releaseOccupancy(user.id);
 			}
-		}
+
+			if (!targetRoom) {
+				const availableRoom = YGOProRoomList.getRooms().find((room) => {
+					if (room.formatId !== targetFormat) return false;
+					if (!room.isDirectRanked) return false;
+					if (room.duelState !== DuelState.WAITING) return false;
+					if (room.finalizing) return false;
+					const currentCount =
+						room.players.length + this.rankedRoomRegistry.getReservations(room.id);
+					return currentCount < 2;
+				});
+
+				if (availableRoom) {
+					targetRoom = availableRoom;
+					this.rankedRoomRegistry.reserveSeat(targetRoom.id);
+				} else {
+					const banListHash = this.resources.getBanListHash(targetFormat);
+					if (banListHash === null) {
+						throw new JoinRejectionError(
+							`Nostalgia ban list is unavailable for format: ${targetFormat}`,
+							"排位房间暂时不可用，请稍后重试。",
+						);
+					}
+					const bus = this.eventBus ?? (container ? container.get(EventBus) : undefined);
+					targetRoom = YGOProRoom.createDirectRanked({
+						id: generateUniqueId(),
+						formatId: targetFormat,
+						logger: ctx.logger,
+						emitter: ctx.eventEmitter,
+						createdBySocketId: ctx.socketId,
+						messageRepository: ctx.messageRepository,
+						banListHash,
+						eventBus: bus,
+					});
+					YGOProRoomList.addRoom(targetRoom);
+					targetRoom.waiting();
+					this.rankedRoomRegistry.reserveSeat(targetRoom.id);
+					isNewRoom = true;
+				}
+
+				this.rankedRoomRegistry.recordOccupancy(
+					user.id,
+					targetRoom.id,
+					targetRoom.formatId as NostalgiaFormatId,
+				);
+			}
+		});
 
 		if (!targetRoom) {
-			const availableRoom = YGOProRoomList.getRooms().find((room) => {
-				if (room.formatId !== targetFormat) return false;
-				if (!room.isDirectRanked) return false;
-				if (room.duelState !== DuelState.WAITING) return false;
-				if (room.finalizing) return false;
-				const currentCount = Math.max(
-					room.players.length,
-					this.rankedRoomRegistry.getReservations(room.id),
-				);
-				return currentCount < 2;
-			});
-
-			if (availableRoom) {
-				targetRoom = availableRoom;
-				this.rankedRoomRegistry.reserveSeat(targetRoom.id);
-			} else {
-				const banListHash = this.resources.getBanListHash(targetFormat);
-				if (banListHash === null) {
-					throw new JoinRejectionError(
-						`Nostalgia ban list is unavailable for format: ${targetFormat}`,
-						"排位房间暂时不可用，请稍后重试。",
-					);
-				}
-				const bus = this.eventBus ?? (container ? container.get(EventBus) : undefined);
-				targetRoom = YGOProRoom.createDirectRanked({
-					id: generateUniqueId(),
-					formatId: targetFormat,
-					logger: ctx.logger,
-					emitter: ctx.eventEmitter,
-					createdBySocketId: ctx.socketId,
-					messageRepository: ctx.messageRepository,
-					banListHash,
-					eventBus: bus,
-				});
-				YGOProRoomList.addRoom(targetRoom);
-				targetRoom.waiting();
-				this.rankedRoomRegistry.reserveSeat(targetRoom.id);
-			}
+			throw new JoinRejectionError(
+				"Failed to allocate ranked room",
+				"排位房间暂时不可用，请稍后重试。",
+			);
 		}
 
+		const room: YGOProRoom = targetRoom;
+
+		let admissionResult: RankedAdmissionResult;
 		try {
-			if (!isRecovering) {
-				this.rankedRoomRegistry.recordOccupancy(user.id, targetRoom.id, targetFormat);
+			if (ctx.socket.closed) {
+				admissionResult = "rejected";
+			} else {
+				admissionResult = await room.admitRankedJoin(ctx.message, ctx.socket);
 			}
-			targetRoom.emit("JOIN", ctx.message, ctx.socket);
-			void this.sendRankedNotice(ctx.socket, user.id, targetRoom.formatId);
 		} catch (error) {
-			if (!isRecovering && targetRoom) {
-				this.rankedRoomRegistry.releaseReservation(targetRoom.id);
+			if (!isRecovering) {
+				this.rankedRoomRegistry.releaseReservation(room.id);
 				this.rankedRoomRegistry.releaseOccupancy(user.id);
+			}
+			if (isNewRoom && room.players.length === 0) {
+				FinalizeYGOProRoom.run(room);
 			}
 			throw error;
 		}
 
-		return targetRoom;
+		if (admissionResult === "seated" || admissionResult === "reconnected") {
+			if (!isRecovering) {
+				this.rankedRoomRegistry.releaseReservation(room.id);
+			}
+			this.rankedRoomRegistry.recordOccupancy(user.id, room.id, room.formatId as NostalgiaFormatId);
+			void this.sendRankedNotice(ctx.socket, user.id, room.formatId);
+
+			return room;
+		}
+
+		if (!isRecovering) {
+			this.rankedRoomRegistry.releaseReservation(room.id);
+			this.rankedRoomRegistry.releaseOccupancy(user.id);
+		}
+		if (isNewRoom && room.players.length === 0) {
+			FinalizeYGOProRoom.run(room);
+		}
+
+		throw new JoinRejectionError(
+			`Ranked admission was ${admissionResult}`,
+			"加入排位房间失败，请稍后重试。",
+		);
 	}
 
 	private async sendRankedNotice(socket: ISocket, userId: string, formatId: string): Promise<void> {

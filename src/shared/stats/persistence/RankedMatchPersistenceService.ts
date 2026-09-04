@@ -24,7 +24,7 @@ export class RankedMatchPersistenceService {
 
 		const formatId = event.data.formatId ?? "1109";
 		const season = calculateBeijingSeason(event.data.date);
-		const gameId = randomUUID();
+		const gameId = event.data.gameId ?? randomUUID();
 		const players = event.data.players.map((item) => new Player(item));
 		const replays = event.data.replays ?? [];
 
@@ -63,6 +63,14 @@ export class RankedMatchPersistenceService {
 
 		const executeTransaction = async (): Promise<void> => {
 			await dataSource.transaction(async (manager) => {
+				const existingMatch = await manager.findOne(MatchResumeEntity, {
+					where: { gameId },
+				});
+				if (existingMatch) {
+					this.logger.info(`Match gameId=${gameId} is already persisted; skipping duplicate.`);
+					return;
+				}
+
 				// 1. Write duel_replays
 				for (const r of replayEntries) {
 					const replayEntity = manager.create(DuelReplayEntity, {

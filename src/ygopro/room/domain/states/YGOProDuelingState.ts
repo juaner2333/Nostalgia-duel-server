@@ -700,6 +700,7 @@ export class YGOProDuelingState extends YGOProRoomState {
 		this.eventBus.publish(
 			GameOverDomainEvent.DOMAIN_EVENT,
 			new GameOverDomainEvent({
+				gameId: this.room.gameId,
 				bestOf: this.room.bestOf,
 				players: this.room.matchPlayersHistory,
 				date: new Date(),

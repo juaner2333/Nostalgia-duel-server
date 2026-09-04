@@ -8,6 +8,7 @@ export type GameOverReplayData = {
 };
 
 export type GameOverData = {
+	gameId?: string;
 	bestOf: number;
 	date: Date;
 	players: PlayerMatchSummary[];

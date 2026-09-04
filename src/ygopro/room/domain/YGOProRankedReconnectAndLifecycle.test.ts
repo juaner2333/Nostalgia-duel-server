@@ -254,5 +254,47 @@ describe("YGOPro Ranked Reconnect and Lifecycle", () => {
 			expect(RankedRoomRegistry.getInstance().getOccupancy("user-1")).toBeNull();
 			expect(RankedRoomRegistry.getInstance().getOccupancy("user-2")).toBeNull();
 		});
+
+		it("forfeits second player when both players disconnect but only first player reconnects", () => {
+			const room = makeRankedRoom();
+			const { player: p1, socket: s1 } = addPlayerToRoom(room, "Player1", "user-1", 0);
+			const { player: p2, socket: s2 } = addPlayerToRoom(room, "Player2", "user-2", 1);
+
+			room.createMatch();
+			(room as any)._state = DuelState.DUELING;
+
+			const publishedEvents: GameOverDomainEvent[] = [];
+			const eventBus = container.get(EventBus);
+			const subscriber = {
+				handle: (event: unknown) => {
+					publishedEvents.push(event as GameOverDomainEvent);
+				},
+			};
+			eventBus.subscribe(GameOverDomainEvent.DOMAIN_EVENT, subscriber);
+
+			// Both disconnect
+			s1.close();
+			s2.close();
+			const finder = { run: () => room } as any;
+			new YGOProDisconnectHandler(s1, finder).run();
+			new YGOProDisconnectHandler(s2, finder).run();
+
+			// Player 1 reconnects at 30 seconds
+			jest.advanceTimersByTime(30_000);
+			const newSocket = new FakeSocket();
+			newSocket.resolvedUserId = "user-1";
+			room.reconnect(p1, newSocket);
+
+			// Advance past player 2's 90-second disconnect timeout (another 65 seconds)
+			jest.advanceTimersByTime(65_000);
+
+			// Player 2's disconnect timer must have fired, forfeiting match to Player 1
+			expect(publishedEvents).toHaveLength(1);
+			const event = publishedEvents[0];
+			expect(event.data.ranked).toBe(true);
+			const winner = event.data.players.find((p) => p.winner);
+			expect(winner?.name).toBe("Player1");
+			expect(room.finalizing).toBe(true);
+		});
 	});
 });

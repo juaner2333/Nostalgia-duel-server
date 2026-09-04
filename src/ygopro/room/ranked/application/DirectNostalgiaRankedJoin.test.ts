@@ -1,6 +1,18 @@
 import { EventEmitter } from "stream";
 import { UserProfile } from "@shared/user-profile/domain/UserProfile";
 
+jest.mock("../../../../web-socket-server/WebSocketSingleton", () => {
+	const mockInstance = {
+		broadcast: jest.fn(),
+	};
+	return {
+		__esModule: true,
+		default: {
+			getInstance: () => mockInstance,
+		},
+	};
+});
+
 const mockFindById = jest.fn();
 const mockIsBanned = jest.fn().mockResolvedValue(false);
 const mockFindByUsername = jest.fn();
@@ -18,6 +30,7 @@ jest.mock("@shared/user-profile/infrastructure/postgres/UserProfilePostgresRepos
 }));
 
 import { DirectNostalgiaRankedJoin, RANKED_FORMAT_CLIENT_ERROR } from "./DirectNostalgiaRankedJoin";
+import { YGOProRoom } from "../../domain/YGOProRoom";
 import { JoinRejectionError } from "../../domain/errors/JoinRejectionError";
 import { AuthenticateOrRegisterPinUser } from "@shared/user-auth/application/AuthenticateOrRegisterPinUser";
 import { RankedRoomRegistry } from "../domain/RankedRoomRegistry";
@@ -30,18 +43,25 @@ import { DuelState } from "@shared/room/domain/YgoRoom";
 import { RoomLeague } from "@shared/room/admission/domain/RoomLeague";
 import { ISocket } from "@shared/socket/domain/ISocket";
 
-const makeMockSocket = (id: string): ISocket => ({
-	id,
-	transport: "tcp",
-	send: jest.fn(),
-	onMessage: jest.fn(),
-	onClose: jest.fn(),
-	close: jest.fn(),
-	destroy: jest.fn(),
-	remoteAddress: "127.0.0.1",
-	closed: false,
-	removeAllListeners: jest.fn(),
-});
+const makeMockSocket = (id: string): ISocket => {
+	const s: ISocket = {
+		id,
+		transport: "tcp",
+		send: jest.fn(),
+		onMessage: jest.fn(),
+		onClose: jest.fn(),
+		close: jest.fn(() => {
+			s.closed = true;
+		}),
+		destroy: jest.fn(() => {
+			s.closed = true;
+		}),
+		remoteAddress: "127.0.0.1",
+		closed: false,
+		removeAllListeners: jest.fn(),
+	};
+	return s;
+};
 
 describe("DirectNostalgiaRankedJoin", () => {
 	let userProfileRepository: jest.Mocked<UserProfileRepository>;
@@ -50,6 +70,7 @@ describe("DirectNostalgiaRankedJoin", () => {
 	let mockResources: NostalgiaFormatResourcePort;
 	let useCase: DirectNostalgiaRankedJoin;
 	let logger: LoggerMock;
+	const createdUsers = new Map<string, UserProfile>();
 
 	beforeEach(() => {
 		// Clear room list
@@ -58,11 +79,27 @@ describe("DirectNostalgiaRankedJoin", () => {
 
 		registry = new RankedRoomRegistry();
 		registry.clear();
+		createdUsers.clear();
 
-		mockFindById.mockReset();
+		mockFindById.mockReset().mockImplementation(async (id: string) => {
+			if (createdUsers.has(id)) {
+				return createdUsers.get(id)!;
+			}
+			for (const result of mockFindByUsername.mock.results) {
+				if (result.type === "return" && result.value) {
+					const resolved = await result.value;
+					if (resolved && resolved.id === id) {
+						return resolved;
+					}
+				}
+			}
+			return null;
+		});
 		mockIsBanned.mockReset().mockResolvedValue(false);
 		mockFindByUsername.mockReset();
-		mockCreate.mockReset().mockResolvedValue(undefined);
+		mockCreate.mockReset().mockImplementation(async (u: UserProfile) => {
+			createdUsers.set(u.id, u);
+		});
 		mockUpdatePassword.mockReset().mockResolvedValue(undefined);
 
 		userProfileRepository = {
@@ -89,11 +126,11 @@ describe("DirectNostalgiaRankedJoin", () => {
 		const buffer = Buffer.from(rawString, "utf16le");
 		const playerInfo = new PlayerInfoMessage(buffer, buffer.length);
 		const message = {
-			data: Buffer.from([]),
+			data: Buffer.alloc(48),
 			previousMessage: buffer,
-			raw: Buffer.from([]),
+			raw: Buffer.alloc(48),
 			previousRawMessage: buffer,
-			size: 0,
+			size: 48,
 			command: 0x12,
 		};
 		const eventEmitter = new EventEmitter();
@@ -107,9 +144,13 @@ describe("DirectNostalgiaRankedJoin", () => {
 			socketId: socket.id as string,
 			eventEmitter,
 			messageRepository: {
-				errorMessage: jest.fn(),
-				watchChangeMessage: jest.fn(),
-				playerChangeMessage: jest.fn(),
+				errorMessage: jest.fn().mockReturnValue(Buffer.from([])),
+				watchChangeMessage: jest.fn().mockReturnValue(Buffer.from([])),
+				playerChangeMessage: jest.fn().mockReturnValue(Buffer.from([])),
+				joinGameMessage: jest.fn().mockReturnValue(Buffer.from([])),
+				typeChangeMessage: jest.fn().mockReturnValue(Buffer.from([])),
+				typeChangeMessageFromType: jest.fn().mockReturnValue(Buffer.from([])),
+				playerEnterMessage: jest.fn().mockReturnValue(Buffer.from([])),
 			} as any,
 			logger,
 			message,
@@ -128,7 +169,8 @@ describe("DirectNostalgiaRankedJoin", () => {
 		expect(room.league).toBe(RoomLeague.External);
 		expect(room.duelState).toBe(DuelState.WAITING);
 		expect(YGOProRoomList.getRooms()).toHaveLength(1);
-		expect(registry.getReservations(room.id)).toBe(1);
+		expect(room.players).toHaveLength(1);
+		expect(registry.getReservations(room.id)).toBe(0);
 	});
 
 	it("matches second 1103 player into existing waiting room without creating a new room", async () => {
@@ -142,7 +184,8 @@ describe("DirectNostalgiaRankedJoin", () => {
 
 		expect(room2.id).toBe(room1.id);
 		expect(YGOProRoomList.getRooms()).toHaveLength(1);
-		expect(registry.getReservations(room1.id)).toBe(2);
+		expect(room1.players).toHaveLength(2);
+		expect(registry.getReservations(room1.id)).toBe(0);
 	});
 
 	it("creates a second 1103 room when the first room has 2 seats occupied or reserved", async () => {
@@ -161,6 +204,25 @@ describe("DirectNostalgiaRankedJoin", () => {
 		expect(YGOProRoomList.getRooms()).toHaveLength(2);
 	});
 
+	it("creates a second 1103 room when the first room has 1 seated and 1 reserved", async () => {
+		userProfileRepository.findByUsername.mockResolvedValue(null);
+
+		const req1 = makeRequest("1103#TT", "Player1", "1234");
+		const room1 = await useCase.run(req1);
+		expect(room1.players).toHaveLength(1);
+
+		// Simulate another join currently in progress (reservation = 1)
+		registry.reserveSeat(room1.id);
+		expect(registry.getReservations(room1.id)).toBe(1);
+
+		// A 3rd player joins: 1 seated + 1 reserved means room1 is full, must create room2
+		const req3 = makeRequest("1103#TT", "Player3", "9999");
+		const room3 = await useCase.run(req3);
+
+		expect(room3.id).not.toBe(room1.id);
+		expect(YGOProRoomList.getRooms()).toHaveLength(2);
+	});
+
 	it("allows a subsequent player to join the waiting room when one of the two players leaves", async () => {
 		userProfileRepository.findByUsername.mockResolvedValue(null);
 
@@ -170,11 +232,13 @@ describe("DirectNostalgiaRankedJoin", () => {
 		const req2 = makeRequest("1103#TT", "Player2", "5678");
 		const room2 = await useCase.run(req2);
 		expect(room2.id).toBe(room1.id);
-		expect(registry.getReservations(room1.id)).toBe(2);
+		expect(room1.players).toHaveLength(2);
+		expect(registry.getReservations(room1.id)).toBe(0);
 
 		// Player 2 leaves while in WAITING state
-		registry.releaseReservation(room1.id);
-		expect(registry.getReservations(room1.id)).toBe(1);
+		room1.removePlayerBySocket(req2.socket);
+		registry.releaseOccupancy(req2.socket.resolvedUserId!);
+		expect(room1.players).toHaveLength(1);
 
 		// Player 3 joins 1103#TT and should enter room1 instead of creating room2
 		const req3 = makeRequest("1103#TT", "Player3", "9999");
@@ -182,7 +246,8 @@ describe("DirectNostalgiaRankedJoin", () => {
 
 		expect(room3.id).toBe(room1.id);
 		expect(YGOProRoomList.getRooms()).toHaveLength(1);
-		expect(registry.getReservations(room1.id)).toBe(2);
+		expect(room1.players).toHaveLength(2);
+		expect(registry.getReservations(room1.id)).toBe(0);
 	});
 
 	it("isolates 1103 and 1109 formats so 1109 join does not enter 1103 waiting room", async () => {
@@ -231,6 +296,14 @@ describe("DirectNostalgiaRankedJoin", () => {
 
 		expect(room2.id).toBe(room1.id);
 		expect(room2.formatId).toBe("1103");
+		// Occupancy must be recorded as 1103, not overwritten by bare TT's 1109 default
+		expect(registry.getOccupancy("user-100")?.formatId).toBe("1103");
+
+		// Subsequent rejoin with 1103#TT must not be rejected as cross-format
+		const req3 = makeRequest("1103#TT", "OccupiedUser", "1111");
+		const room3 = await useCase.run(req3);
+		expect(room3.id).toBe(room1.id);
+		expect(room3.formatId).toBe("1103");
 	});
 
 	it("sends private ranked in-game notice chat message to player on join", async () => {
@@ -288,11 +361,11 @@ describe("DirectNostalgiaRankedJoin", () => {
 			const buffer = Buffer.from(rawPlayerString, "utf16le");
 			const playerInfo = new PlayerInfoMessage(buffer, buffer.length);
 			const message = {
-				data: Buffer.from([]),
+				data: Buffer.alloc(48),
 				previousMessage: buffer,
-				raw: Buffer.from([]),
+				raw: Buffer.alloc(48),
 				previousRawMessage: buffer,
-				size: 0,
+				size: 48,
 				command: 0x12,
 			};
 			const eventEmitter = new EventEmitter();
@@ -306,9 +379,13 @@ describe("DirectNostalgiaRankedJoin", () => {
 				socketId: socket.id as string,
 				eventEmitter,
 				messageRepository: {
-					errorMessage: jest.fn(),
-					watchChangeMessage: jest.fn(),
-					playerChangeMessage: jest.fn(),
+					errorMessage: jest.fn().mockReturnValue(Buffer.from([])),
+					watchChangeMessage: jest.fn().mockReturnValue(Buffer.from([])),
+					playerChangeMessage: jest.fn().mockReturnValue(Buffer.from([])),
+					joinGameMessage: jest.fn().mockReturnValue(Buffer.from([])),
+					typeChangeMessage: jest.fn().mockReturnValue(Buffer.from([])),
+					typeChangeMessageFromType: jest.fn().mockReturnValue(Buffer.from([])),
+					playerEnterMessage: jest.fn().mockReturnValue(Buffer.from([])),
 				} as any,
 				logger,
 				message,
@@ -516,6 +593,152 @@ describe("DirectNostalgiaRankedJoin", () => {
 				message: expect.stringContaining("Database connection lost"),
 			});
 			expect(YGOProRoomList.getRooms()).toHaveLength(0);
+		});
+	});
+
+	describe("ranked admission waiting and takeover behavior", () => {
+		it("ensures room.players contains the player and socket.roomId is set after first join completes", async () => {
+			const req = makeRequest("1103#TT", "Player1", "1234");
+			const room = await useCase.run(req);
+
+			expect(room.players).toHaveLength(1);
+			expect(room.players[0].socket).toBe(req.socket);
+			expect(req.socket.roomId).toBe(room.id);
+			expect(registry.getOccupancy(room.players[0].id!)).toEqual({
+				roomId: room.id,
+				formatId: "1103",
+			});
+			expect(registry.getReservations(room.id)).toBe(0);
+		});
+
+		it("releases reservation and occupancy and throws when admission fails", async () => {
+			const req = makeRequest("1103#TT", "FailPlayer", "1234");
+			jest.spyOn(YGOProRoom.prototype, "admitRankedJoin").mockResolvedValueOnce("rejected");
+
+			await expect(useCase.run(req)).rejects.toThrow();
+			expect(registry.getOccupancy(req.socket.resolvedUserId!)).toBeNull();
+		});
+
+		it("does not seat player, does not send notice, and releases occupancy when socket closes during admission", async () => {
+			const req = makeRequest("1103#TT", "ClosedPlayer", "1234");
+			req.socket.closed = true;
+
+			await expect(useCase.run(req)).rejects.toThrow();
+			expect(YGOProRoomList.getRooms()).toHaveLength(0);
+			expect(registry.getOccupancy(req.socket.resolvedUserId!)).toBeNull();
+		});
+
+		it("cleans up newly created room when admission fails with zero players", async () => {
+			const req = makeRequest("1103#TT", "ErrorPlayer", "1234");
+			jest
+				.spyOn(YGOProRoom.prototype, "admitRankedJoin")
+				.mockRejectedValueOnce(new Error("Async admission failed"));
+
+			await expect(useCase.run(req)).rejects.toThrow("Async admission failed");
+			expect(YGOProRoomList.getRooms()).toHaveLength(0);
+		});
+
+		it("takes over seat when same account reconnects in WAITING state, closing old socket", async () => {
+			const user = await UserProfile.create({
+				id: "user-takeover",
+				username: "TakeoverUser",
+				password: "1234",
+				email: null,
+				avatar: null,
+			});
+			mockFindByUsername.mockResolvedValue(user);
+			mockFindById.mockResolvedValue(user);
+
+			const req1 = makeRequest("1103#TT", "TakeoverUser", "1234");
+			const room = await useCase.run(req1);
+
+			const req2 = makeRequest("1103#TT", "TakeoverUser", "1234");
+			const room2 = await useCase.run(req2);
+
+			expect(room2.id).toBe(room.id);
+			expect(room.players).toHaveLength(1);
+			expect(room.players[0].socket).toBe(req2.socket);
+			expect(req1.socket.removeAllListeners).toHaveBeenCalled();
+			expect(req1.socket.close).toHaveBeenCalled();
+		});
+
+		it("does not increase player count, reservations, or occupancies after takeover", async () => {
+			const user = await UserProfile.create({
+				id: "user-idempotent",
+				username: "IdempotentUser",
+				password: "1234",
+				email: null,
+				avatar: null,
+			});
+			mockFindByUsername.mockResolvedValue(user);
+			mockFindById.mockResolvedValue(user);
+
+			const req1 = makeRequest("1103#TT", "IdempotentUser", "1234");
+			const room = await useCase.run(req1);
+
+			const req2 = makeRequest("1103#TT", "IdempotentUser", "1234");
+			await useCase.run(req2);
+
+			expect(room.players).toHaveLength(1);
+			expect(registry.getReservations(room.id)).toBe(0);
+			expect(registry.getOccupancy(user.id)).toEqual({
+				roomId: room.id,
+				formatId: "1103",
+			});
+		});
+
+		it("rejects takeover when a different account uses the same nickname", async () => {
+			const userA = await UserProfile.create({
+				id: "user-a",
+				username: "SameName",
+				password: "1111",
+				email: null,
+				avatar: null,
+			});
+			const userB = await UserProfile.create({
+				id: "user-b",
+				username: "SameName",
+				password: "2222",
+				email: null,
+				avatar: null,
+			});
+
+			mockFindByUsername.mockResolvedValueOnce(userA);
+			mockFindById.mockImplementation(async (id) => (id === "user-a" ? userA : userB));
+
+			const req1 = makeRequest("1103#TT", "SameName", "1111");
+			const room = await useCase.run(req1);
+
+			// Different account B attempts to join with same nickname
+			mockFindByUsername.mockResolvedValueOnce(userB);
+
+			const req2 = makeRequest("1103#TT", "SameName", "2222");
+			await expect(useCase.run(req2)).rejects.toThrow();
+
+			expect(room.players).toHaveLength(1);
+			expect(room.players[0].id).toBe("user-a");
+		});
+
+		it("handles concurrent duplicate join requests so account only occupies one room and one seat", async () => {
+			const user = await UserProfile.create({
+				id: "user-concurrent",
+				username: "ConcurrentUser",
+				password: "1234",
+				email: null,
+				avatar: null,
+			});
+			mockFindByUsername.mockResolvedValue(user);
+			mockFindById.mockResolvedValue(user);
+
+			const req1 = makeRequest("1103#TT", "ConcurrentUser", "1234");
+			const req2 = makeRequest("1103#TT", "ConcurrentUser", "1234");
+
+			const [room1, room2] = await Promise.all([useCase.run(req1), useCase.run(req2)]);
+
+			expect(room1.id).toBe(room2.id);
+			expect(room1.players).toHaveLength(1);
+			expect(registry.getReservations(room1.id)).toBe(0);
+			expect(YGOProRoomList.getRooms()).toHaveLength(1);
 		});
 	});
 });
