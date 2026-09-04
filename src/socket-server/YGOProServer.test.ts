@@ -289,7 +289,8 @@ describe("YGOProServer · TCP admission contract", () => {
 			// frame[1]: the readable upgrade hint (STOC_CHAT 0x19) so the user
 			// knows to upgrade instead of failing silently.
 			const hint = new YGOProStocChat().fromFullPayload(frames[1]);
-			expect(hint.player_type).toBe(0x09);
+			expect(hint.player_type).toBe(0x10); // ChatColor.YELLOW, legal system type
+			expect(hint.player_type).not.toBe(0x09);
 			expect(hint.msg).toContain("0x1362");
 			expect(hint.msg).toContain("升级");
 
@@ -323,7 +324,8 @@ describe("YGOProServer · TCP admission contract", () => {
 			expect(frames[0].toString("hex")).toBe(VERSION_ERROR_FRAME_HEX);
 
 			const hint = new YGOProStocChat().fromFullPayload(frames[1]);
-			expect(hint.player_type).toBe(0x09);
+			expect(hint.player_type).toBe(0x10); // ChatColor.YELLOW, legal system type
+			expect(hint.player_type).not.toBe(0x09);
 			expect(hint.msg).toContain("0x1362");
 			expect(hint.msg).toContain("升级");
 

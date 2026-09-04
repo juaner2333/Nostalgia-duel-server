@@ -145,7 +145,8 @@ describe("WSYGOProServer · protocol version gate", () => {
 		expect(messages).toHaveLength(2);
 		expect(messages[0].toString("hex")).toBe(VERSION_ERROR_FRAME_HEX);
 		const hint = new YGOProStocChat().fromFullPayload(messages[1]);
-		expect(hint.player_type).toBe(0x09);
+		expect(hint.player_type).toBe(0x10); // ChatColor.YELLOW, legal system type
+		expect(hint.player_type).not.toBe(0x09);
 		expect(hint.msg).toContain("0x1362");
 		expect(hint.msg).toContain("升级客户端");
 

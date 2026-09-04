@@ -15,9 +15,9 @@ admin_key="$(sudo grep ^ADMIN_API_KEY "$ENV_FILE" | cut -d= -f2-)"
 # 发送系统消息：POST /api/admin/message {message, reason}
 # 消息会以 "[reason] message" 广播给所有在线房间的玩家与观战者。
 system_message() {
-	local msg="$1" reason="${2:-System}"
+	local msg="$1" reason="${2:-系统消息}"
 	if [ -z "$msg" ]; then
-		echo "用法: duel message <消息内容> [原因标签，默认 System]"
+		echo "用法: duel message <消息内容> [原因标签，默认 系统消息]"
 		return 1
 	fi
 	curl -s --noproxy "*" -m 5 -X POST "http://127.0.0.1:${http_port}/api/admin/message" \

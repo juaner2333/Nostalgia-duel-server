@@ -251,6 +251,23 @@ describe("YGOPro-only HTTP contract", () => {
 		expect(frame[2]).toBe(0x19); // YGOPro STOC_CHAT
 	});
 
+	it("POST /api/admin/message defaults reason to 系统消息 when omitted", async () => {
+		const ygoproSend = jest.fn();
+		asMock(YGOProRoomList.getRooms).mockReturnValue([
+			{ players: [{ socket: { send: ygoproSend } }], spectators: [] },
+		]);
+
+		const out = fakeResponse();
+		await new ServerMessagesController().run(
+			fakeRequest({ body: { message: "restart soon" } }),
+			out.res,
+		);
+
+		expect(out.status()).toBe(200);
+		expect(out.body()).toEqual({ message: "restart soon", reason: "系统消息" });
+		expect(ygoproSend).toHaveBeenCalledTimes(1);
+	});
+
 	it("does not mount any matchmaking routes", () => {
 		const app = express();
 		const mockTickets = {} as any;

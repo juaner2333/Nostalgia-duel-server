@@ -6,7 +6,7 @@ import { YGOProPlayerChatMessage } from "@ygopro/messages/server-to-client/YGOPr
 
 export const ServerMessageSchema = z.object({
 	message: z.string().min(1).max(500),
-	reason: z.string().min(1).max(50),
+	reason: z.string().min(1).max(50).optional().default("系统消息"),
 });
 
 export type CreateMessageRequest = z.infer<typeof ServerMessageSchema>;
