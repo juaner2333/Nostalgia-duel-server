@@ -50,9 +50,7 @@ export abstract class YGOProRoomState {
 		socket: ISocket,
 	): void {
 		socket.send(
-			ServerErrorClientMessage.create(
-				`Already exists a player with the name :${playerInfoMessage.name}`,
-			),
+			ServerErrorClientMessage.create(`房间内已存在昵称为“${playerInfoMessage.name}”的玩家。`),
 		);
 		socket.send(ErrorClientMessage.create(ErrorMessages.JOIN_ERROR));
 		// close() (not destroy()): flush both error frames before tearing down,

@@ -33,6 +33,22 @@ const encodeUtf16LE = (text, slots) => {
 	return buffer;
 };
 
+const decodeUtf16LE = (buffer, maxBytes = 40) => {
+	let text = "";
+	for (let i = 0; i < maxBytes; i += 2) {
+		const code = buffer.readUInt16LE(i);
+		if (code === 0) break;
+		text += String.fromCharCode(code);
+	}
+	return text;
+};
+
+const parsePlayerEnter = (frame) => {
+	const name = decodeUtf16LE(frame.subarray(3, 43));
+	const pos = frame.readInt8(43);
+	return { name, pos };
+};
+
 const buildFrame = (command, payload) => {
 	const header = Buffer.alloc(3);
 	header.writeUInt16LE(payload.length + 1, 0);
@@ -199,15 +215,73 @@ async function runRankedSmokeForFormat(formatId) {
 		throw new Error("Ranked in-room notice chat message not received");
 	}
 
+	// Verify waiting state nickname masking: opponent is seen as ***
+	await waitFor(host.frames, 0x20);
+	await waitFor(guest.frames, 0x20);
+
+	const hostWaitingEnters = host.frames.filter((f) => f[2] === 0x20).map(parsePlayerEnter);
+	const guestWaitingEnters = guest.frames.filter((f) => f[2] === 0x20).map(parsePlayerEnter);
+
+	const hostSeenGuest = hostWaitingEnters.find((e) => e.pos === 1);
+	const guestSeenHost = guestWaitingEnters.find((e) => e.pos === 0);
+
+	if (
+		!hostSeenGuest ||
+		hostSeenGuest.name !== "***" ||
+		!guestSeenHost ||
+		guestSeenHost.name !== "***"
+	) {
+		throw new Error(
+			`Waiting nickname masking failed: host saw '${hostSeenGuest?.name}', guest saw '${guestSeenHost?.name}'`,
+		);
+	}
+
 	// Ready up
 	host.socket.write(updateDeckFrame(deck));
 	guest.socket.write(updateDeckFrame(deck));
 	await new Promise((r) => setTimeout(r, 800));
 
 	// Host starts game
+	const hostFramesBeforeStart = host.frames.length;
+	const guestFramesBeforeStart = guest.frames.length;
 	host.socket.write(tryStartFrame());
 	await waitFor(host.frames, 0x15); // DUEL_START
 	await waitFor(guest.frames, 0x15);
+
+	// Verify real name reveal before DUEL_START
+	const hostStartFrames = host.frames.slice(hostFramesBeforeStart);
+	const guestStartFrames = guest.frames.slice(guestFramesBeforeStart);
+	const hostDuelStartIndex = hostStartFrames.findIndex((f) => f[2] === 0x15);
+	const guestDuelStartIndex = guestStartFrames.findIndex((f) => f[2] === 0x15);
+
+	const hostRevealedEnters = hostStartFrames
+		.slice(0, hostDuelStartIndex)
+		.filter((f) => f[2] === 0x20)
+		.map(parsePlayerEnter);
+	const guestRevealedEnters = guestStartFrames
+		.slice(0, guestDuelStartIndex)
+		.filter((f) => f[2] === 0x20)
+		.map(parsePlayerEnter);
+
+	const hostRevealedHost = hostRevealedEnters.find((e) => e.pos === 0);
+	const hostRevealedGuest = hostRevealedEnters.find((e) => e.pos === 1);
+	const guestRevealedHost = guestRevealedEnters.find((e) => e.pos === 0);
+	const guestRevealedGuest = guestRevealedEnters.find((e) => e.pos === 1);
+
+	if (
+		!hostRevealedHost ||
+		hostRevealedHost.name !== hostName ||
+		!hostRevealedGuest ||
+		hostRevealedGuest.name !== guestName ||
+		!guestRevealedHost ||
+		guestRevealedHost.name !== hostName ||
+		!guestRevealedGuest ||
+		guestRevealedGuest.name !== guestName
+	) {
+		throw new Error(
+			`Real name reveal before DUEL_START failed: host saw [${hostRevealedEnters.map((e) => e.name).join(", ")}], guest saw [${guestRevealedEnters.map((e) => e.name).join(", ")}]`,
+		);
+	}
 
 	// RPS
 	host.socket.write(rpsChoiceFrame(1));
@@ -253,11 +327,16 @@ async function runRankedSmokeForFormat(formatId) {
 async function main() {
 	console.log(`Starting Ranked Duel Smoke Test (port=${PORT}, httpPort=${HTTP_PORT})...`);
 
+	await runRankedSmokeForFormat("1103");
 	await runRankedSmokeForFormat("1109");
 
-	const lb = await fetchLeaderboard("1109");
-	if (lb && lb.leaderboard && lb.leaderboard.length > 0) {
-		console.log(`OK leaderboard API: returned ${lb.leaderboard.length} entry/entries for 1109`);
+	for (const formatId of ["1103", "1109"]) {
+		const lb = await fetchLeaderboard(formatId);
+		if (lb && lb.leaderboard && lb.leaderboard.length > 0) {
+			console.log(
+				`OK leaderboard API: returned ${lb.leaderboard.length} entry/entries for ${formatId}`,
+			);
+		}
 	}
 
 	console.log("SMOKE RANKED PASS");

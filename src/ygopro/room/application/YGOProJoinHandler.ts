@@ -15,6 +15,7 @@ import { YGOProPlayerChatMessage } from "@ygopro/messages/server-to-client/YGOPr
 
 import { JoinStrategyRegistry } from "./join-strategies/JoinStrategyRegistry";
 import { JoinContext } from "./join-strategies/JoinStrategy";
+import { JoinRejectionError } from "../domain/errors/JoinRejectionError";
 
 export class YGOProJoinHandler implements JoinMessageHandler {
 	private readonly logger: Logger;
@@ -95,7 +96,12 @@ export class YGOProJoinHandler implements JoinMessageHandler {
 		try {
 			await strategy.handle(ctx);
 		} catch (error) {
-			this.logger.error(`JOIN_GAME rejected: ${error instanceof Error ? error.message : error}`);
+			if (error instanceof JoinRejectionError) {
+				this.logger.warn(`JOIN_GAME rejected: ${error.message}`);
+				this.socket.send(YGOProPlayerChatMessage.create(error.clientMessage));
+			} else {
+				this.logger.error(`JOIN_GAME rejected: ${error instanceof Error ? error.message : error}`);
+			}
 			const errorBuf = this.messageRepository.errorMessage(ErrorMessageType.JOINERROR, 0);
 			this.socket.send(errorBuf);
 			// close() (not destroy()): flush the JOINERROR frame before tearing down,

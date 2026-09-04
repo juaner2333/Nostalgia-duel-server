@@ -13,7 +13,7 @@ import { BanListDeckError } from "@shared/deck/domain/errors/BanListDeckError";
 import { NotOfficialCardError } from "@shared/deck/domain/errors/NotOfficialCardError";
 import { encodeDeckErrorCode } from "@shared/deck/domain/errors/encodeDeckErrorCode";
 
-import { ErrorMessageType } from "ygopro-msg-encode";
+import { ErrorMessageType, YGOProStocChat } from "ygopro-msg-encode";
 
 import MercuryRoomList from "../../infrastructure/YGOProRoomList";
 import WebSocketSingleton from "../../../../web-socket-server/WebSocketSingleton";
@@ -181,6 +181,53 @@ describe("YGOProSideDeckingState — side-deck timeout lifecycle", () => {
 
 		expect(forfeitMatchSpy).toHaveBeenCalledWith(players[0]);
 		expect(room.finalizing).toBe(true);
+	});
+
+	it("sends localized Chinese side deck countdown and timeout messages", () => {
+		const parseChat = (buf: Buffer): string | null => {
+			if (buf && buf.length >= 3 && buf[2] === 0x19) {
+				try {
+					return new YGOProStocChat().fromPayload(buf.subarray(3)).msg;
+				} catch {
+					return null;
+				}
+			}
+			return null;
+		};
+
+		// Initial countdown message sent in beforeEach
+		const initialSends = (sockets[0].send as jest.Mock).mock.calls
+			.map((c) => parseChat(c[0]))
+			.filter(Boolean);
+		expect(initialSends).toContain(`你有 ${config.sideTimeoutMinutes} 分钟提交副卡组。`);
+
+		(sockets[0].send as jest.Mock).mockClear();
+		(sockets[1].send as jest.Mock).mockClear();
+
+		// Tick after 1 minute: remaining is 2 minutes
+		jest.advanceTimersByTime(60_000);
+		const tickSends = (sockets[0].send as jest.Mock).mock.calls
+			.map((c) => parseChat(c[0]))
+			.filter(Boolean);
+		expect(tickSends).toContain("还剩 2 分钟提交副卡组。");
+
+		(sockets[0].send as jest.Mock).mockClear();
+		(sockets[1].send as jest.Mock).mockClear();
+
+		// Advance to timeout
+		jest.advanceTimersByTime(120_000);
+		const timeoutSends0 = (sockets[0].send as jest.Mock).mock.calls
+			.map((c) => parseChat(c[0]))
+			.filter(Boolean);
+		const timeoutSends1 = (sockets[1].send as jest.Mock).mock.calls
+			.map((c) => parseChat(c[0]))
+			.filter(Boolean);
+
+		// Broadcast message to all
+		expect(timeoutSends0).toContain(`${players[0].name} 未在规定时间内提交副卡组，已断开连接。`);
+		expect(timeoutSends1).toContain(`${players[0].name} 未在规定时间内提交副卡组，已断开连接。`);
+		// Private message to timed-out player
+		expect(timeoutSends0).toContain("时间已到，你已被断开连接。");
 	});
 });
 

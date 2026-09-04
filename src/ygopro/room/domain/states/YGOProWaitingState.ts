@@ -97,6 +97,10 @@ export class YGOProWaitingState extends YGOProRoomState {
 			return;
 		}
 
+		if (room.isDirectRanked) {
+			room.revealRealPlayerNames();
+		}
+
 		for (const player of room.clients) {
 			(player as YGOProClient).sendMessageToClient(room.messageSender.duelStartMessage());
 			room.sendDeckCountMessage(player as YGOProClient);

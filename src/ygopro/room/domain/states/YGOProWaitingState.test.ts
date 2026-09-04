@@ -415,3 +415,57 @@ describe("YGOProWaitingState.handleToDuel (spectator -> player)", () => {
 		expect(room.spectatorToPlayerUnsafe).not.toHaveBeenCalled();
 	});
 });
+
+describe("YGOProWaitingState.handleTryStart", () => {
+	it("calls room.revealRealPlayerNames before duelStartMessage when isDirectRanked is true", () => {
+		const eventEmitter = new EventEmitter();
+		const callOrder: string[] = [];
+		const room = {
+			allPlayersReady: true,
+			isDirectRanked: true,
+			clients: [],
+			players: [],
+			noReconnect: true,
+			revealRealPlayerNames: jest.fn().mockImplementation(() => {
+				callOrder.push("revealRealPlayerNames");
+			}),
+			messageSender: {
+				duelStartMessage: jest.fn().mockImplementation(() => {
+					callOrder.push("duelStartMessage");
+					return Buffer.alloc(0);
+				}),
+			},
+			sendDeckCountMessage: jest.fn(),
+			toRPS: jest.fn(),
+			createMatch: jest.fn(),
+			rps: jest.fn(),
+			getTeamPlayers: jest.fn().mockReturnValue([]),
+		} as unknown as YGOProRoom;
+
+		const hostPlayer = {
+			host: true,
+			logger: makeLogger(),
+			sendMessageToClient: jest.fn(),
+		} as unknown as YGOProClient;
+
+		(room.clients as any[]).push(hostPlayer);
+
+		new YGOProWaitingState(
+			makeAdmitToRoom() as unknown as AdmitToRoom,
+			eventEmitter,
+			makeLogger(),
+			{ build: jest.fn() } as unknown as YGOProDeckCreator,
+			{ validate: jest.fn() } as unknown as YGOProDeckValidator,
+		);
+
+		eventEmitter.emit(
+			Commands.TRY_START as unknown as string,
+			makeClientMessage(Buffer.alloc(0)),
+			room,
+			hostPlayer,
+		);
+
+		expect(room.revealRealPlayerNames).toHaveBeenCalled();
+		expect(callOrder).toEqual(["revealRealPlayerNames", "duelStartMessage"]);
+	});
+});

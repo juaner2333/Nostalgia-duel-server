@@ -2,6 +2,7 @@ import { BufferToUTF16 } from "../../../utils/BufferToUTF16";
 
 export class PlayerInfoMessage {
 	public static readonly MAX_BYTES_LENGTH: number = 40;
+	public readonly raw: string;
 	public readonly name: string;
 	public readonly password: string | null;
 	public readonly rankedPin: string | null;
@@ -9,6 +10,7 @@ export class PlayerInfoMessage {
 
 	constructor(buffer: Buffer, length: number) {
 		const data = BufferToUTF16(buffer, length);
+		this.raw = data;
 		this.hasMercurySignature = data.includes("$");
 
 		const rankedMatch = /^([^$]+)\$(\d{4})$/.exec(data);

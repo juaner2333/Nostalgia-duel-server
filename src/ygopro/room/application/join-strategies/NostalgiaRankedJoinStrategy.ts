@@ -4,6 +4,7 @@ import {
 	isRankedPass,
 	isRankedSpectatorPass,
 } from "../../ranked/application/DirectNostalgiaRankedJoin";
+import { JoinRejectionError } from "../../domain/errors/JoinRejectionError";
 import { AuthenticateOrRegisterPinUser } from "@shared/user-auth/application/AuthenticateOrRegisterPinUser";
 import { UserProfilePostgresRepository } from "@shared/user-profile/infrastructure/postgres/UserProfilePostgresRepository";
 import { RankedRoomRegistry } from "../../ranked/domain/RankedRoomRegistry";
@@ -22,7 +23,7 @@ export class NostalgiaRankedJoinStrategy implements JoinStrategy {
 
 	async handle(ctx: JoinContext): Promise<void> {
 		if (!config.ranking.enabled) {
-			throw new Error("Ranked rooms are currently disabled");
+			throw new JoinRejectionError("Ranked rooms are currently disabled", "排位功能当前未开启。");
 		}
 
 		if (isRankedSpectatorPass(ctx.rawPass)) {

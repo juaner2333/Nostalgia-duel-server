@@ -374,9 +374,7 @@ describe("YGOProServer · TCP admission contract", () => {
 			expect(frames[0].readUInt16LE(0)).toBe(555);
 			expect(frames[0].length).toBe(557);
 			expect(frames[0][2]).toBe(0xf3);
-			expect(decodeServerErrorText(frames[0])).toContain(
-				"Already exists a player with the name :Jaden",
-			);
+			expect(decodeServerErrorText(frames[0])).toContain("房间内已存在昵称为“Jaden”的玩家。");
 			// frame[1]: JOIN_ERROR error frame
 			expect(frames[1].toString("hex")).toBe(JOIN_ERROR_FRAME_HEX);
 

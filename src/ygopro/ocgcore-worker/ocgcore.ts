@@ -727,7 +727,7 @@ export class OCGCore {
 		const isTimeout = OcgcoreProcessTimeoutError.is(error);
 		this.logger.error("Error while advancing ocgcore", { error, isTimeout });
 
-		this.broadcastChat("The duel has ended in a draw due to a server error.", ChatColor.RED);
+		this.broadcastChat("服务器发生错误，本局以平局结束。", ChatColor.RED);
 
 		const drawGame = new YGOProMsgWin().fromPartial({
 			type: 0x11,

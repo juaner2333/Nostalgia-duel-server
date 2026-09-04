@@ -502,7 +502,7 @@ export class YGOProRoom extends YgoRoom {
 				if (playerInfo.password) {
 					const chat = new YGOProStocChat().fromPartial({
 						player_type: ChatColor.RED,
-						msg: "Invalid username or password.",
+						msg: "用户名或密码错误。",
 					});
 					socket.send(Buffer.from(chat.toFullPayload()));
 				}
@@ -542,6 +542,16 @@ export class YGOProRoom extends YgoRoom {
 		});
 	}
 
+	getDisplayNameFor(targetPlayer: YGOProClient, observerClient: YGOProClient): string {
+		if (this.isDirectRanked && this.duelState === DuelState.WAITING) {
+			if (targetPlayer.socket.id === observerClient.socket.id) {
+				return targetPlayer.name;
+			}
+			return "***";
+		}
+		return targetPlayer.name;
+	}
+
 	addPlayerUnsafe(player: YGOProClient): void {
 		player.sendMessageToClient(
 			this._messageRepository.joinGameMessage(this.hostInfo, this.banListHash),
@@ -555,7 +565,7 @@ export class YGOProRoom extends YgoRoom {
 
 		this.clients.forEach((_client: YGOProClient) => {
 			const playerEnterMessageBuffer = this._messageRepository.playerEnterMessage(
-				_client.name,
+				this.getDisplayNameFor(_client, player),
 				_client.position,
 			);
 			player.sendMessageToClient(playerEnterMessageBuffer);
@@ -568,12 +578,12 @@ export class YGOProRoom extends YgoRoom {
 			}
 		});
 
-		const playerEnterMessage = this._messageRepository.playerEnterMessage(
-			player.name,
-			player.position,
-		);
 		this.clients.forEach((_client: YGOProClient) => {
 			if (_client !== player) {
+				const playerEnterMessage = this._messageRepository.playerEnterMessage(
+					this.getDisplayNameFor(player, _client),
+					player.position,
+				);
 				_client.sendMessageToClient(playerEnterMessage);
 			}
 		});
@@ -593,7 +603,7 @@ export class YGOProRoom extends YgoRoom {
 
 		this.clients.forEach((_client: YGOProClient) => {
 			const playerEnterMessageBuffer = this._messageRepository.playerEnterMessage(
-				_client.name,
+				this.getDisplayNameFor(_client, spectator),
 				_client.position,
 			);
 			spectator.sendMessageToClient(playerEnterMessageBuffer);
@@ -637,11 +647,13 @@ export class YGOProRoom extends YgoRoom {
 		player.playerPosition(place.position, place.team);
 		player.notReady();
 
-		const playerEnterMessageBuffer = this._messageRepository.playerEnterMessage(
-			player.name,
-			player.position,
-		);
-		this.broadcastToAll(playerEnterMessageBuffer);
+		this.clients.forEach((_client: YGOProClient) => {
+			const playerEnterMessageBuffer = this._messageRepository.playerEnterMessage(
+				this.getDisplayNameFor(player, _client),
+				player.position,
+			);
+			_client.sendMessageToClient(playerEnterMessageBuffer);
+		});
 
 		player.sendMessageToClient(
 			this._messageRepository.typeChangeMessage(player.position, player.host),
@@ -789,11 +801,20 @@ export class YGOProRoom extends YgoRoom {
 		player.sendMessageToClient(this._messageRepository.typeChangeMessageFromType(type));
 		this._players.forEach((_player: YGOProClient) => {
 			const playerEnterMessageBuffer = this._messageRepository.playerEnterMessage(
-				_player.name,
+				this.getDisplayNameFor(_player, player),
 				_player.position,
 			);
 			player.sendMessageToClient(playerEnterMessageBuffer);
 		});
+	}
+
+	public revealRealPlayerNames(): void {
+		for (const client of this.clients as YGOProClient[]) {
+			for (const player of this.players as YGOProClient[]) {
+				const buffer = this._messageRepository.playerEnterMessage(player.name, player.position);
+				client.sendMessageToClient(buffer);
+			}
+		}
 	}
 
 	private readonly _playerDisconnectTimers: Map<number, NodeJS.Timeout> = new Map();
@@ -978,7 +999,10 @@ export class YGOProRoom extends YgoRoom {
 			side_min: 0,
 			side_max: 15,
 			users: this._players.map((player) => ({
-				name: player.name.replace(/\0/g, "").trim(),
+				name:
+					this.isDirectRanked && this.duelState === DuelState.WAITING
+						? "***"
+						: player.name.replace(/\0/g, "").trim(),
 				pos: player.position,
 			})),
 		};
@@ -1009,7 +1033,10 @@ export class YGOProRoom extends YgoRoom {
 			startLp: this._hostInfo.start_lp,
 			timeLimit: this._hostInfo.time_limit,
 			players: this._players.map((player) => ({
-				name: player.name.replace(/\0/g, "").trim(),
+				name:
+					this.isDirectRanked && this.duelState === DuelState.WAITING
+						? "***"
+						: player.name.replace(/\0/g, "").trim(),
 				position: player.position,
 				team: player.team,
 			})),

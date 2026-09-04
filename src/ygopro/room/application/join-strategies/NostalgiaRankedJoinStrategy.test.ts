@@ -101,7 +101,18 @@ describe("NostalgiaRankedJoinStrategy", () => {
 	it("throws error on handle when ranking is disabled", async () => {
 		config.ranking.enabled = false;
 		const ctx = makeCtx("1103#TT");
-		await expect(strategy.handle(ctx)).rejects.toThrow("Ranked rooms are currently disabled");
+		await expect(strategy.handle(ctx)).rejects.toMatchObject({
+			name: "JoinRejectionError",
+			message: "Ranked rooms are currently disabled",
+			clientMessage: "排位功能当前未开启。",
+		});
+	});
+
+	it("propagates unexpected runner errors directly without wrapping", async () => {
+		const unexpectedError = new Error("Internal room allocation bug");
+		mockDirectJoin.run.mockRejectedValueOnce(unexpectedError);
+		const ctx = makeCtx("1103#TT");
+		await expect(strategy.handle(ctx)).rejects.toThrow("Internal room allocation bug");
 	});
 
 	describe("spectator pass handling (format#TT<spectatorId>)", () => {

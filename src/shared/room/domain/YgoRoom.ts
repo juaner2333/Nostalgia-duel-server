@@ -310,7 +310,7 @@ export abstract class YgoRoom {
 	}
 
 	get score(): string {
-		return `Score: ${this.playerNames(0)}: ${this.matchScore().team0} - ${
+		return `比分：${this.playerNames(0)} ${this.matchScore().team0} - ${
 			this.matchScore().team1
 		} ${this.playerNames(1)}`;
 	}

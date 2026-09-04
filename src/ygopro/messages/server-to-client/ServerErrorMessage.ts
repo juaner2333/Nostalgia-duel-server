@@ -1,5 +1,5 @@
 export enum ServerErrorMessage {
-	INVALID_PASSWORD = "Your password is incorrect. Please log in to play a Ranked match.",
-	USER_NOT_FOUND = "User not found. If you want to play Ranked, you must register at https://evolutionygo.com/",
-	USER_BANNED = "Your account is banned. If you believe this is a mistake, please contact an administrator.",
+	INVALID_PASSWORD = "密码错误。请先登录后再参加排位赛。",
+	USER_NOT_FOUND = "未找到用户。如需参加排位赛，请先在 https://evolutionygo.com/ 注册。",
+	USER_BANNED = "账号已被封禁。如有疑问，请联系管理员。",
 }

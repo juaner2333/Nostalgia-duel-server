@@ -15,7 +15,8 @@ jest.mock("@shared/user-profile/infrastructure/postgres/UserProfilePostgresRepos
 	})),
 }));
 
-import { DirectNostalgiaRankedJoin } from "./DirectNostalgiaRankedJoin";
+import { DirectNostalgiaRankedJoin, RANKED_FORMAT_CLIENT_ERROR } from "./DirectNostalgiaRankedJoin";
+import { JoinRejectionError } from "../../domain/errors/JoinRejectionError";
 import { AuthenticateOrRegisterPinUser } from "@shared/user-auth/application/AuthenticateOrRegisterPinUser";
 import { RankedRoomRegistry } from "../domain/RankedRoomRegistry";
 import { UserProfileRepository } from "@shared/user-profile/domain/UserProfileRepository";
@@ -271,5 +272,246 @@ describe("DirectNostalgiaRankedJoin", () => {
 			expect.any(Number),
 		);
 		expect(req.socket.send).toHaveBeenCalled();
+	});
+
+	describe("ranked format and authentication rejection handling", () => {
+		const FORMAT_ERROR_PROMPT =
+			"排位登录格式错误：请将玩家名填写为“昵称$4位数字PIN”，完整内容不能超过20个字符（例如：玩家$1234）。";
+
+		const makeRawRequest = (rawPass: string, rawPlayerString: string) => {
+			const socketId = "socket-" + Math.random().toString(36).substring(7);
+			const socket = makeMockSocket(socketId);
+			const buffer = Buffer.from(rawPlayerString, "utf16le");
+			const playerInfo = new PlayerInfoMessage(buffer, buffer.length);
+			const message = {
+				data: Buffer.from([]),
+				previousMessage: buffer,
+				raw: Buffer.from([]),
+				previousRawMessage: buffer,
+				size: 0,
+				command: 0x12,
+			};
+			const eventEmitter = new EventEmitter();
+
+			return {
+				rawPass,
+				command: rawPass,
+				password: "",
+				playerInfo,
+				socket,
+				socketId: socket.id as string,
+				eventEmitter,
+				messageRepository: {
+					errorMessage: jest.fn(),
+					watchChangeMessage: jest.fn(),
+					playerChangeMessage: jest.fn(),
+				} as any,
+				logger,
+				message,
+			};
+		};
+
+		it("rejects player with missing $ delimiter with format error prompt", async () => {
+			const req = makeRawRequest("1109#TT", "PlayerNoDollar");
+			await expect(useCase.run(req)).rejects.toMatchObject({
+				name: "JoinRejectionError",
+				clientMessage: FORMAT_ERROR_PROMPT,
+			});
+			expect(YGOProRoomList.getRooms()).toHaveLength(0);
+		});
+
+		it("rejects player with empty nickname with format error prompt", async () => {
+			const req = makeRawRequest("1109#TT", "$1234");
+			await expect(useCase.run(req)).rejects.toMatchObject({
+				name: "JoinRejectionError",
+				clientMessage: FORMAT_ERROR_PROMPT,
+			});
+			expect(YGOProRoomList.getRooms()).toHaveLength(0);
+		});
+
+		it("rejects player with 3-digit PIN with format error prompt", async () => {
+			const req = makeRawRequest("1109#TT", "Player$123");
+			await expect(useCase.run(req)).rejects.toMatchObject({
+				name: "JoinRejectionError",
+				clientMessage: FORMAT_ERROR_PROMPT,
+			});
+			expect(YGOProRoomList.getRooms()).toHaveLength(0);
+		});
+
+		it("rejects player with 5-digit PIN with format error prompt", async () => {
+			const req = makeRawRequest("1109#TT", "Player$12345");
+			await expect(useCase.run(req)).rejects.toMatchObject({
+				name: "JoinRejectionError",
+				clientMessage: FORMAT_ERROR_PROMPT,
+			});
+			expect(YGOProRoomList.getRooms()).toHaveLength(0);
+		});
+
+		it("rejects player with non-digit PIN with format error prompt", async () => {
+			const req = makeRawRequest("1109#TT", "Player$abcd");
+			await expect(useCase.run(req)).rejects.toMatchObject({
+				name: "JoinRejectionError",
+				clientMessage: FORMAT_ERROR_PROMPT,
+			});
+			expect(YGOProRoomList.getRooms()).toHaveLength(0);
+		});
+
+		it("rejects player with multiple $ delimiters with format error prompt", async () => {
+			const req = makeRawRequest("1109#TT", "Due$list$1234");
+			await expect(useCase.run(req)).rejects.toMatchObject({
+				name: "JoinRejectionError",
+				clientMessage: FORMAT_ERROR_PROMPT,
+			});
+			expect(YGOProRoomList.getRooms()).toHaveLength(0);
+		});
+
+		it("rejects player where nickname too long causes PIN truncation at 20 chars", async () => {
+			// 16 chars name + $ + 3 chars PIN = 20 chars
+			const req = makeRawRequest("1109#TT", "1234567890123456$123");
+			await expect(useCase.run(req)).rejects.toMatchObject({
+				name: "JoinRejectionError",
+				clientMessage: FORMAT_ERROR_PROMPT,
+			});
+			expect(YGOProRoomList.getRooms()).toHaveLength(0);
+		});
+
+		it("rejects player when nickname contains a colon (Alice:shadow$1234) before auth, room, seat, and occupancy", async () => {
+			const reserveSpy = jest.spyOn(registry, "reserveSeat");
+			const recordOccupancySpy = jest.spyOn(registry, "recordOccupancy");
+
+			const req = makeRawRequest("1109#TT", "Alice:shadow$1234");
+			await expect(useCase.run(req)).rejects.toMatchObject({
+				name: "JoinRejectionError",
+				clientMessage: RANKED_FORMAT_CLIENT_ERROR,
+			});
+			expect(userProfileRepository.findByUsername).not.toHaveBeenCalled();
+			expect(userProfileRepository.create).not.toHaveBeenCalled();
+			expect(YGOProRoomList.getRooms()).toHaveLength(0);
+			expect(reserveSpy).not.toHaveBeenCalled();
+			expect(recordOccupancySpy).not.toHaveBeenCalled();
+		});
+
+		it("accepts valid ranked player without colon (Alice$1234)", async () => {
+			userProfileRepository.findByUsername.mockResolvedValueOnce(null);
+			const req = makeRawRequest("1109#TT", "Alice$1234");
+			const room = await useCase.run(req);
+			expect(room).toBeDefined();
+			expect(userProfileRepository.findByUsername).toHaveBeenCalledWith("Alice");
+			expect(YGOProRoomList.getRooms()).toHaveLength(1);
+		});
+
+		it("accepts player exactly filling the 20 UTF-16 character limit (15 chars + $ + 4 digits)", async () => {
+			userProfileRepository.findByUsername.mockResolvedValueOnce(null);
+			const exact20 = "123456789012345$1234";
+			expect(exact20.length).toBe(20);
+			const req = makeRawRequest("1109#TT", exact20);
+			const room = await useCase.run(req);
+			expect(room).toBeDefined();
+			expect(YGOProRoomList.getRooms()).toHaveLength(1);
+		});
+
+		it("rejects player when PIN does not match existing account", async () => {
+			const existingUser = await UserProfile.create({
+				id: "user-pin-mismatch",
+				username: "ExistingPlayer",
+				password: "9999",
+				email: null,
+				avatar: null,
+			});
+			userProfileRepository.findByUsername.mockResolvedValueOnce(existingUser);
+
+			const req = makeRequest("1109#TT", "ExistingPlayer", "1234");
+			await expect(useCase.run(req)).rejects.toMatchObject({
+				name: "JoinRejectionError",
+				clientMessage: "排位密码错误：请输入该昵称对应的4位数字PIN。",
+			});
+			expect(YGOProRoomList.getRooms()).toHaveLength(0);
+		});
+
+		it("rejects player when account is banned", async () => {
+			const bannedUser = await UserProfile.create({
+				id: "user-banned",
+				username: "BannedPlayer",
+				password: "1234",
+				email: null,
+				avatar: null,
+			});
+			userProfileRepository.findByUsername.mockResolvedValueOnce(bannedUser);
+			mockIsBanned.mockResolvedValueOnce(true);
+
+			const req = makeRequest("1109#TT", "BannedPlayer", "1234");
+			await expect(useCase.run(req)).rejects.toMatchObject({
+				name: "JoinRejectionError",
+				clientMessage: "该排位账号已被封禁，如有疑问请联系管理员。",
+			});
+			expect(YGOProRoomList.getRooms()).toHaveLength(0);
+		});
+
+		it("rejects player when user registration race or auth fails", async () => {
+			userProfileRepository.findByUsername.mockResolvedValue(null);
+			mockCreate.mockRejectedValueOnce(new Error("DB collision"));
+
+			const req = makeRequest("1109#TT", "RacePlayer", "1234");
+			await expect(useCase.run(req)).rejects.toMatchObject({
+				name: "JoinRejectionError",
+				clientMessage: "排位账号认证失败，请稍后重试。",
+			});
+			expect(YGOProRoomList.getRooms()).toHaveLength(0);
+		});
+
+		it("rejects player already occupied in another format", async () => {
+			const user = await UserProfile.create({
+				id: "user-occupied-other",
+				username: "OccupiedOther",
+				password: "1234",
+				email: null,
+				avatar: null,
+			});
+			userProfileRepository.findByUsername.mockResolvedValue(user);
+
+			// First join 1103
+			const req1 = makeRequest("1103#TT", "OccupiedOther", "1234");
+			const room1 = await useCase.run(req1);
+			registry.recordOccupancy("user-occupied-other", room1.id, "1103");
+
+			// Try to join 1109
+			const req2 = makeRequest("1109#TT", "OccupiedOther", "1234");
+			await expect(useCase.run(req2)).rejects.toMatchObject({
+				name: "JoinRejectionError",
+				clientMessage: "你已加入 1103 排位，无法同时加入 1109 排位。",
+			});
+		});
+
+		it("rejects join when nostalgia ban list is unavailable", async () => {
+			userProfileRepository.findByUsername.mockResolvedValueOnce(null);
+			const noBanlistResources: NostalgiaFormatResourcePort = {
+				getBanListHash: jest.fn().mockReturnValue(null),
+			};
+			const badResourcesUseCase = new DirectNostalgiaRankedJoin(
+				authUseCase,
+				registry,
+				noBanlistResources,
+			);
+			const req = makeRequest("1109#TT", "NoBanlistPlayer", "1234");
+			await expect(badResourcesUseCase.run(req)).rejects.toMatchObject({
+				name: "JoinRejectionError",
+				clientMessage: "排位房间暂时不可用，请稍后重试。",
+			});
+			expect(YGOProRoomList.getRooms()).toHaveLength(0);
+		});
+
+		it("rejects player with JoinRejectionError when authentication throws a database error", async () => {
+			userProfileRepository.findByUsername.mockRejectedValueOnce(
+				new Error("Database connection lost"),
+			);
+
+			const req = makeRequest("1109#TT", "DbErrorPlayer", "1234");
+			await expect(useCase.run(req)).rejects.toMatchObject({
+				name: "JoinRejectionError",
+				clientMessage: "排位账号认证失败，请稍后重试。",
+				message: expect.stringContaining("Database connection lost"),
+			});
+			expect(YGOProRoomList.getRooms()).toHaveLength(0);
+		});
 	});
 });

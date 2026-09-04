@@ -18,6 +18,7 @@ import { YGOProStocChat } from "ygopro-msg-encode";
 
 import YGOProRoomList from "../../infrastructure/YGOProRoomList";
 import { YGOProRoom } from "../../domain/YGOProRoom";
+import { JoinRejectionError } from "../../domain/errors/JoinRejectionError";
 
 // Suppress unhandled WaitingState errors in tests that don't set up full room infrastructure
 let waitingSpy: jest.SpyInstance;
@@ -312,6 +313,50 @@ describe("YGOProJoinHandler — strategy chain integration", () => {
 			expect(room).not.toBeNull();
 			expect(socket.send).not.toHaveBeenCalled();
 			expect(socket.close).not.toHaveBeenCalled();
+		});
+
+		it("sends Chinese explanation frame before JOINERROR and closes gracefully on JoinRejectionError", async () => {
+			const rejectingStrategy: JoinStrategy = {
+				matches: () => true,
+				handle: async () => {
+					throw new JoinRejectionError(
+						"Internal failure reason",
+						"排位登录格式错误：请将玩家名填写为“昵称$4位数字PIN”，完整内容不能超过20个字符（例如：玩家$1234）。",
+					);
+				},
+			};
+			JoinStrategyRegistry.setStrategies([rejectingStrategy]);
+
+			const sendCalls: Buffer[] = [];
+			const actions: string[] = [];
+			const socket = {
+				...makeSocket(),
+				send: jest.fn().mockImplementation((buf: Buffer) => {
+					sendCalls.push(buf);
+					actions.push("send");
+				}),
+				close: jest.fn().mockImplementation(() => {
+					actions.push("close");
+				}),
+			};
+			const messageRepo = {
+				...makeMessageRepository(),
+				errorMessage: jest.fn().mockReturnValue(Buffer.from([0x04, 0x00, 0x14, 0x01])),
+			};
+			const logger = makeLogger();
+			const handlerEmitter = new EventEmitter();
+			new YGOProJoinHandler(handlerEmitter, logger as never, socket as never, messageRepo as never);
+
+			await emitJoin(handlerEmitter, "1109#TT", 0x1362);
+
+			expect(actions).toEqual(["send", "send", "close"]);
+			expect(sendCalls).toHaveLength(2);
+			// First frame: chat message (0x19)
+			expect(sendCalls[0][2]).toBe(0x19);
+			// Second frame: JOINERROR frame
+			expect(sendCalls[1].toString("hex")).toBe("04001401");
+			expect(socket.close).toHaveBeenCalledTimes(1);
+			expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("Internal failure reason"));
 		});
 	});
 });

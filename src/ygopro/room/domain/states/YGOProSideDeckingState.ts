@@ -114,7 +114,7 @@ export class YGOProSideDeckingState extends YGOProRoomState {
 
 		this.sendChatToPlayer(
 			player,
-			`You have ${SIDE_TIMEOUT_MINUTES} minute(s) to submit your side deck.`,
+			`你有 ${SIDE_TIMEOUT_MINUTES} 分钟提交副卡组。`,
 			ChatColor.BABYBLUE,
 		);
 
@@ -137,10 +137,10 @@ export class YGOProSideDeckingState extends YGOProRoomState {
 			this.logger.info("Side deck timeout", { player: player.name, position: player.position });
 
 			this.broadcastChat(
-				`${player.name} has been disconnected for not submitting a side deck in time.`,
+				`${player.name} 未在规定时间内提交副卡组，已断开连接。`,
 				ChatColor.BABYBLUE,
 			);
-			this.sendChatToPlayer(player, "Time is up! You have been disconnected.", ChatColor.RED);
+			this.sendChatToPlayer(player, "时间已到，你已被断开连接。", ChatColor.RED);
 			if (this.room.isDirectRanked) {
 				this.room.forfeitMatch(player);
 			}
@@ -155,11 +155,7 @@ export class YGOProSideDeckingState extends YGOProRoomState {
 		const nextRemain = remain - 1;
 		this.playerRemainMinutes.set(player.position, nextRemain);
 
-		this.sendChatToPlayer(
-			player,
-			`${nextRemain} minute(s) remaining to submit your side deck.`,
-			ChatColor.BABYBLUE,
-		);
+		this.sendChatToPlayer(player, `还剩 ${nextRemain} 分钟提交副卡组。`, ChatColor.BABYBLUE);
 	}
 
 	private clearPlayerTimeout(position: number): void {

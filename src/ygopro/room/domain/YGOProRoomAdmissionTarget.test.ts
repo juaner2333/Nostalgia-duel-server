@@ -96,7 +96,7 @@ describe("YGOProRoom.admissionTarget", () => {
 
 		const expectedChat = Buffer.from(
 			new YGOProStocChat()
-				.fromPartial({ player_type: ChatColor.RED, msg: "Invalid username or password." })
+				.fromPartial({ player_type: ChatColor.RED, msg: "用户名或密码错误。" })
 				.toFullPayload(),
 		);
 		expect(socket.send).toHaveBeenNthCalledWith(1, expectedChat);

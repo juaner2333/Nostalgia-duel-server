@@ -22,7 +22,7 @@ import { YGOProClient } from "../client/domain/YGOProClient";
 import { YGOProRoom } from "../room/domain/YGOProRoom";
 import { OCGCore } from "./ocgcore";
 
-const DRAW_TEXT = "The duel has ended in a draw due to a server error.";
+const DRAW_TEXT = "服务器发生错误，本局以平局结束。";
 const CHANNEL_CLOSED_ERROR = new Error("Worker thread terminated: channel closed");
 
 const makeLogger = () => ({
