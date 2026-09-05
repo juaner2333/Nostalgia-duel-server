@@ -13,6 +13,10 @@ import { IdleCmdType, YGOProMsgDamage } from "ygopro-msg-encode";
  * project-kept cards 80168720 and 96782886; therefore 1103 has exactly 376
  * card scripts and 1109 exactly 377, plus a shared special.lua each.
  */
+// Boots sql.js + the ocgcore WASM once per format: with parallel workers that
+// easily outruns Jest's 5s default without being a real failure.
+jest.setTimeout(60_000);
+
 const EXCLUDED_UPSTREAM_CARD_IDS = [27847700, 57728571, 61468779, 82301904, 83555667, 92661479];
 const KEPT_PROJECT_CARD_IDS = [80168720, 96782886];
 const COUNT_BY_FORMAT: Record<string, number> = { "1103": 376, "1109": 377 };

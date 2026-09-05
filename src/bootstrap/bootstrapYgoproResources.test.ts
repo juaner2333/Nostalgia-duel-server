@@ -26,6 +26,10 @@ import path from "node:path";
 import { config } from "src/config";
 import { bootstrapYgoproResources } from "./bootstrapYgoproResources";
 
+// Exercises the real fixed-resource lock check: with parallel workers that
+// easily outruns Jest's 5s default without being a real failure.
+jest.setTimeout(60_000);
+
 const MockStart = YGOProResourceLoader.start as unknown as jest.Mock;
 const MockGetShared = YGOProResourceLoader.getShared as unknown as jest.Mock;
 

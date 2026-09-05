@@ -8,6 +8,10 @@ import { calculateDuelOptions } from "@ygopro/utils/calculate-duel-options";
 import { CardStorage } from "./card-storage";
 import { readWhitelistCardIds } from "./YGOProResourceLoader";
 
+// Boots sql.js + the ocgcore WASM once per format: with parallel workers that
+// easily outruns Jest's 5s default without being a real failure.
+jest.setTimeout(60_000);
+
 const PROJECT_ROOT = path.resolve(__dirname, "../../..");
 const RESOURCE_ROOT = path.join(PROJECT_ROOT, "nostalgia-resources");
 

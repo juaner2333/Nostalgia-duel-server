@@ -16,6 +16,10 @@ import {
 	YGOProMsgSelectCard,
 } from "ygopro-msg-encode";
 
+// Boots sql.js + the ocgcore WASM once per format: with parallel workers that
+// easily outruns Jest's 5s default without being a real failure.
+jest.setTimeout(60_000);
+
 const SANGAN = 26202165; // クリッター: searches on "sent from the field to the grave"
 const JUDGMENT = 41420027; // 神の宣告: negates a flip summon
 const MONSTER_REBORN = 83764718; // 死者蘇生
