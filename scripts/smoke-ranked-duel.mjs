@@ -314,7 +314,9 @@ async function runRankedSmokeForFormat(formatId) {
 
 	// Guest surrenders Game 2 to end match 2-0
 	guest.socket.write(surrenderFrame());
-	await waitFor(host.frames, 0x07); // MATCH_END
+	// 比赛已结束（2-0），服务器走 finalize 分支：发完录像后下发 STOC_DUEL_END 并断开全部连接。
+	// 注意不能用 0x07（STOC_CHANGE_SIDE）：那是「比赛未结束、进入换备」时才发的信号。
+	await waitFor(host.frames, 0x16); // STOC_DUEL_END
 
 	// Allow DB transaction to finish
 	await new Promise((r) => setTimeout(r, 2000));

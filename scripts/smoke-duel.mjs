@@ -246,7 +246,7 @@ async function runFormat(formatId) {
 	// 观战者收到观战视角的 MSG_START（watcherStartMessage 同样经 STOC_GAME_MSG 下发）。
 	await waitFor(spectator.frames, 0x01);
 	host.socket.write(surrenderFrame());
-	await waitFor(host.frames, 0x07); // MATCH_END
+	await waitFor(host.frames, 0x07); // STOC_CHANGE_SIDE：首局结束、比赛未完，进入换备
 	await new Promise((resolve) => setTimeout(resolve, 1500));
 
 	host.socket.destroy();
