@@ -145,6 +145,128 @@ describe("RankedMatchPersistenceService", () => {
 		expect(mockEntityManager.save).toHaveBeenCalled();
 	});
 
+	it("persists 2:0 ranked match points as +3 for the winner and -2 for the loser", async () => {
+		const user1 = await UserProfile.create({
+			id: "user-1",
+			username: "Player1",
+			password: "pin",
+			email: null,
+			avatar: null,
+		});
+		const user2 = await UserProfile.create({
+			id: "user-2",
+			username: "Player2",
+			password: "pin",
+			email: null,
+			avatar: null,
+		});
+
+		userProfileRepository.findByUsername.mockResolvedValueOnce(user1).mockResolvedValueOnce(user2);
+
+		const event = new GameOverDomainEvent({
+			bestOf: 3,
+			date: new Date("2026-09-01T20:00:00Z"),
+			formatId: "1109",
+			banListHash: 1109,
+			banListName: "OCG 1109",
+			ranked: true,
+			players: [
+				{
+					id: "user-1",
+					name: "Player1",
+					team: Team.PLAYER,
+					winner: true,
+					score: 2,
+					games: [
+						{ result: "winner", turns: 5, ipAddress: "127.0.0.1" },
+						{ result: "winner", turns: 6, ipAddress: "127.0.0.1" },
+					],
+				},
+				{
+					id: "user-2",
+					name: "Player2",
+					team: Team.OPPONENT,
+					winner: false,
+					score: 0,
+					games: [
+						{ result: "loser", turns: 5, ipAddress: "127.0.0.1" },
+						{ result: "loser", turns: 6, ipAddress: "127.0.0.1" },
+					],
+				},
+			],
+		});
+
+		await service.persist(event);
+
+		const payloads = mockEntityManager.create.mock.calls.map(([, data]) => data);
+		expect(payloads.find((data) => data.playerScore === 2).points).toBe(3);
+		expect(payloads.find((data) => data.playerScore === 0).points).toBe(-2);
+		expect(payloads.find((data) => data.wins === 1).points).toBe(3);
+		expect(payloads.find((data) => data.losses === 1).points).toBe(-2);
+	});
+
+	it("persists 2:1 ranked match points as +2 for the winner and -1 for the loser", async () => {
+		const user1 = await UserProfile.create({
+			id: "user-1",
+			username: "Player1",
+			password: "pin",
+			email: null,
+			avatar: null,
+		});
+		const user2 = await UserProfile.create({
+			id: "user-2",
+			username: "Player2",
+			password: "pin",
+			email: null,
+			avatar: null,
+		});
+
+		userProfileRepository.findByUsername.mockResolvedValueOnce(user1).mockResolvedValueOnce(user2);
+
+		const event = new GameOverDomainEvent({
+			bestOf: 3,
+			date: new Date("2026-09-01T20:00:00Z"),
+			formatId: "1109",
+			banListHash: 1109,
+			banListName: "OCG 1109",
+			ranked: true,
+			players: [
+				{
+					id: "user-1",
+					name: "Player1",
+					team: Team.PLAYER,
+					winner: true,
+					score: 2,
+					games: [
+						{ result: "winner", turns: 5, ipAddress: "127.0.0.1" },
+						{ result: "loser", turns: 6, ipAddress: "127.0.0.1" },
+						{ result: "winner", turns: 7, ipAddress: "127.0.0.1" },
+					],
+				},
+				{
+					id: "user-2",
+					name: "Player2",
+					team: Team.OPPONENT,
+					winner: false,
+					score: 1,
+					games: [
+						{ result: "loser", turns: 5, ipAddress: "127.0.0.1" },
+						{ result: "winner", turns: 6, ipAddress: "127.0.0.1" },
+						{ result: "loser", turns: 7, ipAddress: "127.0.0.1" },
+					],
+				},
+			],
+		});
+
+		await service.persist(event);
+
+		const payloads = mockEntityManager.create.mock.calls.map(([, data]) => data);
+		expect(payloads.find((data) => data.playerScore === 2).points).toBe(2);
+		expect(payloads.find((data) => data.playerScore === 1).points).toBe(-1);
+		expect(payloads.find((data) => data.wins === 1).points).toBe(2);
+		expect(payloads.find((data) => data.losses === 1).points).toBe(-1);
+	});
+
 	it("retries once with identical identifiers if the first transaction fails", async () => {
 		const user1 = await UserProfile.create({
 			id: "user-1",

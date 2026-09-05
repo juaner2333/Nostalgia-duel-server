@@ -35,7 +35,8 @@ export class Player {
 	}
 
 	calculateMatchPoints(): number {
-		return this.wins - this.losses;
+		// MATCH 胜者额外获得 1 分：2:0 => +3，2:1 => +2，1:2 => -1，0:2 => -2
+		return this.wins - this.losses + (this.winner ? 1 : 0);
 	}
 
 	get wins(): number {
