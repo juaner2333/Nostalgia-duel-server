@@ -11,10 +11,21 @@ import { ReconnectionTokenIssuer } from "@shared/room/application/reconnect/Reco
 import { isNameTaken } from "@shared/room/domain/isNameTaken";
 
 import { YGOProClient } from "../../../client/domain/YGOProClient";
-import { RankedAdmissionResult, YGOProRoom } from "../YGOProRoom";
+import {
+	RANKED_READY_WINDOW_MS,
+	RANKED_START_WINDOW_MS,
+	RankedAdmissionResult,
+	YGOProRoom,
+} from "../YGOProRoom";
 import { AdmitToRoom } from "@ygopro/room/admission/application/AdmitToRoom";
 
-import { ErrorMessageType, PlayerChangeState, YGOProCtosUpdateDeck } from "ygopro-msg-encode";
+import {
+	ChatColor,
+	ErrorMessageType,
+	PlayerChangeState,
+	YGOProCtosUpdateDeck,
+	YGOProStocChat,
+} from "ygopro-msg-encode";
 import { YGOProDeckCreator } from "@ygopro/deck/application/YGOProDeckCreator";
 import { YGOProDeckValidator } from "@ygopro/deck/domain/YGOProDeckValidator";
 import { DeckError } from "@shared/deck/domain/errors/DeckError";
@@ -22,7 +33,15 @@ import { encodeDeckErrorCode } from "@shared/deck/domain/errors/encodeDeckErrorC
 import { YGOProRoomState } from "../YGOProRoomState";
 import MercuryBanListMemoryRepository from "@ygopro/ban-list/infrastructure/YGOProBanListMemoryRepository";
 
+export const RANKED_READY_KICK_MESSAGE = "15秒内未准备卡组，已移出排位房间。";
+export const RANKED_START_KICK_MESSAGE = "房主超过15秒未开始对局，已移出排位房间。";
+
+type RankedWindow = "none" | "ready" | "start";
+
 export class YGOProWaitingState extends YGOProRoomState {
+	private _rankedReadyTimer: NodeJS.Timeout | undefined;
+	private _rankedStartTimer: NodeJS.Timeout | undefined;
+
 	constructor(
 		private readonly admitToRoom: AdmitToRoom,
 		eventEmitter: EventEmitter,
@@ -62,6 +81,13 @@ export class YGOProWaitingState extends YGOProRoomState {
 			(message: ClientMessage, room: YGOProRoom, client: YgoClient) =>
 				void this.handleNotReady.bind(this)(message, room, client as YGOProClient),
 		);
+	}
+
+	public override removeAllListener(): void {
+		super.removeAllListener();
+		// Timers are not emitter listeners: they have to be dropped explicitly so
+		// a state transition (rps, teardown, destroy) cannot leave a kick armed.
+		this.cancelRankedDeadlines();
 	}
 
 	public async handleJoin(
@@ -121,6 +147,10 @@ export class YGOProWaitingState extends YGOProRoomState {
 				(room.players?.length ?? 0) > initialPlayerCount &&
 				room.players?.some((p) => p.socket === socket)
 			) {
+				// A new seat always gets a full window, even when the previous
+				// occupant's window was still running.
+				this.reconcileRankedDeadlines(room, true);
+
 				return "seated";
 			}
 
@@ -172,6 +202,8 @@ export class YGOProWaitingState extends YGOProRoomState {
 		if (!room.allPlayersReady) {
 			return;
 		}
+
+		this.cancelRankedDeadlines();
 
 		if (room.isDirectRanked) {
 			room.revealRealPlayerNames();
@@ -272,6 +304,7 @@ export class YGOProWaitingState extends YGOProRoomState {
 		if (player.isInternal) {
 			room.mutex.runExclusive(() => {
 				room.setDecksToPlayerUnsafe(player.position, deck);
+				this.reconcileRankedDeadlines(room);
 			});
 			return;
 		}
@@ -294,6 +327,7 @@ export class YGOProWaitingState extends YGOProRoomState {
 
 		room.mutex.runExclusive(() => {
 			room.setDecksToPlayerUnsafe(player.position, deck);
+			this.reconcileRankedDeadlines(room);
 		});
 	}
 
@@ -302,6 +336,125 @@ export class YGOProWaitingState extends YGOProRoomState {
 
 		room.mutex.runExclusive(() => {
 			room.notReadyUnsafe(player);
+			this.reconcileRankedDeadlines(room);
 		});
+	}
+
+	/**
+	 * Aligns the one-shot ranked kick windows with the room's current seats: a
+	 * full ranked room gets either a ready window (someone still has to ready a
+	 * deck) or a start window (everyone is ready and the host must start).
+	 *
+	 * A window already armed for the same reason keeps its original deadline, so
+	 * toggling ready/not-ready cannot buy extra time; `restart` forces a fresh
+	 * window and is used when a new player takes the seat.
+	 */
+	private reconcileRankedDeadlines(room: YGOProRoom, restart: boolean = false): void {
+		const desired = this.desiredRankedWindow(room);
+		if (desired === "none") {
+			this.cancelRankedDeadlines();
+
+			return;
+		}
+
+		const armed = this.armedRankedWindow();
+		if (armed === desired && !restart) {
+			return;
+		}
+
+		this.cancelRankedDeadlines();
+
+		if (desired === "ready") {
+			this._rankedReadyTimer = setTimeout(
+				() => this.handleRankedReadyExpiry(room),
+				room.rankedReadyWindowMs ?? RANKED_READY_WINDOW_MS,
+			);
+
+			return;
+		}
+
+		this._rankedStartTimer = setTimeout(
+			() => this.handleRankedStartExpiry(room),
+			room.rankedStartWindowMs ?? RANKED_START_WINDOW_MS,
+		);
+	}
+
+	private desiredRankedWindow(room: YGOProRoom): RankedWindow {
+		if (!room.isDirectRanked || (room.players?.length ?? 0) !== 2) {
+			return "none";
+		}
+
+		return room.allPlayersReady ? "start" : "ready";
+	}
+
+	private armedRankedWindow(): RankedWindow {
+		if (this._rankedStartTimer) {
+			return "start";
+		}
+
+		return this._rankedReadyTimer ? "ready" : "none";
+	}
+
+	private handleRankedReadyExpiry(room: YGOProRoom): void {
+		this._rankedReadyTimer = undefined;
+		if (!this.canKickFromRankedRoom(room)) {
+			return;
+		}
+
+		this.kickPlayers(
+			room,
+			(room.players as YGOProClient[]).filter((player) => !player.isReady),
+			RANKED_READY_KICK_MESSAGE,
+		);
+	}
+
+	private handleRankedStartExpiry(room: YGOProRoom): void {
+		this._rankedStartTimer = undefined;
+		if (!this.canKickFromRankedRoom(room) || !room.allPlayersReady) {
+			return;
+		}
+
+		const host = (room.players as YGOProClient[]).find((player) => player.host);
+		if (host) {
+			this.kickPlayers(room, [host], RANKED_START_KICK_MESSAGE);
+		}
+	}
+
+	// Re-check at expiry time: a leave, join, disconnect or takeover that won the
+	// race must never kick anyone.
+	private canKickFromRankedRoom(room: YGOProRoom): boolean {
+		return room.isDirectRanked && (room.players?.length ?? 0) === 2 && !room.finalizing;
+	}
+
+	private kickPlayers(room: YGOProRoom, players: YGOProClient[], message: string): void {
+		for (const player of players) {
+			if (player.socket.closed) {
+				continue;
+			}
+			this.logger.info("ranked_waiting_kick", {
+				roomId: room.id,
+				player: player.name,
+				reason: message,
+			});
+			const chat = new YGOProStocChat().fromPartial({
+				player_type: ChatColor.RED,
+				msg: message,
+			});
+			player.sendMessageToClient(Buffer.from(chat.toFullPayload()));
+			// Closing the socket reuses the existing WAITING disconnect pipeline
+			// (occupancy release, LEAVE broadcast, empty-room teardown).
+			player.socket.close();
+		}
+	}
+
+	private cancelRankedDeadlines(): void {
+		if (this._rankedReadyTimer) {
+			clearTimeout(this._rankedReadyTimer);
+		}
+		if (this._rankedStartTimer) {
+			clearTimeout(this._rankedStartTimer);
+		}
+		this._rankedReadyTimer = undefined;
+		this._rankedStartTimer = undefined;
 	}
 }

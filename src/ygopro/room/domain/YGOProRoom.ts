@@ -61,6 +61,15 @@ import { getNostalgiaFormat, type NostalgiaFormatId } from "@ygopro/room/domain/
  */
 export const RECONNECT_GRACE_MS = 90_000;
 
+/**
+ * Deadlines for a full direct ranked room (#TT): every seated player must ready
+ * a deck inside the first window and the host must start the duel inside the
+ * second one. Expiry removes whoever is blocking the seat (see
+ * YGOProWaitingState).
+ */
+export const RANKED_READY_WINDOW_MS = 15_000;
+export const RANKED_START_WINDOW_MS = 15_000;
+
 export interface NostalgiaRoomCreationOptions {
 	id: number;
 	formatId: NostalgiaFormatId;
@@ -101,6 +110,12 @@ export class YGOProRoom extends YgoRoom {
 	 * RECONNECT_GRACE_MS.
 	 */
 	public reconnectGraceMs: number = RECONNECT_GRACE_MS;
+	/**
+	 * Ranked seating window lengths for this room (default 15s each). Production
+	 * code never writes them — they are the test seam that shortens the windows.
+	 */
+	public rankedReadyWindowMs: number = RANKED_READY_WINDOW_MS;
+	public rankedStartWindowMs: number = RANKED_START_WINDOW_MS;
 
 	windbot?: { name: string; deck: string };
 	noHost: boolean = false;

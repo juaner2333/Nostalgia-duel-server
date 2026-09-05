@@ -53,9 +53,20 @@
 
 ---
 
-## 3. 排位只读 API 规范
+## 3. 排位等待房就座超时
 
-### 3.1 录像列表 API (`GET /api/replays/:format`)
+仅对直接排位房（`#TT`）的 `WAITING` 状态生效，普通怀旧房（`1103#1001` 等）不受影响。
+
+- **准备窗口（15 秒）**：房间满 2 人时开始计时。到期时仍未准备卡组的玩家会被移出排位房（双方都未准备则两人一并移出），并收到红色系统提示 `15秒内未准备卡组，已移出排位房间。`
+- **开始窗口（15 秒）**：双方都准备好时开始计时。房主超时未按开始，房主被移出并收到提示 `房主超过15秒未开始对局，已移出排位房间。`；另一名玩家留在房间内继续等待匹配。
+- 窗口从“满员 / 全员准备”那一刻起算，不会因为反复切换准备状态而续期；有新玩家补位入座时重新计时。
+- 被移出只发生在 `WAITING`，不创建对局、不影响天梯积分与录像；席位占用立即释放，可重新 `#TT` 匹配。
+
+---
+
+## 4. 排位只读 API 规范
+
+### 4.1 录像列表 API (`GET /api/replays/:format`)
 
 - **查询参数**：
   - `page`（可选，默认 1）
@@ -81,13 +92,13 @@
   ```
 - **安全与过滤**：排除无效/撤销（`anulled=true`）的比赛；响应不包含 bytea 二进制与 `userId`/IP 等账号隐私字段。
 
-### 3.2 录像下载 API (`GET /api/replays/:format/:replayId`)
+### 4.2 录像下载 API (`GET /api/replays/:format/:replayId`)
 
 - **响应格式**：`application/octet-stream` 流式传输原始 `.yrp` 二进制数据。
 - **标头规范**：`Content-Disposition: attachment; filename="<北京时间> <玩家1> VS <玩家2>.yrp"; filename*=UTF-8''...`。
 - **校验**：验证 `replayId` 且归属指定的 `format`；不存在或不匹配时返回 404。
 
-### 3.3 排行榜 API 增量扩展 (`GET /api/leaderboards/:format`)
+### 4.3 排行榜 API 增量扩展 (`GET /api/leaderboards/:format`)
 
 - **查询参数**：
   - `scope`: `"season" | "overall"`（必填）

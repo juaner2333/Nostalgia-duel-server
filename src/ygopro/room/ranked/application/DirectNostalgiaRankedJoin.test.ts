@@ -119,6 +119,12 @@ describe("DirectNostalgiaRankedJoin", () => {
 		useCase = new DirectNostalgiaRankedJoin(authUseCase, registry, mockResources);
 	});
 
+	// A full ranked room arms real seating timers while it waits: detach every
+	// state machine so no timer can outlive the test that created it.
+	afterEach(() => {
+		YGOProRoomList.getRooms().forEach((room) => room.disposeRoomState());
+	});
+
 	const makeRequest = (rawPass: string, playerName: string, pin: string) => {
 		const socketId = "socket-" + Math.random().toString(36).substring(7);
 		const socket = makeMockSocket(socketId);
