@@ -24,6 +24,12 @@ describe("LeaderboardPage client-side scripts and behavior specification", () =>
 			expect(html1103).toContain("等待匹配中");
 		});
 
+		it("renders spectator id and copy button only for dueling ranked rooms", () => {
+			expect(html1103).toContain('isDueling ? "观战号: " + (r.roomid || "-") : "排位匹配中"');
+			expect(html1103).toContain("isRanked && !isDueling");
+			expect(html1103).toContain('tdAction.textContent = "—";');
+		});
+
 		it("formats spectator copy target as format#TT<roomid> for ranked rooms and format#roomId for normal rooms", () => {
 			expect(html1103).toContain('FORMAT + "#TT" + r.roomid');
 			expect(html1103).toContain('r.roomname || (FORMAT + "#" + r.roomid)');

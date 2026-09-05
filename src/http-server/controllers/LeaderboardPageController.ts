@@ -635,7 +635,8 @@ export function renderLeaderboardPage(formatId: string): string {
 					// Col 1: 房名 / 观战号
 					var tdName = document.createElement("td");
 					if (isRanked) {
-						tdName.textContent = "观战号: " + (r.roomid || "-");
+						// 等待中的排位房不可观战，不暴露观战号
+						tdName.textContent = isDueling ? "观战号: " + (r.roomid || "-") : "排位匹配中";
 					} else {
 						tdName.textContent = r.roomname || "-";
 					}
@@ -674,18 +675,23 @@ export function renderLeaderboardPage(formatId: string): string {
 
 					// Col 6: 操作
 					var tdAction = document.createElement("td");
-					var copyBtn = document.createElement("button");
-					copyBtn.className = "btn btn-copy";
-					if (isRanked) {
-						copyBtn.textContent = "复制观战号";
-						var specTarget = FORMAT + "#TT" + r.roomid;
-						copyBtn.addEventListener("click", function() { copyText(specTarget); });
+					if (isRanked && !isDueling) {
+						// 等待中的排位房不接受观战加入，不提供复制入口
+						tdAction.textContent = "—";
 					} else {
-						copyBtn.textContent = "复制房间名";
-						var joinTarget = r.roomname || (FORMAT + "#" + r.roomid);
-						copyBtn.addEventListener("click", function() { copyText(joinTarget); });
+						var copyBtn = document.createElement("button");
+						copyBtn.className = "btn btn-copy";
+						if (isRanked) {
+							copyBtn.textContent = "复制观战号";
+							var specTarget = FORMAT + "#TT" + r.roomid;
+							copyBtn.addEventListener("click", function() { copyText(specTarget); });
+						} else {
+							copyBtn.textContent = "复制房间名";
+							var joinTarget = r.roomname || (FORMAT + "#" + r.roomid);
+							copyBtn.addEventListener("click", function() { copyText(joinTarget); });
+						}
+						tdAction.appendChild(copyBtn);
 					}
-					tdAction.appendChild(copyBtn);
 					row.appendChild(tdAction);
 
 					tbody.appendChild(row);
