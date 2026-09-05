@@ -21,7 +21,7 @@ const SETCODE_ALLURE_QUEEN = 0x3;
 
 const EXPECTED_PATCH_ROWS = 136;
 const EXPECTED_BASE_COUNT = 5399;
-const EXPECTED_POOL_COUNTS: Record<string, number> = { "1103": 5198, "1109": 5320 };
+const EXPECTED_POOL_COUNTS: Record<string, number> = { "1103": 5197, "1109": 5310 };
 
 interface PatchRow {
 	cardId: number;
@@ -178,7 +178,7 @@ describe("nostalgia setcode compatibility patch", () => {
 		);
 	});
 
-	it("keeps the 1103 and 1109 whitelist card pools at 5198 / 5320 with locked ID sets", async () => {
+	it("keeps the 1103 and 1109 whitelist card pools at 5197 / 5310 with locked ID sets", async () => {
 		const lock = JSON.parse(fs.readFileSync(LOCK_JSON, "utf-8"));
 		for (const formatId of ["1103", "1109"]) {
 			const cardIds = await readWhitelistCardIds(

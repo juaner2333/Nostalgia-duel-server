@@ -54,16 +54,20 @@ describe("fixed nostalgia resource integration", () => {
 		const storage1109 = baseStorage.filterForFormat(pool1109);
 
 		expect(baseStorage.size).toBe(5399);
-		expect(storage1103.size).toBe(5198 + tokenCardIds.size);
-		expect(storage1109.size).toBe(5320 + tokenCardIds.size);
+		expect(storage1103.size).toBe(5197 + tokenCardIds.size);
+		expect(storage1109.size).toBe(5310 + tokenCardIds.size);
 		expect(sorted(pool1103)).toEqual(
 			sorted([...baseCardIds].filter((cardId) => pool1103.has(cardId))),
 		);
-		// 基础数据库 = 1109 实卡池 ∪ 脚本引用的 token 虚拟卡；token 不属于任何环境卡池。
+		// 白名单是环境卡池的唯一事实来源：它始终 ⊆ 基础库的非 token 卡，但不必等于全量
+		// （lflist.conf 中标注为 EXCLUDED 的卡不进卡池）。
 		expect(sorted([...tokenCardIds].filter((cardId) => pool1109.has(cardId)))).toEqual([]);
-		expect(sorted(pool1109)).toEqual(
-			sorted([...baseCardIds].filter((cardId) => !tokenCardIds.has(cardId))),
-		);
+		expect(
+			sorted(
+				[...pool1109].filter((cardId) => !baseCardIds.has(cardId) || tokenCardIds.has(cardId)),
+			),
+		).toEqual([]);
+		expect(pool1109.size).toBe(5310);
 		for (const cardId of pool1103) {
 			expect(storage1103.readCard(cardId)).toBeDefined();
 		}

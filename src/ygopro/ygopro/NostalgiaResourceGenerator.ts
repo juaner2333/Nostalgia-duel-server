@@ -12,8 +12,8 @@ const ALLOWED_FORMAT_IDS = new Set(["1103", "1109"]);
 /** 固定环境的卡池数量契约：基础数据库（5320 实卡 + 79 个脚本引用 token）与 1103/1109 白名单的唯一规模。 */
 export const EXPECTED_NOSTALGIA_POOL_SIZES: Readonly<Record<string, number>> = Object.freeze({
 	base: 5399,
-	"1103": 5198,
-	"1109": 5320,
+	"1103": 5197,
+	"1109": 5310,
 });
 /** ygopro TYPE_TOKEN 位：CDB 中带该位的卡是脚本生成 token 所需的虚拟卡元数据 */
 const TYPE_TOKEN = 0x4000;
@@ -191,7 +191,7 @@ export async function checkNostalgiaResourceLock(
 }
 
 /**
- * 断言 lock 中的卡池数量与固定环境契约一致（基础 5320 实卡 + 79 token、1103 5198、1109 5320），
+ * 断言 lock 中的卡池数量与固定环境契约一致（基础 5320 实卡 + 79 token、1103 5197、1109 5310），
  * 防止错误资源配合重新生成的 lock 通过门禁。
  */
 export function assertFixedPoolSizes(lock: {

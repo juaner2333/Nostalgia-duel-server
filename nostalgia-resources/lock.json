@@ -13,13 +13,13 @@
 	"formats": {
 		"1103": {
 			"cardPool": {
-				"count": 5198,
-				"cardIdsSha256": "50d02e7aa3a5c2d9b105efbc0e8bf72ae5cd63b597fd63f4215f9dafad6377f5"
+				"count": 5197,
+				"cardIdsSha256": "568d3c9a55cd585e7aafcd0b8ede0327a49b2eaaef4deea0d4cf4035d61e0d4b"
 			},
 			"lflist": {
 				"path": "ygopro/formats/1103/lflist.conf",
 				"hash": 2935972633,
-				"sha256": "f457f6fe56db4130a0e2e0082eebd5d371fb95514f756327ebbb9c178d52e589"
+				"sha256": "9f0954d806501214267dfb616108c3f57f69dd726196953c9b63329bc4cb45ae"
 			},
 			"scripts": {
 				"fileCount": 377,
@@ -32,13 +32,13 @@
 		},
 		"1109": {
 			"cardPool": {
-				"count": 5320,
-				"cardIdsSha256": "d47072446ab0295c6c9b9259fa077c519a066da27ae4c421d71649fea0ce2416"
+				"count": 5310,
+				"cardIdsSha256": "7eca5f5aa08f2b7ceec4ead03c4ec0265772bdd6052908f8b1d104944062a987"
 			},
 			"lflist": {
 				"path": "ygopro/formats/1109/lflist.conf",
 				"hash": 3094922383,
-				"sha256": "b0791e19ae7a73924ea5d431630c93d2cc0541d7d0cb4c280a0731c84f1a674c"
+				"sha256": "03d333c2d7afe02fd860b0de1082e861986e762a8bfcebf79bb5811cef736c49"
 			},
 			"scripts": {
 				"fileCount": 378,

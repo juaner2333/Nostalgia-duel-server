@@ -19,8 +19,8 @@ const LFLIST_1109 =
 // 固定环境卡池规模（与 EXPECTED_NOSTALGIA_POOL_SIZES 一致）：fixture 按此规模
 // 生成，使 lock 校验通过且与生产门禁使用同一条路径。
 const BASE_POOL_SIZE = 5399;
-const POOL_1103_SIZE = 5198;
-const POOL_1109_SIZE = 5320;
+const POOL_1103_SIZE = 5197;
+const POOL_1109_SIZE = 5310;
 const TYPE_TOKEN = 0x4000;
 
 describe("NostalgiaResourceGenerator", () => {
@@ -102,7 +102,7 @@ describe("NostalgiaResourceGenerator", () => {
 		);
 	});
 
-	it("locks the fixed card pool sizes (5399 / 5198 / 5320)", () => {
+	it("locks the fixed card pool sizes (5399 / 5197 / 5310)", () => {
 		const fixedSizes = {
 			inputs: { baseDatabase: { count: BASE_POOL_SIZE } },
 			formats: {
@@ -128,7 +128,7 @@ describe("NostalgiaResourceGenerator", () => {
 					"1109": { cardPool: { count: POOL_1109_SIZE } },
 				},
 			}),
-		).toThrow("format 1103 card pool mismatch: expected 5198, got 4");
+		).toThrow("format 1103 card pool mismatch: expected 5197, got 4");
 	});
 
 	it("writes a lock and rejects missing or drifted fixed resources", async () => {
@@ -319,7 +319,7 @@ function buildWhitelist(from: number, toInclusive: number): string {
 
 // 生成与固定环境同规模的资源树：基础 5399 张（5320 实卡 + 79 token 元数据，
 // fixture 中 token 为空集时基础卡数即 5399 张非 token 卡）、1103 白名单 5198 张、
-// 1109 白名单 5320 张，使完整 lock 校验（含卡池数量断言）走生产同一条路径。
+// 1109 白名单 5310 张，使完整 lock 校验（含卡池数量断言）走生产同一条路径。
 async function buildLockFixture(overrides?: {
 	tokenScript?: string;
 	tokenCardIds?: number[];
