@@ -6,6 +6,7 @@ import {
 	ReplayDeckBackfillService,
 	validateDatabaseConfigs,
 	verifyConnectionPermissions,
+	sanitizeDatabaseError,
 	PostgresConnectionConfig,
 	BackfillReport,
 } from "../src/shared/deck/application/backfill/ReplayDeckBackfillService";
@@ -72,8 +73,16 @@ function printReport(report: BackfillReport) {
 	if (report.skipped.writeFailed) {
 		process.stdout.write(`  - 事务写入回滚失败: ${report.skipped.writeFailed}\n`);
 	}
-	if (report.lastGameId) {
-		process.stdout.write(`最后处理 game_id (可用于 --cursor 续跑): ${report.lastGameId}\n`);
+	if (report.failedGameIds.length > 0) {
+		process.stdout.write(
+			`  - 写入失败场次清单 (${report.failedGameIds.length} 场): ${report.failedGameIds.join(", ")}\n`,
+		);
+	}
+	if (report.resumeCursor) {
+		process.stdout.write(`建议续跑游标 (--cursor): ${report.resumeCursor}\n`);
+	}
+	if (report.lastGameId && report.lastGameId !== report.resumeCursor) {
+		process.stdout.write(`本批最后扫描 game_id: ${report.lastGameId}\n`);
 	}
 	process.stdout.write("========================================\n\n");
 }
@@ -183,7 +192,7 @@ export async function runBackfillCli(args = process.argv.slice(2)) {
 
 if (require.main === module) {
 	runBackfillCli().catch((err) => {
-		process.stderr.write(`Execution failed: ${err.message || String(err)}\n`);
+		process.stderr.write(`Execution failed: ${sanitizeDatabaseError(err)}\n`);
 		process.exit(1);
 	});
 }

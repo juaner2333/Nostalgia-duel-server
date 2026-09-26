@@ -56,6 +56,47 @@ export function validateDatabaseConfigs(
 	return { valid: true };
 }
 
+export function sanitizeDatabaseError(err: unknown): string {
+	if (!err) return "UnknownDatabaseError";
+	const e = err as { code?: string | number; name?: string; message?: string };
+	const code = String(e.code ?? "");
+	const msg = String(e.message ?? "").toLowerCase();
+
+	if (code === "ECONNREFUSED" || msg.includes("econnrefused")) {
+		return "ConnectionRefusedError";
+	}
+	if (code === "ENOTFOUND" || msg.includes("enotfound")) {
+		return "HostNotFoundError";
+	}
+	if (code === "ETIMEDOUT" || msg.includes("timeout") || msg.includes("etimedout")) {
+		return "ConnectionTimeoutError";
+	}
+	if (code === "28P01" || msg.includes("password authentication failed")) {
+		return "AuthenticationFailedError";
+	}
+	if (code === "42501" || msg.includes("permission denied") || msg.includes("must be member")) {
+		return "InsufficientPrivilegeError";
+	}
+	if (code === "3D000" || (msg.includes("database") && msg.includes("does not exist"))) {
+		return "DatabaseNotFoundError";
+	}
+	if (code === "42P01" || (msg.includes("relation") && msg.includes("does not exist"))) {
+		return "TableNotFoundError";
+	}
+	if (code === "ECONNRESET" || msg.includes("econnreset") || msg.includes("connection reset")) {
+		return "ConnectionResetError";
+	}
+
+	return e.name || "DatabaseError";
+}
+
+export function extractRows<T>(result: any): T[] {
+	if (!result) return [];
+	if (Array.isArray(result)) return result;
+	if (Array.isArray(result.rows)) return result.rows;
+	return [];
+}
+
 export async function verifyConnectionPermissions(
 	readonlyClient: Queryable,
 	writeClient: Queryable,
@@ -65,17 +106,17 @@ export async function verifyConnectionPermissions(
 		const readRes = await readonlyClient.query(
 			"SELECT has_table_privilege(current_user, 'matches', 'SELECT') AS can_select",
 		);
-		const canSelect = readRes?.rows ? readRes.rows[0]?.can_select : readRes?.[0]?.can_select;
+		const canSelect = extractRows<{ can_select?: boolean }>(readRes)[0]?.can_select;
 		if (canSelect === false) {
 			return {
 				valid: false,
 				error: "READONLY user does not have SELECT privilege on matches table",
 			};
 		}
-	} catch (err: any) {
+	} catch (err: unknown) {
 		return {
 			valid: false,
-			error: `READONLY connection precheck failed: ${err.message || String(err)}`,
+			error: `READONLY connection precheck failed: ${sanitizeDatabaseError(err)}`,
 		};
 	}
 
@@ -84,17 +125,17 @@ export async function verifyConnectionPermissions(
 			const writeRes = await writeClient.query(
 				"SELECT has_table_privilege(current_user, 'match_decks', 'INSERT') AS can_insert",
 			);
-			const canInsert = writeRes?.rows ? writeRes.rows[0]?.can_insert : writeRes?.[0]?.can_insert;
+			const canInsert = extractRows<{ can_insert?: boolean }>(writeRes)[0]?.can_insert;
 			if (canInsert === false) {
 				return {
 					valid: false,
 					error: "WRITE user does not have INSERT privilege on match_decks table",
 				};
 			}
-		} catch (err: any) {
+		} catch (err: unknown) {
 			return {
 				valid: false,
-				error: `WRITE connection permission precheck failed: ${err.message || String(err)}`,
+				error: `WRITE connection permission precheck failed: ${sanitizeDatabaseError(err)}`,
 			};
 		}
 	}
@@ -117,6 +158,8 @@ export interface BackfillReport {
 	candidates: number;
 	successful: number;
 	lastGameId?: string;
+	resumeCursor?: string;
+	failedGameIds: string[];
 	skipped: {
 		onlineSnapshotExists: number;
 		alreadyBackfilled: number;
@@ -180,6 +223,7 @@ export class ReplayDeckBackfillService {
 			scannedGames: 0,
 			candidates: 0,
 			successful: 0,
+			failedGameIds: [],
 			skipped: {
 				onlineSnapshotExists: 0,
 				alreadyBackfilled: 0,
@@ -194,6 +238,8 @@ export class ReplayDeckBackfillService {
 		const batchSize = Math.max(1, options.batchSize ?? 100);
 		let cursor: string | undefined = options.cursor;
 		let totalScanned = 0;
+		let firstFailedGameId: string | undefined = undefined;
+		let lastSafeGameId: string | undefined = options.cursor;
 
 		while (true) {
 			const remainingLimit = options.limit !== undefined ? options.limit - totalScanned : undefined;
@@ -228,7 +274,8 @@ export class ReplayDeckBackfillService {
 				? [options.formatId, cursor, currentLimit]
 				: [options.formatId, currentLimit];
 
-			const gameRows: Array<{ gameId: string }> = await this.readonlyClient.query(gamesSql, params);
+			const rawGameRows = await this.readonlyClient.query(gamesSql, params);
+			const gameRows = extractRows<{ gameId: string }>(rawGameRows);
 
 			if (!gameRows || gameRows.length === 0) {
 				break;
@@ -239,7 +286,6 @@ export class ReplayDeckBackfillService {
 
 			for (const { gameId } of gameRows) {
 				cursor = gameId;
-				report.lastGameId = gameId;
 
 				// 1. Check if online snapshot already exists
 				const onlineCheckSql = `
@@ -251,12 +297,14 @@ export class ReplayDeckBackfillService {
 					  AND md.snapshot_source = 'online'
 					LIMIT 1
 				`;
-				const onlineRows = await this.readonlyClient.query(onlineCheckSql, [
+				const rawOnlineRows = await this.readonlyClient.query(onlineCheckSql, [
 					gameId,
 					options.formatId,
 				]);
-				if (onlineRows && onlineRows.length > 0) {
+				const onlineRows = extractRows(rawOnlineRows);
+				if (onlineRows.length > 0) {
 					report.skipped.onlineSnapshotExists++;
+					if (firstFailedGameId === undefined) lastSafeGameId = gameId;
 					continue;
 				}
 
@@ -268,13 +316,15 @@ export class ReplayDeckBackfillService {
 						SELECT id FROM matches WHERE game_id = $1 AND format_id = $2
 					)
 				`;
-				const backfillRows = await this.readonlyClient.query(backfilledCheckSql, [
+				const rawBackfillRows = await this.readonlyClient.query(backfilledCheckSql, [
 					gameId,
 					options.formatId,
 				]);
+				const backfillRows = extractRows<{ count: number }>(rawBackfillRows);
 				const backfilledCount = Number(backfillRows[0]?.count ?? 0);
 				if (backfilledCount >= 2) {
 					report.skipped.alreadyBackfilled++;
+					if (firstFailedGameId === undefined) lastSafeGameId = gameId;
 					continue;
 				}
 
@@ -293,19 +343,21 @@ export class ReplayDeckBackfillService {
 					  AND m.deleted_at IS NULL
 					ORDER BY m.id ASC
 				`;
-				const matchPerspectives: Array<{
+				const rawMatches = await this.readonlyClient.query(matchesSql, [gameId, options.formatId]);
+				const matchPerspectives = extractRows<{
 					id: string;
 					userId: string;
 					playerNames: string | string[];
 					opponentNames: string | string[];
 					formatId: string;
-				}> = await this.readonlyClient.query(matchesSql, [gameId, options.formatId]);
+				}>(rawMatches);
 
 				if (
 					matchPerspectives.length !== 2 ||
 					matchPerspectives[0].userId === matchPerspectives[1].userId
 				) {
 					report.skipped.invalidPerspectives++;
+					if (firstFailedGameId === undefined) lastSafeGameId = gameId;
 					continue;
 				}
 
@@ -318,11 +370,12 @@ export class ReplayDeckBackfillService {
 					  AND dr.duel_index = 1
 					LIMIT 1
 				`;
-				const replayRows: Array<{ id: string; replayData: Buffer }> =
-					await this.readonlyClient.query(replaySql, [gameId, options.formatId]);
+				const rawReplays = await this.readonlyClient.query(replaySql, [gameId, options.formatId]);
+				const replayRows = extractRows<{ id: string; replayData: Buffer }>(rawReplays);
 
-				if (!replayRows || replayRows.length === 0 || !replayRows[0].replayData) {
+				if (replayRows.length === 0 || !replayRows[0].replayData) {
 					report.skipped.missingG1Replay++;
+					if (firstFailedGameId === undefined) lastSafeGameId = gameId;
 					continue;
 				}
 
@@ -330,6 +383,7 @@ export class ReplayDeckBackfillService {
 				const extracted = this.extractor.extractFromYrp(replayRows[0].replayData);
 				if (!extracted) {
 					report.skipped.invalidReplayOrDeck++;
+					if (firstFailedGameId === undefined) lastSafeGameId = gameId;
 					continue;
 				}
 
@@ -359,6 +413,7 @@ export class ReplayDeckBackfillService {
 					m2Deck = extracted.hostDeck;
 				} else {
 					report.skipped.ambiguousIdentity++;
+					if (firstFailedGameId === undefined) lastSafeGameId = gameId;
 					continue;
 				}
 
@@ -403,12 +458,16 @@ export class ReplayDeckBackfillService {
 							]);
 						});
 						report.successful++;
+						if (firstFailedGameId === undefined) lastSafeGameId = gameId;
 					} catch (_writeErr) {
+						if (firstFailedGameId === undefined) firstFailedGameId = gameId;
+						report.failedGameIds.push(gameId);
 						report.skipped.writeFailed = (report.skipped.writeFailed ?? 0) + 1;
 						continue;
 					}
 				} else {
 					report.successful++;
+					if (firstFailedGameId === undefined) lastSafeGameId = gameId;
 				}
 			}
 
@@ -416,6 +475,9 @@ export class ReplayDeckBackfillService {
 				break;
 			}
 		}
+
+		report.lastGameId = cursor;
+		report.resumeCursor = firstFailedGameId !== undefined ? lastSafeGameId : cursor;
 
 		return report;
 	}
