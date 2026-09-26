@@ -3,7 +3,7 @@
 > **文件标识**：`docs/deck-statistics-system-plan.md`  
 > **状态**：`DESIGN (首期仅 1109；Match 对阵采用月度先后攻单行汇总，待样本验收)`
 > **创建日期**：2026-09-23  
-> **适用范围**：`Nostalgia-duel-server` 的 YGOPro `1109` 排位统计；`1103` 决斗服务维持现状，统计扩展另行规划
+> **适用范围**：`Nostalgia-duel-server` 的 YGOPro `1109` 排位统计；录像卡组展示与下载同时覆盖 `1103`，其统计扩展另行规划
 
 ---
 
@@ -101,7 +101,7 @@ erDiagram
 
 | 表 | 每行代表什么 | 主键/唯一粒度 |
 | :--- | :--- | :--- |
-| `deck_types` | 一种固定 1109 卡组类别的展示元数据 | `code` |
+| `deck_types` | 一种环境内卡组类别的展示元数据 | `format_id` + `code` |
 | `match_decks` | 某玩家在一场 Match 的 G1 前初始卡组 | `match_id` |
 | `stats_deck_usage` | 某月某类卡组出现的玩家视角次数 | 月份 + 类别 |
 | `stats_deck_coverage` | 某月卡组使用量与对阵统计的分母/缺口 | 月份 |
@@ -113,28 +113,36 @@ erDiagram
 
 ```sql
 CREATE TABLE deck_types (
-    code varchar(64) PRIMARY KEY,
+    format_id varchar(16) NOT NULL,
+    code varchar(64) NOT NULL,
     name_zh varchar(64) NOT NULL,
-    sort_order integer NOT NULL UNIQUE CHECK (sort_order >= 0)
+    sort_order integer NOT NULL CHECK (sort_order >= 0),
+    PRIMARY KEY (format_id, code),
+    UNIQUE (format_id, sort_order)
 );
 
+ALTER TABLE matches ADD CONSTRAINT uq_matches_id_format UNIQUE (id, format_id);
+
 CREATE TABLE match_decks (
-    match_id varchar PRIMARY KEY REFERENCES matches(id),
-    deck_type_code varchar(64) NOT NULL REFERENCES deck_types(code),
+    match_id varchar PRIMARY KEY,
+    format_id varchar(16) NOT NULL,
+    deck_type_code varchar(64) NOT NULL,
     classifier_version varchar(64) NOT NULL,
     snapshot_source varchar(16) NOT NULL
         CHECK (snapshot_source IN ('online', 'replay_backfill')),
     main_cards integer[] NOT NULL CHECK (cardinality(main_cards) BETWEEN 40 AND 60),
     extra_cards integer[] NOT NULL CHECK (cardinality(extra_cards) BETWEEN 0 AND 15),
-    side_cards integer[] NULL CHECK (side_cards IS NULL OR cardinality(side_cards) BETWEEN 0 AND 15)
+    side_cards integer[] NULL CHECK (side_cards IS NULL OR cardinality(side_cards) BETWEEN 0 AND 15),
+    FOREIGN KEY (match_id, format_id) REFERENCES matches(id, format_id),
+    FOREIGN KEY (format_id, deck_type_code) REFERENCES deck_types(format_id, code)
 );
 
-CREATE INDEX idx_match_decks_type_match ON match_decks (deck_type_code, match_id);
+CREATE INDEX idx_match_decks_type_match ON match_decks (format_id, deck_type_code, match_id);
 ```
 
-`deck_types` 只存 1109 的 25 个具名类别（`D01`–`D25`）和 `OTHERS`，`sort_order` 按来源 `SUPPORTED_CATEGORIES` 固定；代码与名称发布后不得重排或复用。没有细类→大类映射，不建 `group_id`。分类规则仍是随代码发布的有序谓词，不建 `deck_templates`：分析仓库的阈值、集合合计、不同种类数和布尔分支无法无损表示为卡片 ID 数组。`classifier_version` 同时标识规则顺序、类别映射与 alias 策略；重分类后必须重建受影响汇总。
+`deck_types` 按环境存储类型目录：1109 有 25 个具名类别（`D01`–`D25`）和 `OTHERS`，1103 暂只有 `OTHERS`；后续启用的环境若无具名分类规则，至少提供 `OTHERS`。1109 的 `sort_order` 按来源 `SUPPORTED_CATEGORIES` 固定；代码与名称发布后不得在同一环境内重排或复用，不同环境允许复用代码。没有细类→大类映射，不建 `group_id`。分类器按 `format_id` 路由：1109 使用随代码发布的有序谓词，1103 暂归入 `OTHERS`；不在数据库存储卡片清单或完整判断条件。分析仓库的阈值、集合合计、不同种类数和布尔分支无法无损表示为卡片 ID 数组。`classifier_version` 标识环境、规则顺序、类别映射与 alias 策略；重分类后必须重建受影响汇总。
 
-`match_decks.match_id` 对应一条**玩家视角**的 `matches.id`，每行至多一份初始快照。`deck_type_code` 是该玩家的分类，`OTHERS` 表示已分类但未命中具名规则，快照不存在才是“未知”。`main_cards`、`extra_cards`、`side_cards` 保留原始卡片 ID 和重复张数，以便导出 `.ydk`；历史 G1 录像无法恢复 Side 时必须为 `NULL`，不能用空数组冒充。卡片 ID 存在性、禁限与整副卡组合法性由固定 1109 资源和应用服务验证，数组长度检查不是全部合法性校验。`game_id`、`user_id`、`format_id`、`season`、比赛时间均从 `matches` 关联，不在快照表复制。
+`match_decks.match_id` 对应一条**玩家视角**的 `matches.id`，每行至多一份初始快照。`format_id` 仅为复合外键所需，必须与所属 Match 及类型目录一致；`game_id`、`user_id`、`season`、比赛时间仍从 `matches` 关联。`deck_type_code` 是该玩家在对应环境中的分类，`OTHERS` 表示已分类但未命中具名规则，快照不存在才是“未知”。`main_cards`、`extra_cards`、`side_cards` 保留原始卡片 ID 和重复张数，以便导出 `.ydk`；1103 和 1109 的历史 G1 录像无法恢复 Side 时必须为 `NULL`，不能用空数组冒充。卡片 ID 存在性、禁限与整副卡组合法性由对应环境固定资源和应用服务验证，数组长度检查不是全部合法性校验。
 
 #### 月度卡组使用量及覆盖率
 
@@ -142,10 +150,11 @@ CREATE INDEX idx_match_decks_type_match ON match_decks (deck_type_code, match_id
 CREATE TABLE stats_deck_usage (
     format_id varchar(16) NOT NULL CHECK (format_id = '1109'),
     month_key integer NOT NULL CHECK (month_key >= 200001 AND month_key % 100 BETWEEN 1 AND 12),
-    deck_type_code varchar(64) NOT NULL REFERENCES deck_types(code),
+    deck_type_code varchar(64) NOT NULL,
     deck_count bigint NOT NULL CHECK (deck_count > 0),
     updated_at timestamptz NOT NULL,
-    PRIMARY KEY (format_id, month_key, deck_type_code)
+    PRIMARY KEY (format_id, month_key, deck_type_code),
+    FOREIGN KEY (format_id, deck_type_code) REFERENCES deck_types(format_id, code)
 );
 
 CREATE TABLE stats_deck_coverage (
@@ -173,14 +182,18 @@ ALTER TABLE stats_deck_usage ADD CONSTRAINT fk_stats_deck_usage_coverage
 CREATE TABLE stats_deck_matchups (
     format_id varchar(16) NOT NULL CHECK (format_id = '1109'),
     month_key integer NOT NULL CHECK (month_key >= 200001 AND month_key % 100 BETWEEN 1 AND 12),
-    first_deck_code varchar(64) NOT NULL REFERENCES deck_types(code),
-    second_deck_code varchar(64) NOT NULL REFERENCES deck_types(code),
+    first_deck_code varchar(64) NOT NULL,
+    second_deck_code varchar(64) NOT NULL,
     match_count bigint NOT NULL CHECK (match_count > 0),
     first_wins bigint NOT NULL CHECK (first_wins >= 0 AND first_wins <= match_count),
     updated_at timestamptz NOT NULL,
     PRIMARY KEY (format_id, month_key, first_deck_code, second_deck_code),
     FOREIGN KEY (format_id, month_key)
-        REFERENCES stats_deck_coverage (format_id, month_key)
+        REFERENCES stats_deck_coverage (format_id, month_key),
+    FOREIGN KEY (format_id, first_deck_code)
+        REFERENCES deck_types (format_id, code),
+    FOREIGN KEY (format_id, second_deck_code)
+        REFERENCES deck_types (format_id, code)
 );
 
 CREATE INDEX idx_stats_deck_matchups_second
@@ -295,7 +308,7 @@ CREATE INDEX idx_matches_active_format_season_game
 ## 5. 历史数据清洗与回溯 (Backfill Plan)
 
 ### 5.1 数据源与可提取范围
-* **源数据表**：仅 1109 的 `matches`、`duels` 与 `duel_replays.replay_data`（二进制 `.yrp` 录像），以分析仓库 `analyze_online_g1.py` 的完整双视角 Match 过滤作候选集，再按本计划的异常和软删规则校验。
+* **源数据表**：1103 与 1109 的 `matches`、`duels` 与 `duel_replays.replay_data`（二进制 `.yrp` 录像）；仅 1109 进入本计划的统计汇总。以分析仓库 `analyze_online_g1.py` 的完整双视角 Match 过滤作候选参考，再按本计划的异常和软删规则及对应环境资源校验。
 * **可尝试恢复的字段**：
   * 有效 G1 `.yrp` 内含两位玩家当局的 Main 与 Extra；需校验双方名字与 `matches` 两行的映射、非 TAG 模式、卡组大小及卡片 ID。乱序洗牌不影响卡片多重集合；缺 G1、坏录像或身份映射不唯一则跳过该场，不猜测卡组。
   * `duel_replays.duel_index` 已记录小局编号。`.yrp` 的 host/client 顺序可能反映当前局玩家顺序，但必须用仓库生成的已知座次样本证明它与真实先攻的关系，再允许把它映射回 `duels.is_first`；无法证明或映射歧义的旧行保持 `NULL`。
@@ -312,7 +325,7 @@ CREATE INDEX idx_matches_active_format_season_game
 [解析 G1 录像 (.yrp)] ──> 使用已有 ygopro-yrp-encode 解码
                  │
                  ├──> 校验双方身份并提取 Main & Extra；Side 标记未知
-                 └──> 调用同一版本的有序规则分类器判定 deck_type_code
+                 └──> 按 format_id 调用同一版本的分类器判定 deck_type_code
                  │
                  ▼
 [按 duel_replays.duel_index 关联各局]
@@ -324,7 +337,7 @@ CREATE INDEX idx_matches_active_format_season_game
                  └──> UPDATE duels SET is_first = ..., duel_index = ... (仅更新已确认值)
                  │
                  ▼
-[触发首轮全量聚合] ──> 生成历史月度卡组/对阵及卡片汇总数据
+[触发首轮全量聚合] ──> 仅为 1109 生成历史月度卡组/对阵及卡片汇总数据
 ```
 
 先以只读 dry-run 运行一小批真实历史记录，抽样核对原始录像与两条玩家视角行的对应关系；仓库固定二进制样本的预期解析结果须人工核对，不能由同一个被测编码器即时生成。记录错误原因与覆盖率后再写入。回溯不得覆盖 `snapshot_source=online` 的完整卡组，也不得用未知值覆盖已确认的 `is_first`。事务以一场 `game_id` 为最小一致性单位，失败可重试；同一用户/同一 `replay_id` 的重复行必须被报告并跳过。完成后核对每场最多两份快照、每个有录像的小局最多两个互补座次，并重建受影响窗口。历史回溯和新在线结算可能并发，需先上线在线采集与可空迁移，再启动离线回溯。
@@ -333,7 +346,7 @@ CREATE INDEX idx_matches_active_format_season_game
 
 ## 6. HTTP API 接口契约规范
 
-所有新增统计接口显式带 `:format`（本期只接受 `1109`），沿用现有 `RateLimitMiddleware` 和 `ranking.enabled` 开关；卡组使用量/对阵仅接受 `period=month&month=YYYYMM`，卡片使用量可用 `today|week|month|all`。分页参数限制为正整数，`pageSize <= 100`；返回窗口起止、`updatedAt`、样本数与覆盖率，空分母胜率为 `null`。不支持的统计格式/日期返回 400，统计关闭返回 503；已有 1103 排行榜、录像 API 不受影响。具体路径以现有 `/api/leaderboards/:format`、`/api/replays/:format` 的风格为准。
+所有新增统计接口显式带 `:format`（本期只接受 `1109`），沿用现有 `RateLimitMiddleware` 和 `ranking.enabled` 开关；卡组使用量/对阵仅接受 `period=month&month=YYYYMM`，卡片使用量可用 `today|week|month|all`。分页参数限制为正整数，`pageSize <= 100`；返回窗口起止、`updatedAt`、样本数与覆盖率，空分母胜率为 `null`。不支持的统计格式/日期返回 400，统计关闭返回 503；1103 排行榜保持现状，1103 与 1109 录像 API 都增加环境内类型与下载能力。具体路径以现有 `/api/leaderboards/:format`、`/api/replays/:format` 的风格为准。
 
 ### 6.1 `GET /api/ladder/:format/deck-stats`
 * **参数**：`period=month&month=YYYYMM`（如 `202609`）
@@ -400,11 +413,11 @@ CREATE INDEX idx_matches_active_format_season_game
 
 ### 6.5 `GET /api/ladder/:format/matches/:matchId/deck`
 * **公开范围**：所有人均可下载双方已记录的初始卡组，无登录或管理员 API Key 要求；与现有公开录像下载一样使用 `RateLimitMiddleware`。页面和接口须明确告知玩家：在线保存的 Main、Extra、Side 会对所有访问者公开。
-* **参数与响应**：`:matchId` 为玩家视角 `matches.id`；响应为 `text/plain; charset=utf-8` 的标准 `.ydk`，包含 `#main`、`#extra`、`!side`，并设置安全的 `Content-Disposition` 文件名。对手下载需传对手的玩家视角 `matchId`，服务端验证两行属于同一 `game_id`，不得仅凭客户端 `side` 字符串决定对象。赛制不符、撤销/软删、快照不存在时返回 404。
+* **参数与响应**：`:matchId` 为玩家视角 `matches.id`；响应为 `text/plain; charset=utf-8` 的标准 `.ydk`，包含 `#main`、`#extra`、`!side`，并设置安全的 `Content-Disposition` 文件名。对手下载需传对手的玩家视角 `matchId`，服务端验证两行属于同一 `game_id`，不得仅凭客户端 `side` 字符串决定对象。`:format` 必须与 Match 和快照环境一致；赛制不符、撤销/软删、快照不存在时返回 404。
 * **历史部分快照**：所有下载响应设置 `X-Deck-Completeness: complete|partial`；`side_cards=NULL` 时可以导出 Main/Extra，但文件名须标记 `partial`，页面不得把空的 `!side` 段解释成原始副卡组为空。
 
 ### 6.6 现有 `GET /api/replays/:format` 扩展
-* 仅对 1109 录像列表增加 `deckTypeCode` 筛选与类别/分类状态展示，基于 `duel_replays.game_id` 关联双方玩家视角快照；同一录像只返回一次，过滤时明确“任一方命中”语义。卡组快照不存在时展示“未知”，不可归为 `OTHERS`。现有 `.yrp` 下载端点与字节内容保持不变；初始卡组导出走 6.5 的独立公开下载接口。
+* 对 1103 和 1109 录像列表增加环境内 `deckTypeCode` 筛选与类别/分类状态展示，基于 `duel_replays.game_id` 关联双方玩家视角快照；同一录像只返回一次，过滤时明确“任一方命中”语义。1103 当前只有 `OTHERS` 可选；卡组快照不存在时展示“未知”，不可归为 `OTHERS`。现有 `.yrp` 下载端点与字节内容保持不变；初始卡组导出走 6.5 的独立公开下载接口。
 
 ---
 
@@ -414,13 +427,13 @@ CREATE INDEX idx_matches_active_format_season_game
 | :--- | :--- | :--- |
 | **M0: 1109 样本与目录** | 用仓库生成的 1109 真实 `.yrp` 与历史样本验证 G1 身份映射、先攻顺序及 Side 缺失；按分析仓库提交 `c9ba01c` 核对 25 类、`D01`–`D25` 映射、别名表、规则顺序和基线覆盖率 | 固定二进制样本及人工期望值、不可重排的 1109 类别代码清单、覆盖率与未知样本复核记录 |
 | **M1: 模式变更** | 在 `evolution-types` 新增第 3.3 节的 7 张表及迁移；旧 `duels` 字段先可空；执行 `npm run migration:generate --name=...`、审阅迁移并在隔离数据库验证 | 不含通用模板表的最小模式、可空小局字段、约束与索引，不改已应用迁移 |
-| **M2: 分类器与初始卡组冻结** | 将分析仓库的 25 条有序谓词逐条移植到 TypeScript 领域服务，使用固定 CDB 的 alias 归一；G1 前冻结已经验证的三卡槽快照和每局座次 | `DeckClassifier`、来源 25 类样本的逐项对照测试、规则优先级/阈值/别名/「其他」边界测试及领域事件快照契约 |
-| **M3: 1109 在线持久化** | 仅为 1109 排位在现有 `RankedMatchPersistenceService` 单事务内写入快照与小局座次；保留按 `game_id` 去重和一次重试语义，解决缺录像小局 | 1109 真实排位冒烟、重复事件/失败重试测试、可查询的一对双方快照；1103 现有结算回归 |
-| **M4: 1109 历史回溯** | dry-run 后按 `game_id` 有界批处理并输出错误台账；在线与离线调用同一版本分类器，仅写入可信字段 | 可断点重跑脚本、1109 覆盖率、与同批只读分析输出的可解释差异、匿名固定样本和抽样人工核对及回滚方式 |
+| **M2: 分类器与初始卡组冻结** | 按 `format_id` 路由分类器；将分析仓库的 25 条 1109 有序谓词逐条移植到 TypeScript 领域服务，使用固定 CDB 的 alias 归一，1103 暂归入「其他」；G1 前冻结已经验证的三卡槽快照和每局座次 | `DeckClassifier`、来源 25 类样本的逐项对照测试、规则优先级/阈值/别名/「其他」边界测试及领域事件快照契约 |
+| **M3: 各环境在线持久化** | 为 1103 与 1109 排位在现有 `RankedMatchPersistenceService` 单事务内写入快照与小局座次；保留按 `game_id` 去重和一次重试语义，解决缺录像小局 | 双环境真实排位冒烟、重复事件/失败重试测试、可查询的一对双方快照 |
+| **M4: 各环境历史回溯** | dry-run 后按 `game_id` 有界批处理并输出错误台账；在线与离线按环境调用同一版本分类器，仅写入可信字段 | 可断点重跑脚本、双环境覆盖率、1109 与同批只读分析输出的可解释差异、匿名固定样本和抽样人工核对及回滚方式 |
 | **M5: 1109 周期聚合** | 每天凌晨按月重建卡组使用量、覆盖率与 Match 先攻→后攻对阵，并按各窗口重建卡片使用量；窗口级原子替换和多实例互斥；启动时显式注册统计任务，不借 Socket 构造函数副作用 | 可重建汇总表、撤销/迟到数据刷新机制、内战与反向查询用例、数据量压测 |
-| **M6: 1109 HTTP 与页面** | 统计接口、1109 录像列表筛选、公开卡组导出及对应页面入口 | 明确的 JSON/下载契约、分页与公开访问/无效快照测试、1109 页面联调 |
+| **M6: HTTP 与页面** | 1109 统计接口、双环境录像列表筛选、公开卡组导出及对应页面入口 | 明确的 JSON/下载契约、分页与公开访问/无效快照测试、双环境页面联调 |
 
-每个阶段先写会失败的同目录测试，再实现最小功能；不为纯文档阶段补无意义测试。上线顺序是可空迁移 → 1109 在线采集 → 1109 历史回溯 → 汇总构建 → 查询页面，避免回溯期间新比赛持续缺失。回滚应用时保留新增表与可空列，不删已采集事实；汇总可重建。若下线统计功能，关闭调度与 HTTP 展示即可。发布前执行 `npm run lint`、`npm run test`、`npm run check:nostalgia-resources`、`npm run build`，再以 1109 真实排位冒烟核对数据库事实和原生 `.yrp` 下载字节一致；全量测试继续保护现有 1103 决斗能力。
+每个阶段先写会失败的同目录测试，再实现最小功能；不为纯文档阶段补无意义测试。上线顺序是可空迁移 → 双环境在线采集 → 双环境历史回溯 → 1109 汇总构建 → 查询页面，避免回溯期间新比赛持续缺失。回滚应用时保留新增表与可空列，不删已采集事实；汇总可重建。若下线统计功能，关闭调度与 HTTP 展示即可。发布前执行 `npm run lint`、`npm run test`、`npm run check:nostalgia-resources`、`npm run build`，再以双环境真实排位冒烟核对数据库事实和原生 `.yrp` 下载字节一致。
 
 已生成的 `openspec/changes/add-1109-deck-statistics` 仍描述旧的 12 维/玩家视角汇总模式；**实施前必须将其 design、specs 与 tasks 同步为本节结构和 Match 口径**。本计划更新本身不代表这些 OpenSpec 制品已同步。
 
