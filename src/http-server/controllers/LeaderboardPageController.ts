@@ -236,28 +236,16 @@ export function renderLeaderboardPage(formatId: string): string {
 			background: var(--panel-2);
 			border: 1px solid var(--border);
 			color: var(--gold-soft);
-			margin-left: 0.4rem;
 		}
 		.deck-tag.warning {
 			color: var(--danger);
 			border-color: rgba(248, 81, 73, 0.4);
 		}
 		.player-deck-cell {
-			display: flex;
-			flex-direction: column;
-			gap: 0.25rem;
-		}
-		.player-deck-header {
-			display: flex;
-			align-items: center;
-			flex-wrap: wrap;
-			gap: 0.25rem;
-		}
-		.player-deck-actions {
-			display: flex;
+			display: inline-flex;
 			align-items: center;
 			gap: 0.4rem;
-			margin-top: 0.1rem;
+			white-space: nowrap;
 		}
 		.btn-ydk {
 			font-size: 0.75rem;
@@ -845,38 +833,28 @@ export function renderLeaderboardPage(formatId: string): string {
 				var container = document.createElement("div");
 				container.className = "player-deck-cell";
 
-				var header = document.createElement("div");
-				header.className = "player-deck-header";
-
 				var nameSpan = document.createElement("span");
 				nameSpan.textContent = player ? (player.name || "未知玩家") : "未知玩家";
-				header.appendChild(nameSpan);
+				container.appendChild(nameSpan);
 
 				var typeBadge = document.createElement("span");
 				typeBadge.className = "deck-tag";
 				typeBadge.textContent = (player && player.deckTypeNameZh) ? player.deckTypeNameZh : "未知";
-				header.appendChild(typeBadge);
-				container.appendChild(header);
+				container.appendChild(typeBadge);
 
 				if (player && player.deckDownloadUrl) {
-					var actions = document.createElement("div");
-					actions.className = "player-deck-actions";
-
 					var ydkLink = document.createElement("a");
 					ydkLink.className = "btn-ydk";
 					ydkLink.href = player.deckDownloadUrl;
 					ydkLink.textContent = "下载 .ydk";
+					container.appendChild(ydkLink);
 
 					if (player.deckCompleteness === "partial") {
 						var partialBadge = document.createElement("span");
 						partialBadge.className = "deck-tag warning";
 						partialBadge.textContent = "部分卡组";
-						actions.appendChild(ydkLink);
-						actions.appendChild(partialBadge);
-					} else {
-						actions.appendChild(ydkLink);
+						container.appendChild(partialBadge);
 					}
-					container.appendChild(actions);
 				}
 
 				cell.appendChild(container);
