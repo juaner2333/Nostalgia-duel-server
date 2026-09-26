@@ -61,6 +61,7 @@ describe("GetReplayListController", () => {
 					endedAt: "2026-09-02 23:45:10",
 					player1Name: "Alice",
 					player2Name: "Bob",
+					winner: "Alice",
 					size: 1024,
 					duelIndex: 1,
 					players: [

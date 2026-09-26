@@ -125,6 +125,7 @@ export class ReplayPostgresRepository implements ReplayRepository {
 				d.match_id AS "matchId",
 				d.player_names AS "playerNames",
 				d.opponent_names AS "opponentNames",
+				d.result AS "result",
 				m.format_id AS "matchFormatId",
 				m.anulled AS "matchAnulled",
 				m.deleted_at AS "matchDeletedAt",
@@ -148,6 +149,7 @@ export class ReplayPostgresRepository implements ReplayRepository {
 			matchId: string;
 			playerNames: string | null;
 			opponentNames: string | null;
+			result: string | null;
 			matchFormatId: string;
 			matchAnulled: boolean;
 			matchDeletedAt: Date | null;
@@ -185,11 +187,21 @@ export class ReplayPostgresRepository implements ReplayRepository {
 				replayDuels[0].matchDeletedAt == null &&
 				replayDuels[1].matchDeletedAt == null;
 
+			let winner: string | null = null;
+
 			if (isUnambiguousPair) {
 				const d1 = replayDuels[0];
 				const d2 = replayDuels[1];
 				p1Name = (d1.playerNames ?? "").split(",")[0]?.trim() || "未知玩家";
 				p2Name = (d2.playerNames ?? "").split(",")[0]?.trim() || "未知玩家";
+
+				if (d1.result === "winner") {
+					winner = p1Name;
+				} else if (d2.result === "winner") {
+					winner = p2Name;
+				} else if (d1.result === "deuce" || d2.result === "deuce") {
+					winner = "平局";
+				}
 
 				player1Info = {
 					name: p1Name,
@@ -214,6 +226,18 @@ export class ReplayPostgresRepository implements ReplayRepository {
 				if (replayDuels.length > 0) {
 					p1Name = (replayDuels[0].playerNames ?? "").split(",")[0]?.trim() || "未知玩家";
 					p2Name = (replayDuels[0].opponentNames ?? "").split(",")[0]?.trim() || "未知玩家";
+
+					const winnerDuel = replayDuels.find((d) => d.result === "winner");
+					if (winnerDuel) {
+						winner = (winnerDuel.playerNames ?? "").split(",")[0]?.trim() || null;
+					} else {
+						const loserDuel = replayDuels.find((d) => d.result === "loser");
+						if (loserDuel) {
+							winner = (loserDuel.opponentNames ?? "").split(",")[0]?.trim() || null;
+						} else if (replayDuels.some((d) => d.result === "deuce")) {
+							winner = "平局";
+						}
+					}
 				}
 				player1Info = {
 					name: p1Name,
@@ -237,6 +261,7 @@ export class ReplayPostgresRepository implements ReplayRepository {
 				endedAt: formatToBeijingTimeString(new Date(r.endedAt)),
 				player1Name: p1Name,
 				player2Name: p2Name,
+				winner,
 				size: Number(r.size ?? 0),
 				players: [player1Info, player2Info],
 			};

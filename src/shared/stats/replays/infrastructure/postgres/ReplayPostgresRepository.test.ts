@@ -44,6 +44,7 @@ describe("ReplayPostgresRepository", () => {
 				matchFormatId: "1109",
 				matchAnulled: false,
 				matchDeletedAt: null,
+				result: "winner",
 				deckTypeCode: "D01",
 				deckTypeNameZh: "代行天使",
 				isSideNull: false,
@@ -59,6 +60,7 @@ describe("ReplayPostgresRepository", () => {
 				matchFormatId: "1109",
 				matchAnulled: false,
 				matchDeletedAt: null,
+				result: "loser",
 				deckTypeCode: "D02",
 				deckTypeNameZh: "HB",
 				isSideNull: false,
@@ -80,6 +82,7 @@ describe("ReplayPostgresRepository", () => {
 		expect(item.duelIndex).toBe(2);
 		expect(item.player1Name).toBe("Alice");
 		expect(item.player2Name).toBe("Bob");
+		expect(item.winner).toBe("Alice");
 		expect(item.size).toBe(1024);
 		expect(item.players).toHaveLength(2);
 		expect(item.players[0]).toEqual({
@@ -338,6 +341,93 @@ describe("ReplayPostgresRepository", () => {
 		expect(res?.replayData).toEqual(fakeBuffer);
 		expect(res?.player1Name).toBe("Alice");
 		expect(res?.player2Name).toBe("Bob");
+	});
+
+	it("derives winner correctly for player2 winning, deuce, and fallback perspectives", async () => {
+		// 1. COUNT
+		(dataSource.query as jest.Mock).mockResolvedValueOnce([{ total: 3 }]);
+		// 2. Data (3 replays)
+		(dataSource.query as jest.Mock).mockResolvedValueOnce([
+			{ replayId: "rep-p2-wins", duelIndex: 1, endedAt: new Date(), size: 100 },
+			{ replayId: "rep-deuce", duelIndex: 1, endedAt: new Date(), size: 100 },
+			{ replayId: "rep-single-loser", duelIndex: 1, endedAt: new Date(), size: 100 },
+		]);
+		// 3. Batch duels
+		(dataSource.query as jest.Mock).mockResolvedValueOnce([
+			// rep-p2-wins: d1 loser, d2 winner
+			{
+				replayId: "rep-p2-wins",
+				duelId: "d-1",
+				userId: "u-1",
+				matchId: "m-1",
+				playerNames: "Alice",
+				opponentNames: "Bob",
+				result: "loser",
+				matchFormatId: "1109",
+				matchAnulled: false,
+				matchDeletedAt: null,
+			},
+			{
+				replayId: "rep-p2-wins",
+				duelId: "d-2",
+				userId: "u-2",
+				matchId: "m-2",
+				playerNames: "Bob",
+				opponentNames: "Alice",
+				result: "winner",
+				matchFormatId: "1109",
+				matchAnulled: false,
+				matchDeletedAt: null,
+			},
+			// rep-deuce: both deuce
+			{
+				replayId: "rep-deuce",
+				duelId: "d-3",
+				userId: "u-3",
+				matchId: "m-3",
+				playerNames: "Charlie",
+				opponentNames: "Dave",
+				result: "deuce",
+				matchFormatId: "1109",
+				matchAnulled: false,
+				matchDeletedAt: null,
+			},
+			{
+				replayId: "rep-deuce",
+				duelId: "d-4",
+				userId: "u-4",
+				matchId: "m-4",
+				playerNames: "Dave",
+				opponentNames: "Charlie",
+				result: "deuce",
+				matchFormatId: "1109",
+				matchAnulled: false,
+				matchDeletedAt: null,
+			},
+			// rep-single-loser: only 1 perspective who lost -> opponent is winner
+			{
+				replayId: "rep-single-loser",
+				duelId: "d-5",
+				userId: "u-5",
+				matchId: "m-5",
+				playerNames: "Eve",
+				opponentNames: "Frank",
+				result: "loser",
+				matchFormatId: "1109",
+				matchAnulled: false,
+				matchDeletedAt: null,
+			},
+		]);
+
+		const res = await repository.getReplayList({
+			formatId: "1109",
+			page: 1,
+			pageSize: 20,
+		});
+
+		expect(res.replays[0].winner).toBe("Bob");
+		expect(res.replays[1].winner).toBe("平局");
+		expect(res.replays[2].winner).toBe("Frank");
 	});
 
 	it("returns null when replay is not found", async () => {

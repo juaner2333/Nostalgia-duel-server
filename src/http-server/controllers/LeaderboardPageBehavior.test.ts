@@ -76,6 +76,12 @@ describe("LeaderboardPage client-side scripts and behavior specification", () =>
 			expect(html1103).toContain("未知");
 		});
 
+		it("renders winner column header and winner cell in replay table", () => {
+			expect(html1103).toContain("<th>胜者</th>");
+			expect(html1103).toContain("rep.winner");
+			expect(html1103).toContain("winner-cell");
+		});
+
 		it("resets page to 1 on deck type change, search, and clear", () => {
 			expect(html1103).toContain('replaysState.deckTypeCode = "";');
 			expect(html1103).toContain('document.getElementById("replays-deck-type-select").value = "";');

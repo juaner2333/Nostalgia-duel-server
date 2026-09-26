@@ -227,6 +227,7 @@ export function renderLeaderboardPage(formatId: string): string {
 		.rank-1 { color: var(--rank-1); font-weight: bold; }
 		.rank-2 { color: var(--rank-2); font-weight: bold; }
 		.rank-3 { color: var(--rank-3); font-weight: bold; }
+		.winner-cell { color: var(--gold-soft); font-weight: 600; }
 
 		.deck-tag {
 			display: inline-block;
@@ -400,12 +401,13 @@ export function renderLeaderboardPage(formatId: string): string {
 							<th>局数</th>
 							<th>玩家 1</th>
 							<th>玩家 2</th>
+							<th>胜者</th>
 							<th>大小</th>
 							<th>录像下载</th>
 						</tr>
 					</thead>
 					<tbody id="replays-tbody">
-						<tr><td colspan="6" class="info-box">正在加载录像列表...</td></tr>
+						<tr><td colspan="7" class="info-box">正在加载录像列表...</td></tr>
 					</tbody>
 				</table>
 			</div>
@@ -869,7 +871,7 @@ export function renderLeaderboardPage(formatId: string): string {
 				if (replays.length === 0) {
 					var emptyRow = document.createElement("tr");
 					var emptyTd = document.createElement("td");
-					emptyTd.colSpan = 6;
+					emptyTd.colSpan = 7;
 					emptyTd.className = "info-box";
 					emptyTd.textContent = (replaysState.search || replaysState.deckTypeCode)
 						? "没有找到符合条件的录像"
@@ -899,12 +901,20 @@ export function renderLeaderboardPage(formatId: string): string {
 					row.appendChild(renderPlayerCell(p1));
 					row.appendChild(renderPlayerCell(p2));
 
-					// Col 5: 大小
+					// Col 5: 胜者
+					var tdWinner = document.createElement("td");
+					tdWinner.textContent = rep.winner || "-";
+					if (rep.winner && rep.winner !== "平局" && rep.winner !== "-") {
+						tdWinner.className = "winner-cell";
+					}
+					row.appendChild(tdWinner);
+
+					// Col 6: 大小
 					var tdSize = document.createElement("td");
 					tdSize.textContent = formatBytes(rep.size);
 					row.appendChild(tdSize);
 
-					// Col 6: 录像下载
+					// Col 7: 录像下载
 					var tdAction = document.createElement("td");
 					var downloadLink = document.createElement("a");
 					downloadLink.className = "btn btn-copy btn-primary";

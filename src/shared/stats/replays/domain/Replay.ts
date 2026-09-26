@@ -11,6 +11,7 @@ export interface ReplayItem {
 	endedAt: string;
 	player1Name: string;
 	player2Name: string;
+	winner: string | null;
 	size: number;
 	duelIndex: number;
 	players: [ReplayPlayerInfo, ReplayPlayerInfo];
