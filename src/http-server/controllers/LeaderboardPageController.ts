@@ -131,6 +131,35 @@ export function renderLeaderboardPage(formatId: string): string {
 		input[type="text"]:focus, input[type="month"]:focus {
 			border-color: var(--primary);
 		}
+		select {
+			background: var(--panel);
+			border: 1px solid var(--border);
+			border-radius: 6px;
+			padding: 0.4rem 2rem 0.4rem 0.75rem;
+			font-size: 0.85rem;
+			outline: none;
+			cursor: pointer;
+			color: var(--text-bright);
+			appearance: none;
+			-webkit-appearance: none;
+			-moz-appearance: none;
+			background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+			                  linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+			background-position: calc(100% - 18px) calc(50% - 2px), calc(100% - 13px) calc(50% - 2px);
+			background-size: 5px 5px, 5px 5px;
+			background-repeat: no-repeat;
+			transition: border-color 0.15s ease;
+		}
+		select:hover {
+			border-color: var(--muted);
+		}
+		select:focus {
+			border-color: var(--primary);
+		}
+		select option {
+			background: var(--panel-2);
+			color: var(--text-bright);
+		}
 		.btn {
 			background: var(--panel-2);
 			border: 1px solid var(--border);
