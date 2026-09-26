@@ -68,6 +68,13 @@ describe("LeaderboardPage client-side scripts and behavior specification", () =>
 			expect(html1103).toContain("下载 .yrp");
 		});
 
+		it("pins the YRP download column so it stays visible without horizontal scrolling", () => {
+			expect(html1103).toContain("#table-replays th:last-child");
+			expect(html1103).toMatch(
+				/#table-replays td:last-child\s*\{[^}]*position: sticky;[^}]*right: 0;[^}]*background: var\(--panel\);/,
+			);
+		});
+
 		it("renders player deck type and YDK download links without partial deck badge", () => {
 			expect(html1103).toContain("下载 .ydk");
 			expect(html1103).not.toContain("部分卡组");
@@ -141,6 +148,13 @@ describe("LeaderboardPage client-side scripts and behavior specification", () =>
 			expect(html1103).toContain("/^(\\d{2})[^\\d]+(\\d{1,2})/");
 			expect(html1103).toContain("/^(\\d{4})(\\d{2})$/");
 			expect(html1103).toContain("/^\\d{4}$/.test(y) && /^\\d{2}$/.test(m)");
+		});
+	});
+
+	describe("Layout: full-width page container", () => {
+		it("removes the fixed 1200px cap so all three tabs use the full viewport width", () => {
+			expect(html1103).not.toContain("max-width: 1200px");
+			expect(html1103).toMatch(/main\s*\{[^}]*width: 100%;/);
 		});
 	});
 

@@ -92,9 +92,7 @@ export function renderLeaderboardPage(formatId: string): string {
 		main {
 			flex: 1;
 			padding: 1.5rem;
-			max-width: 1200px;
 			width: 100%;
-			margin: 0 auto;
 		}
 		.tab-content {
 			display: none;
@@ -240,6 +238,16 @@ export function renderLeaderboardPage(formatId: string): string {
 		}
 		tr:hover td {
 			background: rgba(255, 255, 255, 0.02);
+		}
+		#table-replays th:last-child,
+		#table-replays td:last-child {
+			position: sticky;
+			right: 0;
+			background: var(--panel);
+			box-shadow: -10px 0 10px -10px rgba(0, 0, 0, 0.75);
+		}
+		#table-replays th:last-child {
+			background: var(--panel-2);
 		}
 		.state-badge {
 			display: inline-block;
