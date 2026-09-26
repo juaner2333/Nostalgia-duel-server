@@ -681,4 +681,75 @@ describe("RankedMatchPersistenceService", () => {
 		expect(p2Deck.classifierVersion).toBe("1103-fallback-v1");
 		expect(p2Deck.mainCards).toEqual(g1Main2);
 	});
+
+	it("persists 1109 match deck containing alt-art Rescue Rabbit 85138717 as D03 using CDB aliases", async () => {
+		const user1 = await UserProfile.create({
+			id: "user-1",
+			username: "Player1",
+			password: "pin",
+			email: null,
+			avatar: null,
+		});
+		const user2 = await UserProfile.create({
+			id: "user-2",
+			username: "Player2",
+			password: "pin",
+			email: null,
+			avatar: null,
+		});
+		userProfileRepository.findByUsername.mockResolvedValueOnce(user1).mockResolvedValueOnce(user2);
+
+		// D03 Dino Rabbit with 2x alt-art Rescue Rabbit 85138717, 1x Tour Guide 10802915, 2x Sabersaurus 37265642
+		const fillerCards = Array.from({ length: 35 }, (_, i) => 10000000 + i);
+		const g1Main1 = [85138717, 85138717, 10802915, 37265642, 37265642, ...fillerCards];
+		const g1Main2 = Array(40).fill(10000);
+
+		const event = new GameOverDomainEvent({
+			bestOf: 3,
+			date: new Date("2026-09-01T20:00:00Z"),
+			formatId: "1109",
+			banListHash: 1109,
+			banListName: "OCG 1109",
+			ranked: true,
+			players: [
+				{
+					id: "user-1",
+					name: "Player1",
+					team: Team.PLAYER,
+					winner: true,
+					score: 2,
+					games: [{ result: "winner", turns: 5, ipAddress: "127.0.0.1" }],
+					deck: {
+						mainCards: g1Main1,
+						extraCards: [],
+						sideCards: [],
+					},
+				},
+				{
+					id: "user-2",
+					name: "Player2",
+					team: Team.OPPONENT,
+					winner: false,
+					score: 0,
+					games: [{ result: "loser", turns: 5, ipAddress: "127.0.0.1" }],
+					deck: {
+						mainCards: g1Main2,
+						extraCards: [],
+						sideCards: [],
+					},
+				},
+			],
+		});
+
+		await service.persist(event);
+
+		const matchDeckCreations = mockEntityManager.create.mock.calls.filter(
+			(call) => call[0] === MatchDeckEntity,
+		);
+		expect(matchDeckCreations).toHaveLength(2);
+
+		const p1Deck = matchDeckCreations[0][1];
+		expect(p1Deck.formatId).toBe("1109");
+		expect(p1Deck.deckTypeCode).toBe("D03");
+	});
 });

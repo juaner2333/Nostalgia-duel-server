@@ -11,6 +11,7 @@ import { PlayerStatsEntity } from "../../../evolution-types/src/entities/PlayerS
 import { MatchDeckEntity } from "../../../evolution-types/src/entities/MatchDeckEntity";
 import { Player } from "@shared/player/domain/Player";
 import { classifyDeck } from "@shared/deck/domain/classifier/DeckClassifier";
+import { CdbCardAliasProvider } from "@shared/deck/infrastructure/cdb/CdbCardAliasProvider";
 
 export interface CardAliasProvider {
 	getAliases(formatId: string): Promise<ReadonlyMap<number, number>> | ReadonlyMap<number, number>;
@@ -20,7 +21,7 @@ export class RankedMatchPersistenceService {
 	constructor(
 		private readonly logger: Logger,
 		private readonly userProfileRepository: UserProfileRepository,
-		private readonly aliasProvider?: CardAliasProvider,
+		private readonly aliasProvider: CardAliasProvider = new CdbCardAliasProvider(),
 	) {}
 
 	async persist(event: GameOverDomainEvent): Promise<void> {

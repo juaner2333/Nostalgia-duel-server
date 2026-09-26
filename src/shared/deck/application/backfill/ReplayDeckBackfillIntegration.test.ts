@@ -17,14 +17,27 @@ describe("ReplayDeckBackfillIntegration (Task 7.6)", () => {
 			// 1. SELECT DISTINCT m.game_id AS "gameId" FROM matches m WHERE m.format_id = $1 ...
 			if (normalized.includes('SELECT DISTINCT m.game_id AS "gameId"')) {
 				const formatId = params[0];
-				const distinctGames = Array.from(
+				const cursor = normalized.includes("AND m.game_id > $2") ? params[1] : undefined;
+				const limit = normalized.includes("AND m.game_id > $2") ? params[2] : params[1];
+				let distinctGames = Array.from(
 					new Set(
 						matchesTable
 							.filter((m) => m.format_id === formatId && !m.anulled && !m.deleted_at)
 							.map((m) => m.game_id),
 					),
-				);
+				).sort();
+				if (cursor) {
+					distinctGames = distinctGames.filter((g) => g > cursor);
+				}
+				if (typeof limit === "number") {
+					distinctGames = distinctGames.slice(0, limit);
+				}
 				return distinctGames.map((g) => ({ gameId: g }));
+			}
+
+			// 2. Transaction commands
+			if (normalized === "BEGIN" || normalized === "COMMIT" || normalized === "ROLLBACK") {
+				return { rowCount: 0 };
 			}
 
 			// 2. Check online snapshot
