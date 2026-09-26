@@ -23,6 +23,8 @@ export class GetReplayListController {
 		const page = req.query.page ? parseInt(req.query.page as string, 10) : undefined;
 		const pageSize = req.query.pageSize ? parseInt(req.query.pageSize as string, 10) : undefined;
 		const search = typeof req.query.search === "string" ? req.query.search : undefined;
+		const deckTypeCode =
+			typeof req.query.deckTypeCode === "string" ? req.query.deckTypeCode : undefined;
 
 		try {
 			const result = await this.getReplayList.run({
@@ -30,6 +32,7 @@ export class GetReplayListController {
 				page,
 				pageSize,
 				search,
+				deckTypeCode,
 			});
 
 			res.status(200).json(result);

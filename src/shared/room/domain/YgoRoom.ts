@@ -9,6 +9,7 @@ import { Mutex } from "async-mutex";
 import { Match } from "./match/domain/Match";
 import { RoomType } from "./RoomType";
 import { Rule } from "@shared/deck/domain/Rule";
+import { PlayerDeckSnapshot } from "@shared/deck/domain/PlayerDeckSnapshot";
 
 export class DeckRules {
 	public readonly mainMin: number;
@@ -232,11 +233,28 @@ export abstract class YgoRoom {
 	}
 
 	initializeHistoricalData(): void {
-		const players = this._players.map((client: YgoClient) => ({
-			id: client.id,
-			team: client.team,
-			name: client.name,
-		}));
+		const shouldFreezeSnapshots =
+			this.ranked &&
+			this._players.length === 2 &&
+			this._players.every((p) => p.deck && p.deck.main && p.deck.main.length > 0);
+
+		const players = this._players.map((client: YgoClient) => {
+			let deckSnapshot: PlayerDeckSnapshot | undefined;
+			if (shouldFreezeSnapshots && client.deck) {
+				deckSnapshot = {
+					mainCards: Object.freeze(client.deck.main.map((c) => Number(c.code))),
+					extraCards: Object.freeze(client.deck.extra.map((c) => Number(c.code))),
+					sideCards: Object.freeze(client.deck.side.map((c) => Number(c.code))),
+				};
+			}
+
+			return {
+				id: client.id,
+				team: client.team,
+				name: client.name,
+				deck: deckSnapshot,
+			};
+		});
 
 		this._match?.initializeHistoricalData(players);
 	}

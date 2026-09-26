@@ -27,7 +27,8 @@
 		"migration:run:prod": "node ./dist/src/evolution-types/src/run-migrations.js",
 		"migration:revert": "ts-node -r tsconfig-paths/register --require dotenv/config ./node_modules/typeorm/cli.js migration:revert -d ./src/evolution-types/src/data-source.ts",
 		"smoke:duel": "node scripts/smoke-duel.mjs",
-		"smoke:ranked": "node scripts/smoke-ranked-duel.mjs"
+		"smoke:ranked": "node scripts/smoke-ranked-duel.mjs",
+		"backfill:replay-decks": "ts-node -r tsconfig-paths/register scripts/backfill-replay-decks.ts"
 	},
 	"keywords": [],
 	"author": "",

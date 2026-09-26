@@ -2,8 +2,10 @@ import { join } from "path";
 import { DataSource, DataSourceOptions } from "typeorm";
 
 import { config } from "./config";
+import { DeckTypeEntity } from "./entities/DeckTypeEntity";
 import { DuelReplayEntity } from "./entities/DuelReplayEntity";
 import { DuelResumeEntity } from "./entities/DuelResumeEntity";
+import { MatchDeckEntity } from "./entities/MatchDeckEntity";
 import { MatchResumeEntity } from "./entities/MatchResumeEntity";
 import { PlayerStatsEntity } from "./entities/PlayerStatsEntity";
 import { UserBanEntity } from "./entities/UserBanEntity";
@@ -25,6 +27,8 @@ const options: DataSourceOptions = {
 		DuelReplayEntity,
 		DuelResumeEntity,
 		PlayerStatsEntity,
+		DeckTypeEntity,
+		MatchDeckEntity,
 	],
 	subscribers: [],
 	migrations: [

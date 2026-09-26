@@ -1,10 +1,11 @@
 import { PlayerData } from "../../../../player/domain/PlayerData";
 import { Team } from "../../../Team";
+import { PlayerDeckSnapshot } from "../../../../deck/domain/PlayerDeckSnapshot";
 
 export type Player = {
 	id: string | null;
 	name: string;
-	// deck: Deck;
+	deck?: PlayerDeckSnapshot;
 	team: number;
 };
 

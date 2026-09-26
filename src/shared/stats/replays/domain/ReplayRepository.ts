@@ -5,6 +5,7 @@ export interface GetReplaysFilter {
 	page: number;
 	pageSize: number;
 	search?: string;
+	deckTypeCode?: string;
 }
 
 export interface ReplayRepository {

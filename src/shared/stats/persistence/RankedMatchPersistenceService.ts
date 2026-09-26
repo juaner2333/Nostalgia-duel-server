@@ -8,12 +8,19 @@ import { MatchResumeEntity } from "../../../evolution-types/src/entities/MatchRe
 import { DuelReplayEntity } from "../../../evolution-types/src/entities/DuelReplayEntity";
 import { DuelResumeEntity } from "../../../evolution-types/src/entities/DuelResumeEntity";
 import { PlayerStatsEntity } from "../../../evolution-types/src/entities/PlayerStatsEntity";
+import { MatchDeckEntity } from "../../../evolution-types/src/entities/MatchDeckEntity";
 import { Player } from "@shared/player/domain/Player";
+import { classifyDeck } from "@shared/deck/domain/classifier/DeckClassifier";
+
+export interface CardAliasProvider {
+	getAliases(formatId: string): Promise<ReadonlyMap<number, number>> | ReadonlyMap<number, number>;
+}
 
 export class RankedMatchPersistenceService {
 	constructor(
 		private readonly logger: Logger,
 		private readonly userProfileRepository: UserProfileRepository,
+		private readonly aliasProvider?: CardAliasProvider,
 	) {}
 
 	async persist(event: GameOverDomainEvent): Promise<void> {
@@ -87,7 +94,21 @@ export class RankedMatchPersistenceService {
 					await manager.save(replayEntity);
 				}
 
-				// 2. Write matches, duels, player_stats
+				// 2. Write matches, match_decks, duels, player_stats
+				const bothPlayersResolved = resolvedPlayers.length === 2;
+				const bothDecksValid =
+					bothPlayersResolved &&
+					resolvedPlayers.every(
+						({ player }) =>
+							player.deck &&
+							Array.isArray(player.deck.mainCards) &&
+							player.deck.mainCards.length >= 40 &&
+							player.deck.mainCards.length <= 60,
+					);
+				const aliasMap = this.aliasProvider
+					? await this.aliasProvider.getAliases(formatId)
+					: undefined;
+
 				for (const { player, userId, points } of resolvedPlayers) {
 					const playerNames = players
 						.filter((item) => item.team === player.team)
@@ -124,6 +145,21 @@ export class RankedMatchPersistenceService {
 						points,
 					});
 					const savedMatch = await manager.save(matchEntity);
+
+					if (bothDecksValid && player.deck) {
+						const classification = classifyDeck(formatId, player.deck.mainCards, aliasMap);
+						const matchDeckEntity = manager.create(MatchDeckEntity, {
+							matchId: savedMatch.id,
+							formatId,
+							deckTypeCode: classification.deckTypeCode,
+							classifierVersion: classification.classifierVersion,
+							snapshotSource: "online",
+							mainCards: [...player.deck.mainCards],
+							extraCards: [...player.deck.extraCards],
+							sideCards: player.deck.sideCards ? [...player.deck.sideCards] : [],
+						});
+						await manager.save(matchDeckEntity);
+					}
 
 					// Duels
 					for (let i = 0; i < player.games.length; i++) {

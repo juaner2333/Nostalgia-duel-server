@@ -55,11 +55,31 @@ describe("LeaderboardPage client-side scripts and behavior specification", () =>
 			expect(html1103).toContain('id="btn-refresh-replays"');
 		});
 
+		it("contains deck type select dropdown and public disclosure notice", () => {
+			expect(html1103).toContain('id="replays-deck-type-select"');
+			expect(html1103).toContain("公开");
+			expect(html1103).toContain("Side");
+		});
+
 		it("links download directly to /api/replays/:format/:replayId", () => {
 			expect(html1103).toContain(
 				'"/api/replays/" + FORMAT + "/" + encodeURIComponent(rep.replayId)',
 			);
 			expect(html1103).toContain("下载 .yrp");
+		});
+
+		it("renders player deck type, YDK download links, and partial deck warnings", () => {
+			expect(html1103).toContain("下载 .ydk");
+			expect(html1103).toContain("部分卡组");
+			expect(html1103).toContain("deckDownloadUrl");
+			expect(html1103).toContain("deckCompleteness");
+			expect(html1103).toContain("未知");
+		});
+
+		it("resets page to 1 on deck type change, search, and clear", () => {
+			expect(html1103).toContain('replaysState.deckTypeCode = "";');
+			expect(html1103).toContain('document.getElementById("replays-deck-type-select").value = "";');
+			expect(html1103).toContain("replaysState.page = 1;");
 		});
 
 		it("disables prev button on first page and next button on last page", () => {

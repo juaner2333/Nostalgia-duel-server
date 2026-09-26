@@ -17,6 +17,7 @@ import { UserProfileEntity } from "./UserProfileEntity";
 	name: "matches",
 })
 @Unique("UQ_matches_game_user", ["gameId", "userId"])
+@Unique("uq_matches_id_format", ["id", "formatId"])
 @Index("IDX_matches_format_season_user", ["formatId", "season", "userId"])
 export class MatchResumeEntity {
 	@PrimaryColumn()

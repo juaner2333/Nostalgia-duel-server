@@ -1,5 +1,6 @@
 import { Team } from "../../room/Team";
 import { PlayerData } from "./PlayerData";
+import { PlayerDeckSnapshot } from "../../deck/domain/PlayerDeckSnapshot";
 
 export type Game = {
 	result: "winner" | "loser" | "deuce";
@@ -15,6 +16,7 @@ export type PlayerMatchSummary = {
 	games: Game[];
 	points?: { [key: string]: number };
 	score: number;
+	deck?: PlayerDeckSnapshot;
 };
 
 export class Player {
@@ -22,16 +24,18 @@ export class Player {
 	public readonly name: string;
 	public readonly team: Team;
 	public readonly winner: boolean;
+	public readonly deck?: PlayerDeckSnapshot;
 	private readonly _games: Game[];
 	private readonly score: number;
 
-	constructor({ id, name, team, winner, games, score }: PlayerData) {
+	constructor({ id, name, team, winner, games, score, deck }: PlayerData) {
 		this.id = id;
 		this.name = name;
 		this.team = team;
 		this.winner = winner;
 		this._games = games;
 		this.score = score;
+		this.deck = deck;
 	}
 
 	calculateMatchPoints(): number {
@@ -59,6 +63,7 @@ export class Player {
 			winner: this.winner,
 			games: this._games,
 			score: this.score,
+			deck: this.deck,
 		};
 	}
 }

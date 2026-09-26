@@ -1,5 +1,6 @@
 import { GetReplayListController } from "./GetReplayListController";
 import { GetReplayList } from "@shared/stats/replays/application/GetReplayList";
+import { ReplayListResponse } from "@shared/stats/replays/domain/Replay";
 import { Request, Response } from "express";
 import { config } from "src/config";
 
@@ -49,7 +50,7 @@ describe("GetReplayListController", () => {
 			query: { page: "1", pageSize: "20", search: "Alice" },
 		};
 
-		getReplayList.run.mockResolvedValue({
+		const mockResult: ReplayListResponse = {
 			format: "1103",
 			page: 1,
 			pageSize: 20,
@@ -61,28 +62,34 @@ describe("GetReplayListController", () => {
 					player1Name: "Alice",
 					player2Name: "Bob",
 					size: 1024,
+					duelIndex: 1,
+					players: [
+						{
+							name: "Alice",
+							deckTypeCode: "OTHERS",
+							deckTypeNameZh: "其他",
+							deckCompleteness: "complete" as const,
+							deckDownloadUrl: "/api/ladder/1103/matches/m-1/deck",
+						},
+						{
+							name: "Bob",
+							deckTypeCode: "OTHERS",
+							deckTypeNameZh: "其他",
+							deckCompleteness: "complete" as const,
+							deckDownloadUrl: "/api/ladder/1103/matches/m-2/deck",
+						},
+					],
 				},
 			],
-		});
+			deckTypes: [{ code: "OTHERS", nameZh: "其他" }],
+		};
+
+		getReplayList.run.mockResolvedValue(mockResult);
 
 		await controller.run(req as Request, res as Response);
 
 		expect(res.status).toHaveBeenCalledWith(200);
-		expect(res.json).toHaveBeenCalledWith({
-			format: "1103",
-			page: 1,
-			pageSize: 20,
-			total: 1,
-			replays: [
-				{
-					replayId: "r-1",
-					endedAt: "2026-09-02 23:45:10",
-					player1Name: "Alice",
-					player2Name: "Bob",
-					size: 1024,
-				},
-			],
-		});
+		expect(res.json).toHaveBeenCalledWith(mockResult);
 	});
 
 	it("returns 400 when format is invalid", async () => {
@@ -98,6 +105,49 @@ describe("GetReplayListController", () => {
 		expect(res.status).toHaveBeenCalledWith(400);
 		expect(res.json).toHaveBeenCalledWith({
 			error: "Invalid format: invalid",
+		});
+	});
+
+	it("passes deckTypeCode to GetReplayList use case", async () => {
+		req = {
+			params: { format: "1109" },
+			query: { deckTypeCode: "D01" },
+		};
+
+		getReplayList.run.mockResolvedValue({
+			format: "1109",
+			page: 1,
+			pageSize: 20,
+			total: 0,
+			replays: [],
+			deckTypes: [{ code: "D01", nameZh: "代行天使" }],
+		});
+
+		await controller.run(req as Request, res as Response);
+
+		expect(getReplayList.run).toHaveBeenCalledWith({
+			format: "1109",
+			page: undefined,
+			pageSize: undefined,
+			search: undefined,
+			deckTypeCode: "D01",
+		});
+		expect(res.status).toHaveBeenCalledWith(200);
+	});
+
+	it("returns 400 when deckTypeCode is invalid", async () => {
+		req = {
+			params: { format: "1103" },
+			query: { deckTypeCode: "D01" },
+		};
+
+		getReplayList.run.mockRejectedValue(new Error("Invalid deck type code 'D01' for format 1103"));
+
+		await controller.run(req as Request, res as Response);
+
+		expect(res.status).toHaveBeenCalledWith(400);
+		expect(res.json).toHaveBeenCalledWith({
+			error: "Invalid deck type code 'D01' for format 1103",
 		});
 	});
 });

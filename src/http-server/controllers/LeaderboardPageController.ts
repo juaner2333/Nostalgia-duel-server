@@ -227,6 +227,63 @@ export function renderLeaderboardPage(formatId: string): string {
 		.rank-1 { color: var(--rank-1); font-weight: bold; }
 		.rank-2 { color: var(--rank-2); font-weight: bold; }
 		.rank-3 { color: var(--rank-3); font-weight: bold; }
+
+		.deck-tag {
+			display: inline-block;
+			font-size: 0.75rem;
+			padding: 0.15rem 0.4rem;
+			border-radius: 4px;
+			background: var(--panel-2);
+			border: 1px solid var(--border);
+			color: var(--gold-soft);
+			margin-left: 0.4rem;
+		}
+		.deck-tag.warning {
+			color: var(--danger);
+			border-color: rgba(248, 81, 73, 0.4);
+		}
+		.player-deck-cell {
+			display: flex;
+			flex-direction: column;
+			gap: 0.25rem;
+		}
+		.player-deck-header {
+			display: flex;
+			align-items: center;
+			flex-wrap: wrap;
+			gap: 0.25rem;
+		}
+		.player-deck-actions {
+			display: flex;
+			align-items: center;
+			gap: 0.4rem;
+			margin-top: 0.1rem;
+		}
+		.btn-ydk {
+			font-size: 0.75rem;
+			padding: 0.15rem 0.45rem;
+			text-decoration: none;
+			background: var(--panel-2);
+			border: 1px solid var(--border);
+			color: var(--text-bright);
+			border-radius: 4px;
+			transition: all 0.15s ease;
+			display: inline-block;
+		}
+		.btn-ydk:hover {
+			background: var(--primary);
+			border-color: var(--primary);
+			color: #fff;
+		}
+		.notice-box {
+			background: rgba(31, 111, 235, 0.1);
+			border: 1px solid rgba(56, 139, 253, 0.3);
+			color: var(--text);
+			padding: 0.5rem 0.8rem;
+			border-radius: 6px;
+			font-size: 0.85rem;
+			margin-bottom: 1rem;
+		}
 		
 		.info-box {
 			padding: 3rem 1.5rem;
@@ -331,9 +388,15 @@ export function renderLeaderboardPage(formatId: string): string {
 
 		<!-- 录像下载 Tab -->
 		<section id="tab-replays" class="tab-content">
+			<div class="notice-box">
+				💡 提示：排位录像展示双方 G1 初始卡组类型与 .ydk 下载，在线保存的 Main、Extra、Side 将公开给所有访问者；历史回填卡组未记录 Side（标注为部分卡组）。
+			</div>
 			<div class="toolbar">
 				<div class="controls-group">
 					<input type="text" id="replays-search-input" placeholder="按玩家昵称搜索录像" />
+					<select id="replays-deck-type-select">
+						<option value="">全部卡组类型</option>
+					</select>
 					<button id="btn-search-replays" class="btn btn-primary">搜索</button>
 					<button id="btn-clear-replays" class="btn">清空</button>
 				</div>
@@ -346,13 +409,15 @@ export function renderLeaderboardPage(formatId: string): string {
 					<thead>
 						<tr>
 							<th>结束时间 (北京时间)</th>
-							<th>对战双方</th>
+							<th>局数</th>
+							<th>玩家 1</th>
+							<th>玩家 2</th>
 							<th>大小</th>
-							<th>操作</th>
+							<th>录像下载</th>
 						</tr>
 					</thead>
 					<tbody id="replays-tbody">
-						<tr><td colspan="4" class="info-box">正在加载录像列表...</td></tr>
+						<tr><td colspan="6" class="info-box">正在加载录像列表...</td></tr>
 					</tbody>
 				</table>
 			</div>
@@ -704,11 +769,28 @@ export function renderLeaderboardPage(formatId: string): string {
 			var replaysState = {
 				requestId: 0,
 				loaded: false,
+				deckTypesLoaded: false,
 				page: 1,
 				pageSize: 20,
 				search: "",
+				deckTypeCode: "",
 				total: 0
 			};
+
+			function updateDeckTypeSelect(deckTypes) {
+				if (replaysState.deckTypesLoaded || !deckTypes || !deckTypes.length) return;
+				var select = document.getElementById("replays-deck-type-select");
+				while (select.options.length > 1) {
+					select.remove(1);
+				}
+				deckTypes.forEach(function(dt) {
+					var opt = document.createElement("option");
+					opt.value = dt.code;
+					opt.textContent = dt.nameZh;
+					select.appendChild(opt);
+				});
+				replaysState.deckTypesLoaded = true;
+			}
 
 			function loadReplays() {
 				var reqId = ++replaysState.requestId;
@@ -716,7 +798,7 @@ export function renderLeaderboardPage(formatId: string): string {
 				tbody.innerHTML = "";
 				var loadingRow = document.createElement("tr");
 				var loadingTd = document.createElement("td");
-				loadingTd.colSpan = 4;
+				loadingTd.colSpan = 6;
 				loadingTd.className = "info-box";
 				loadingTd.textContent = "正在加载录像列表...";
 				loadingRow.appendChild(loadingTd);
@@ -725,6 +807,9 @@ export function renderLeaderboardPage(formatId: string): string {
 				var url = "/api/replays/" + FORMAT + "?page=" + replaysState.page + "&pageSize=" + replaysState.pageSize;
 				if (replaysState.search) {
 					url += "&search=" + encodeURIComponent(replaysState.search);
+				}
+				if (replaysState.deckTypeCode) {
+					url += "&deckTypeCode=" + encodeURIComponent(replaysState.deckTypeCode);
 				}
 
 				fetch(url)
@@ -736,6 +821,9 @@ export function renderLeaderboardPage(formatId: string): string {
 						if (reqId !== replaysState.requestId) return;
 						replaysState.loaded = true;
 						replaysState.total = data.total || 0;
+						if (data.deckTypes) {
+							updateDeckTypeSelect(data.deckTypes);
+						}
 						renderReplays(data.replays || []);
 					})
 					.catch(function(err) {
@@ -743,13 +831,56 @@ export function renderLeaderboardPage(formatId: string): string {
 						tbody.innerHTML = "";
 						var errRow = document.createElement("tr");
 						var errTd = document.createElement("td");
-						errTd.colSpan = 4;
+						errTd.colSpan = 6;
 						errTd.className = "info-box error";
 						errTd.textContent = "加载录像失败，请重试";
 						errRow.appendChild(errTd);
 						tbody.appendChild(errRow);
 						document.getElementById("replays-pager").style.display = "none";
 					});
+			}
+
+			function renderPlayerCell(player) {
+				var cell = document.createElement("td");
+				var container = document.createElement("div");
+				container.className = "player-deck-cell";
+
+				var header = document.createElement("div");
+				header.className = "player-deck-header";
+
+				var nameSpan = document.createElement("span");
+				nameSpan.textContent = player ? (player.name || "未知玩家") : "未知玩家";
+				header.appendChild(nameSpan);
+
+				var typeBadge = document.createElement("span");
+				typeBadge.className = "deck-tag";
+				typeBadge.textContent = (player && player.deckTypeNameZh) ? player.deckTypeNameZh : "未知";
+				header.appendChild(typeBadge);
+				container.appendChild(header);
+
+				if (player && player.deckDownloadUrl) {
+					var actions = document.createElement("div");
+					actions.className = "player-deck-actions";
+
+					var ydkLink = document.createElement("a");
+					ydkLink.className = "btn-ydk";
+					ydkLink.href = player.deckDownloadUrl;
+					ydkLink.textContent = "下载 .ydk";
+
+					if (player.deckCompleteness === "partial") {
+						var partialBadge = document.createElement("span");
+						partialBadge.className = "deck-tag warning";
+						partialBadge.textContent = "部分卡组";
+						actions.appendChild(ydkLink);
+						actions.appendChild(partialBadge);
+					} else {
+						actions.appendChild(ydkLink);
+					}
+					container.appendChild(actions);
+				}
+
+				cell.appendChild(container);
+				return cell;
 			}
 
 			function renderReplays(replays) {
@@ -760,9 +891,11 @@ export function renderLeaderboardPage(formatId: string): string {
 				if (replays.length === 0) {
 					var emptyRow = document.createElement("tr");
 					var emptyTd = document.createElement("td");
-					emptyTd.colSpan = 4;
+					emptyTd.colSpan = 6;
 					emptyTd.className = "info-box";
-					emptyTd.textContent = replaysState.search ? "没有找到符合条件的录像" : "暂无录像记录";
+					emptyTd.textContent = (replaysState.search || replaysState.deckTypeCode)
+						? "没有找到符合条件的录像"
+						: "暂无录像记录";
 					emptyRow.appendChild(emptyTd);
 					tbody.appendChild(emptyRow);
 					pager.style.display = "none";
@@ -777,27 +910,31 @@ export function renderLeaderboardPage(formatId: string): string {
 					tdTime.textContent = rep.endedAt || "-";
 					row.appendChild(tdTime);
 
-					// Col 2: 对战双方
-					var tdPlayers = document.createElement("td");
-					var p1 = rep.player1Name || "未知";
-					var p2 = rep.player2Name || "未知";
-					tdPlayers.textContent = p1 + " VS " + p2;
-					row.appendChild(tdPlayers);
+					// Col 2: 局数
+					var tdDuel = document.createElement("td");
+					tdDuel.textContent = "第 " + (rep.duelIndex || 1) + " 局";
+					row.appendChild(tdDuel);
 
-					// Col 3: 大小
+					// Col 3 & 4: 玩家 1 与 玩家 2
+					var p1 = (rep.players && rep.players[0]) || { name: rep.player1Name };
+					var p2 = (rep.players && rep.players[1]) || { name: rep.player2Name };
+					row.appendChild(renderPlayerCell(p1));
+					row.appendChild(renderPlayerCell(p2));
+
+					// Col 5: 大小
 					var tdSize = document.createElement("td");
 					tdSize.textContent = formatBytes(rep.size);
 					row.appendChild(tdSize);
 
-					// Col 4: 操作
+					// Col 6: 录像下载
 					var tdAction = document.createElement("td");
 					var downloadLink = document.createElement("a");
 					downloadLink.className = "btn btn-copy btn-primary";
 					downloadLink.href = "/api/replays/" + FORMAT + "/" + encodeURIComponent(rep.replayId);
 					downloadLink.textContent = "下载 .yrp";
 					var safeTime = (rep.endedAt || "replay").replace(/[:/]/g, "-");
-					var safeP1 = p1.replace(/[/\\?%*:|"<>]/g, "_");
-					var safeP2 = p2.replace(/[/\\?%*:|"<>]/g, "_");
+					var safeP1 = (p1.name || "P1").replace(/[/\\?%*:|"<>]/g, "_");
+					var safeP2 = (p2.name || "P2").replace(/[/\\?%*:|"<>]/g, "_");
 					downloadLink.setAttribute("download", safeTime + " " + safeP1 + " VS " + safeP2 + ".yrp");
 					tdAction.appendChild(downloadLink);
 					row.appendChild(tdAction);
@@ -814,6 +951,12 @@ export function renderLeaderboardPage(formatId: string): string {
 				pager.style.display = "flex";
 			}
 
+			document.getElementById("replays-deck-type-select").addEventListener("change", function() {
+				replaysState.deckTypeCode = this.value;
+				replaysState.page = 1;
+				loadReplays();
+			});
+
 			document.getElementById("btn-search-replays").addEventListener("click", function() {
 				replaysState.search = document.getElementById("replays-search-input").value.trim();
 				replaysState.page = 1;
@@ -828,7 +971,9 @@ export function renderLeaderboardPage(formatId: string): string {
 			});
 			document.getElementById("btn-clear-replays").addEventListener("click", function() {
 				document.getElementById("replays-search-input").value = "";
+				document.getElementById("replays-deck-type-select").value = "";
 				replaysState.search = "";
+				replaysState.deckTypeCode = "";
 				replaysState.page = 1;
 				loadReplays();
 			});
