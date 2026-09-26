@@ -70,15 +70,15 @@
 - **WHEN** 历史回填再次遇到同一玩家视角且该视角已有完整在线快照
 - **THEN** 已保存的 Main、Extra、Side 与分类版本保持不变
 
-### Requirement: 使用线上 Holo 同库执行离线历史回填
+### Requirement: 使用线上 PostgreSQL 同库执行离线历史回填
 
-历史回填必须（MUST）以线上 Holo 生产库中现有的 `matches`、`duels`、`duel_replays` 为读取源，并把可信快照写入同一生产库的 `match_decks`。分析仓库 `Nostalgia-duel-server-analysis/analyze_online_g1.py` 的 `--env-file` 与 `READONLY_PG_HOST`、`READONLY_PG_PORT`、`READONLY_PG_DATABASE`、`READONLY_PG_USER`、`READONLY_PG_PASSWORD` 是只读连接的参考约定；回填执行时必须（MUST）由私有配置或执行环境注入实际值，使用只读事务扫描历史数据。写入必须（MUST）使用本服务已有的生产数据库写入连接，不能（MUST NOT）尝试用只读账号提交快照。执行前必须（MUST）确认读取与写入连接指向同一数据库；任一连接配置缺失、目标不一致或权限不足时必须（MUST）在写入前停止，不得（MUST NOT）回退到其他数据库。
+历史回填必须（MUST）以线上 PostgreSQL 生产库中现有的 `matches`、`duels`、`duel_replays` 为读取源，并把可信快照写入同一生产库的 `match_decks`。分析仓库 `Nostalgia-duel-server-analysis/analyze_online_g1.py` 的 `--env-file` 与 `READONLY_PG_HOST`、`READONLY_PG_PORT`、`READONLY_PG_DATABASE`、`READONLY_PG_USER`、`READONLY_PG_PASSWORD` 是只读连接的参考约定；回填执行时必须（MUST）由私有配置或执行环境注入实际值，使用只读事务扫描历史数据。写入必须（MUST）使用本服务已有的生产数据库写入连接，不能（MUST NOT）尝试用只读账号提交快照。执行前必须（MUST）确认读取与写入连接指向同一数据库；任一连接配置缺失、目标不一致或权限不足时必须（MUST）在写入前停止，不得（MUST NOT）回退到其他数据库。
 
 回填必须（MUST）是与在线服务隔离的离线任务，不能（MUST NOT）使应用启动或在线分类依赖分析仓库、其私有配置或 Python。分析脚本当前只查询 1109，不能（MUST NOT）直接把该查询当作双环境回填：任务必须（MUST）按 `format_id` 分别读取 1103 与 1109，以有界批次读取 G1 录像，先只读预演并报告各环境候选、跳过和失败数量，再按 `game_id` 原子且幂等地写入经过验证的双方快照。生产库地址、用户名、密码、完整连接串及私有配置文件内容不得（MUST NOT）写入 OpenSpec、代码、测试样本、命令输出、日志或回填报告。
 
 #### Scenario: 同库凭据分工
 
-- **WHEN** 运维执行回填且只读配置与本服务写入配置均指向同一线上 Holo 库
+- **WHEN** 运维执行回填且只读配置与本服务写入配置均指向同一线上 PostgreSQL 库
 - **THEN** 任务以只读连接扫描双方 Match 与 G1 录像，经验证后用写入连接在同库保存快照，不把只读账号用于写入
 
 #### Scenario: 连接配置不完整或指向不同库
