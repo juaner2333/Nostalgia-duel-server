@@ -68,11 +68,10 @@ describe("LeaderboardPage client-side scripts and behavior specification", () =>
 			expect(html1103).toContain("下载 .yrp");
 		});
 
-		it("renders player deck type, YDK download links, and partial deck warnings", () => {
+		it("renders player deck type and YDK download links without partial deck badge", () => {
 			expect(html1103).toContain("下载 .ydk");
-			expect(html1103).toContain("部分卡组");
+			expect(html1103).not.toContain("部分卡组");
 			expect(html1103).toContain("deckDownloadUrl");
-			expect(html1103).toContain("deckCompleteness");
 			expect(html1103).toContain("未知");
 		});
 

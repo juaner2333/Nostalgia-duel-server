@@ -267,10 +267,6 @@ export function renderLeaderboardPage(formatId: string): string {
 			border: 1px solid var(--border);
 			color: var(--gold-soft);
 		}
-		.deck-tag.warning {
-			color: var(--danger);
-			border-color: rgba(248, 81, 73, 0.4);
-		}
 		.player-deck-cell {
 			display: inline-flex;
 			align-items: center;
@@ -407,7 +403,7 @@ export function renderLeaderboardPage(formatId: string): string {
 		<!-- 录像下载 Tab -->
 		<section id="tab-replays" class="tab-content">
 			<div class="notice-box">
-				💡 提示：排位录像展示双方 G1 初始卡组类型与 .ydk 下载，在线保存的 Main、Extra、Side 将公开给所有访问者；历史回填卡组未记录 Side（标注为部分卡组）。
+				💡 提示：排位录像展示双方 G1 初始卡组类型与 .ydk 下载，在线保存的 Main、Extra、Side 将公开给所有访问者；历史回填卡组未记录 Side。
 			</div>
 			<div class="toolbar">
 				<div class="controls-group">
@@ -880,12 +876,6 @@ export function renderLeaderboardPage(formatId: string): string {
 					ydkLink.textContent = "下载 .ydk";
 					container.appendChild(ydkLink);
 
-					if (player.deckCompleteness === "partial") {
-						var partialBadge = document.createElement("span");
-						partialBadge.className = "deck-tag warning";
-						partialBadge.textContent = "部分卡组";
-						container.appendChild(partialBadge);
-					}
 				}
 
 				cell.appendChild(container);
