@@ -25,7 +25,7 @@
 
 ### Requirement: 以有效排位 Match 的玩家初始卡组为统计样本
 
-系统必须（MUST）只考虑窗口内未撤销、未软删除的 1103 或 1109 排位 Match 玩家视角记录。每条有效玩家视角记录代表一份候选卡组；有可信初始卡组快照时至多贡献一份有效样本，不得（MUST NOT）按小局、录像或同一 Match 中的 Side 交换重复计数。一场双方均有快照的 Match 贡献两份卡组样本；仅一方有可信快照时，该方仍贡献一份。缺失或与环境不符的快照不得（MUST NOT）被归为“其他”。
+系统必须（MUST）只考虑窗口内未撤销、未软删除的 1103 或 1109 排位 Match 玩家视角记录，且仅将其中有可信初始 Main、Extra 与环境内分类结果的快照计为卡组样本。每条记录至多贡献一份样本，不得（MUST NOT）按小局、录像或同一 Match 中的 Side 交换重复计数。一场双方均有可信快照的 Match 贡献两份卡组样本；仅一方有可信快照时，该方仍贡献一份。缺失或与环境不符的快照不得（MUST NOT）进入分母或归为“其他”。
 
 #### Scenario: 三局 Match 与同类内战
 
@@ -35,7 +35,7 @@
 #### Scenario: 单方快照缺失
 
 - **WHEN** 有效 Match 的一方存在可信初始快照，另一方没有
-- **THEN** 有快照一方计入使用量与有效样本，另一方只计入候选样本数，不计入“其他”
+- **THEN** 有快照一方计入使用量与 `totalDecks`，另一方不进入任何榜单分母，也不计入“其他”
 
 #### Scenario: 撤销或软删除
 
@@ -70,18 +70,20 @@
 - **WHEN** 一份完整初始快照的 Main 与 Side 都含有同一张卡
 - **THEN** Main 对应类型指标和 Side 指标分别统计，不把两个卡槽的张数相加
 
-### Requirement: 每项使用率公开真实样本覆盖
+### Requirement: 每项使用率公开真实样本分母
 
-每个环境窗口的汇总必须（MUST）提供 `allDecks`（有效玩家视角候选数）、`validDecks`（有可信 Main、Extra 与分类的快照数）和 `sideKnownDecks`（其中初始 Side 已知的快照数）。卡组及 `monster`、`spell`、`trap`、`extra` 的使用率分母必须（MUST）为 `validDecks`；`side` 的分母必须（MUST）为 `sideKnownDecks`。历史快照的 Side 为未知时不得（MUST NOT）当作空 Side；已知的空 Side 必须（MUST）进入 Side 分母，但不产生卡片采用量。每个计数不得（MUST NOT）超过自身分母。
+每个环境窗口的汇总必须（MUST）提供 `totalDecks`（可信初始快照的卡组份数）和 `sideKnownDecks`（其中初始 Side 已知的快照数）。两个计数必须（MUST）从同一窗口内有效 `matches` 关联的 `match_decks` 可信快照逐份计算，与卡组及卡片明细在同一次统计中发布；不得（MUST NOT）从已汇总的卡组榜反推或从全部 `matches` 行直接计数。卡组及 `monster`、`spell`、`trap`、`extra` 的使用率分母必须（MUST）为 `totalDecks`；`side` 的分母必须（MUST）为 `sideKnownDecks`。没有可信快照的比赛不得（MUST NOT）进入任何分母；历史快照的 Side 为未知时不得（MUST NOT）当作空 Side；已知的空 Side 必须（MUST）进入 Side 分母，但不产生卡片采用量。每个计数不得（MUST NOT）超过自身分母。
 
 #### Scenario: 历史 Side 未知与已知为空
 
 - **WHEN** 窗口内各有一份 Side 未知的历史快照和 Side 已知为空的在线快照
-- **THEN** 两份均进入 `validDecks`，只有在线快照进入 `sideKnownDecks`，Side 榜无卡片采用记录
+- **THEN** 两份均进入 `totalDecks`，只有在线快照进入 `sideKnownDecks`，Side 榜无卡片采用记录
 
 ### Requirement: 使用固定的三表汇总结构
 
-系统必须（MUST）将每个环境、每个半年度的覆盖率、卡组类型计数、卡片采用计数分别保存到下列三张 PostgreSQL 表。`window_start` 和 `window_end_exclusive` 是该半年度固定的北京时间日期边界；`data_end_exclusive` 是本次实际统计的截止日期，当前半年度可早于固定结束边界；`published_at` 是成功发布的实际时间。汇总表只保存整数计数，不得（MUST NOT）保存预先四舍五入的使用率或重复保存卡片名称。表结构与约束如下；实际迁移必须（MUST）由新增 TypeORM 实体生成，不得修改已应用迁移。
+系统必须（MUST）将每个环境、每个半年度的样本总数、卡组类型计数、卡片采用计数分别保存到下列三张 PostgreSQL 表。`window_start` 和 `window_end_exclusive` 是该半年度固定的北京时间日期边界；`data_end_exclusive` 是本次实际统计的截止日期，当前半年度可早于固定结束边界；`published_at` 是成功发布的实际时间。汇总表只保存整数计数，不得（MUST NOT）保存预先四舍五入的使用率或重复保存卡片名称。表结构与约束如下，同内容的独立文件见 [usage-statistics.ddl](../../usage-statistics.ddl)；实际迁移必须（MUST）由新增 TypeORM 实体生成，不得修改已应用迁移。
+
+三张统计表不得（MUST NOT）定义数据库外键。统计任务必须（MUST）在发布前验证每条明细的环境与半年键等于汇总头记录，并验证卡组类型代码属于对应环境的 `deck_types` 目录；整批结果必须（MUST）在同一事务中发布或回滚。删除某半年度汇总时必须（MUST）显式删除其两张明细表中的对应行。
 
 ```sql
 CREATE TABLE usage_stat_runs (
@@ -90,10 +92,9 @@ CREATE TABLE usage_stat_runs (
     window_end_exclusive date NOT NULL,
     data_end_exclusive date NOT NULL,
     published_at timestamptz NOT NULL,
-    all_decks bigint NOT NULL CHECK (all_decks >= 0),
-    valid_decks bigint NOT NULL CHECK (valid_decks >= 0 AND valid_decks <= all_decks),
+    total_decks bigint NOT NULL CHECK (total_decks >= 0),
     side_known_decks bigint NOT NULL
-        CHECK (side_known_decks >= 0 AND side_known_decks <= valid_decks),
+        CHECK (side_known_decks >= 0 AND side_known_decks <= total_decks),
     PRIMARY KEY (format_id, window_start),
     CHECK (EXTRACT(DAY FROM window_start) = 1
         AND EXTRACT(MONTH FROM window_start) IN (1, 7)),
@@ -102,19 +103,17 @@ CREATE TABLE usage_stat_runs (
 );
 
 CREATE TABLE usage_deck_rows (
-    format_id varchar(16) NOT NULL,
+    format_id varchar(16) NOT NULL CHECK (format_id IN ('1103', '1109')),
     window_start date NOT NULL,
     deck_type_code varchar(64) NOT NULL,
     deck_count bigint NOT NULL CHECK (deck_count > 0),
     PRIMARY KEY (format_id, window_start, deck_type_code),
-    FOREIGN KEY (format_id, window_start)
-        REFERENCES usage_stat_runs (format_id, window_start) ON DELETE CASCADE,
-    FOREIGN KEY (format_id, deck_type_code)
-        REFERENCES deck_types (format_id, code)
+    CHECK (EXTRACT(DAY FROM window_start) = 1
+        AND EXTRACT(MONTH FROM window_start) IN (1, 7))
 );
 
 CREATE TABLE usage_card_rows (
-    format_id varchar(16) NOT NULL,
+    format_id varchar(16) NOT NULL CHECK (format_id IN ('1103', '1109')),
     window_start date NOT NULL,
     metric varchar(16) NOT NULL
         CHECK (metric IN ('monster', 'spell', 'trap', 'extra', 'side')),
@@ -124,10 +123,35 @@ CREATE TABLE usage_card_rows (
     copies_2 bigint NOT NULL CHECK (copies_2 >= 0),
     copies_3 bigint NOT NULL CHECK (copies_3 >= 0),
     PRIMARY KEY (format_id, window_start, metric, card_id),
-    FOREIGN KEY (format_id, window_start)
-        REFERENCES usage_stat_runs (format_id, window_start) ON DELETE CASCADE,
+    CHECK (EXTRACT(DAY FROM window_start) = 1
+        AND EXTRACT(MONTH FROM window_start) IN (1, 7)),
     CHECK (copies_1 + copies_2 + copies_3 = deck_count)
 );
+
+COMMENT ON TABLE usage_stat_runs IS '按赛制和自然半年保存一次完整发布的使用率统计及样本覆盖';
+COMMENT ON COLUMN usage_stat_runs.format_id IS '赛制编号，仅 1103 或 1109；两个环境独立统计';
+COMMENT ON COLUMN usage_stat_runs.window_start IS '所属自然半年的北京时间开始日期，包含当天；上半年为 1 月 1 日，下半年为 7 月 1 日';
+COMMENT ON COLUMN usage_stat_runs.window_end_exclusive IS '所属自然半年的北京时间固定结束日期，不包含当天；上半年为 7 月 1 日，下半年为次年 1 月 1 日';
+COMMENT ON COLUMN usage_stat_runs.data_end_exclusive IS '本次汇总实际覆盖到的北京时间截止日期，不包含当天；当前半年通常为任务运行日';
+COMMENT ON COLUMN usage_stat_runs.published_at IS '本行及其卡组、卡片明细最近一次完整成功发布的时间';
+COMMENT ON COLUMN usage_stat_runs.total_decks IS '从有效 matches 关联的可信 match_decks 快照计算的卡组份数；卡组榜及非 Side 卡片榜的分母';
+COMMENT ON COLUMN usage_stat_runs.side_known_decks IS '上述可信 match_decks 中 side_cards 非 NULL 的份数，空数组也计入；Side 卡片榜的分母';
+
+COMMENT ON TABLE usage_deck_rows IS '每个环境、自然半年和卡组类型的使用份数';
+COMMENT ON COLUMN usage_deck_rows.format_id IS '赛制编号，与汇总批次及卡组类型目录的环境一致';
+COMMENT ON COLUMN usage_deck_rows.window_start IS '所属自然半年的北京时间开始日期，与 usage_stat_runs 共同定位汇总批次';
+COMMENT ON COLUMN usage_deck_rows.deck_type_code IS '环境内卡组分类代码，由统计任务对照 deck_types 目录校验，包含 OTHERS';
+COMMENT ON COLUMN usage_deck_rows.deck_count IS '有效初始卡组快照中被分为该类型的卡组份数，每份卡组只计一次';
+
+COMMENT ON TABLE usage_card_rows IS '每个环境、自然半年、卡片指标和归一卡片的采用份数及投入张数分布';
+COMMENT ON COLUMN usage_card_rows.format_id IS '赛制编号，与汇总批次的环境一致';
+COMMENT ON COLUMN usage_card_rows.window_start IS '所属自然半年的北京时间开始日期，与 usage_stat_runs 共同定位汇总批次';
+COMMENT ON COLUMN usage_card_rows.metric IS '卡片指标：monster、spell、trap 取初始 Main，extra 取初始 Extra，side 取初始 Side';
+COMMENT ON COLUMN usage_card_rows.card_id IS '按固定卡片数据库的 alias 链归一后的卡片 ID';
+COMMENT ON COLUMN usage_card_rows.deck_count IS '该指标中采用此卡的卡组份数，同一卡在一份卡组内只计一次';
+COMMENT ON COLUMN usage_card_rows.copies_1 IS '该指标中归一后恰好投入此卡 1 张的卡组份数';
+COMMENT ON COLUMN usage_card_rows.copies_2 IS '该指标中归一后恰好投入此卡 2 张的卡组份数';
+COMMENT ON COLUMN usage_card_rows.copies_3 IS '该指标中归一后恰好投入此卡 3 张的卡组份数';
 
 CREATE INDEX idx_usage_deck_rows_rank
     ON usage_deck_rows (format_id, window_start, deck_count DESC, deck_type_code);
@@ -138,12 +162,17 @@ CREATE INDEX idx_matches_usage_active_window
     WHERE deleted_at IS NULL AND anulled = false;
 ```
 
-零次采用的类别或卡片不插入子表；没有比赛的窗口仍必须（MUST）有一行三个覆盖计数均为零的 `usage_stat_runs`。跨表的 `SUM(usage_deck_rows.deck_count) = usage_stat_runs.valid_decks`、卡片采用量不超过对应分母，以及卡片 ID 属于固定资源，由任务在发布前核对，不能（MUST NOT）把这些跨表或跨数据库关系伪装成单行 `CHECK` 约束。
+零次采用的类别或卡片不插入子表；没有可信快照的窗口仍必须（MUST）有一行两个样本计数均为零的 `usage_stat_runs`。跨表的 `SUM(usage_deck_rows.deck_count) = usage_stat_runs.total_decks`、明细与汇总头的键一致、卡组类型属于对应环境、卡片采用量不超过对应分母，以及卡片 ID 属于固定资源，由任务在发布前核对，不能（MUST NOT）把这些跨表或跨数据库关系伪装成单行 `CHECK` 约束。
 
 #### Scenario: 两个环境的同一半年度
 
 - **WHEN** 1103 和 1109 都成功发布 `2026H2` 的结果
-- **THEN** `usage_stat_runs` 有两条 `window_start=2026-07-01` 且由 `format_id` 区分的记录，子表只引用各自环境的半年度，卡组类型外键也不能跨环境匹配
+- **THEN** `usage_stat_runs` 有两条 `window_start=2026-07-01` 且由 `format_id` 区分的记录，统计任务只发布各自环境的明细和有效分类
+
+#### Scenario: 明细归属或类型不合法
+
+- **WHEN** 待发布的明细环境或半年键与汇总头不一致，或卡组类型代码不属于该环境
+- **THEN** 统计任务拒绝该环境整批结果并保留上次成功结果，不依赖数据库外键检查
 
 #### Scenario: 非法计数无法落库
 
@@ -169,7 +198,7 @@ CREATE INDEX idx_matches_usage_active_window
 - **WHEN** 某环境的卡片汇总失败，而该环境已有上次成功结果
 - **THEN** 对外仍可读取该半年度完整的上次成功结果与更新时间，不出现新旧指标混合
 
-#### Scenario: 空窗口
+#### Scenario: 没有可信快照的窗口
 
-- **WHEN** 某环境的当前半年度截至统计日没有有效排位 Match
-- **THEN** 任务仍发布窗口与三个零覆盖计数，所有榜单为空
+- **WHEN** 某环境的当前半年度截至统计日没有可信初始卡组快照，包括比赛记录存在但快照均缺失的情况
+- **THEN** 任务仍发布窗口与两个零样本计数，所有榜单为空
