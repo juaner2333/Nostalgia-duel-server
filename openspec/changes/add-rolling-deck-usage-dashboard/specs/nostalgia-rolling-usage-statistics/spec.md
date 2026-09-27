@@ -1,17 +1,22 @@
 ## Purpose
 
-为 1103 与 1109 排位提供可重复计算的最近 90 天卡组及卡片采用量事实，并明确历史快照缺失时各榜单的样本范围，使公开使用率有可核对的分子和分母。
+为 1103 与 1109 排位提供按北京时间自然半年归属、可重复计算的卡组及卡片采用量事实，并明确历史快照缺失时各榜单的样本范围，使公开使用率有可核对的分子和分母。
 
 ## ADDED Requirements
 
-### Requirement: 以北京时间的 90 个完整自然日为唯一统计窗口
+### Requirement: 按北京时间自然半年划分统计窗口
 
-系统必须（MUST）分别为 1103 和 1109 统计任务运行日之前最近 90 个已结束的北京时间自然日，窗口为左闭右开；不得（MUST NOT）把任务运行当天尚未结束的比赛纳入。两个环境的汇总必须（MUST）保持隔离，卡组使用率与所有卡片使用率必须（MUST）使用同一个窗口。系统不得（MUST NOT）以月度 `season` 代替该滚动日期窗口。
+系统必须（MUST）分别为 1103 和 1109 按北京时间自然半年统计：`YYYYH1` 的固定边界为当年 1 月 1 日 00:00 至 7 月 1 日 00:00，`YYYYH2` 为当年 7 月 1 日 00:00 至次年 1 月 1 日 00:00，均左闭右开。当前半年度每天只统计至运行日 00:00，已结束半年度统计至其固定结束边界；不得（MUST NOT）纳入边界外或任务当天尚未结束的比赛。两个环境必须（MUST）隔离，六个榜单必须（MUST）使用相同的半年归属和实际统计截止日。系统不得（MUST NOT）以最近 90 天、服务器本地时区或排位 Match 的月度 `season` 字段替代半年日期范围。
 
-#### Scenario: 北京时间跨日运行
+#### Scenario: 当前下半年每日重建
 
 - **WHEN** 任务在北京时间 2026-09-27 任意时刻运行
-- **THEN** 两个环境各自统计 `[2026-06-29 00:00, 2026-09-27 00:00)` 的比赛，且 9 月 27 日的比赛不进入该次结果
+- **THEN** 两个环境的 `2026H2` 各自统计 `[2026-07-01 00:00, 2026-09-27 00:00)` 的比赛，且 6 月 30 日及 9 月 27 日的比赛均不进入该次结果
+
+#### Scenario: 上半年最终结果
+
+- **WHEN** `2026H1` 在 2026 年 7 月 1 日或之后完成最终重建
+- **THEN** 只统计 `[2026-01-01 00:00, 2026-07-01 00:00)`，包括 6 月 30 日的比赛，不包括 7 月 1 日的比赛
 
 #### Scenario: 窗口边界
 
@@ -76,37 +81,41 @@
 
 ### Requirement: 使用固定的三表汇总结构
 
-系统必须（MUST）将一次成功统计的窗口与覆盖率、卡组类型计数、卡片采用计数分别保存到下列三张 PostgreSQL 表。`window_start` 和 `window_end_exclusive` 是北京时间自然日日期，后者必须（MUST）比前者晚 90 天；`published_at` 是成功发布的实际时间。汇总表只保存整数计数，不得（MUST NOT）保存预先四舍五入的使用率或重复保存卡片名称。表结构与约束如下；实际迁移必须（MUST）由新增 TypeORM 实体生成，不得修改已应用迁移。
+系统必须（MUST）将每个环境、每个半年度的覆盖率、卡组类型计数、卡片采用计数分别保存到下列三张 PostgreSQL 表。`window_start` 和 `window_end_exclusive` 是该半年度固定的北京时间日期边界；`data_end_exclusive` 是本次实际统计的截止日期，当前半年度可早于固定结束边界；`published_at` 是成功发布的实际时间。汇总表只保存整数计数，不得（MUST NOT）保存预先四舍五入的使用率或重复保存卡片名称。表结构与约束如下；实际迁移必须（MUST）由新增 TypeORM 实体生成，不得修改已应用迁移。
 
 ```sql
 CREATE TABLE usage_stat_runs (
     format_id varchar(16) NOT NULL CHECK (format_id IN ('1103', '1109')),
     window_start date NOT NULL,
     window_end_exclusive date NOT NULL,
+    data_end_exclusive date NOT NULL,
     published_at timestamptz NOT NULL,
     all_decks bigint NOT NULL CHECK (all_decks >= 0),
     valid_decks bigint NOT NULL CHECK (valid_decks >= 0 AND valid_decks <= all_decks),
     side_known_decks bigint NOT NULL
         CHECK (side_known_decks >= 0 AND side_known_decks <= valid_decks),
-    PRIMARY KEY (format_id, window_end_exclusive),
-    CHECK (window_end_exclusive = window_start + 90)
+    PRIMARY KEY (format_id, window_start),
+    CHECK (EXTRACT(DAY FROM window_start) = 1
+        AND EXTRACT(MONTH FROM window_start) IN (1, 7)),
+    CHECK (window_end_exclusive = (window_start + INTERVAL '6 months')::date),
+    CHECK (data_end_exclusive BETWEEN window_start AND window_end_exclusive)
 );
 
 CREATE TABLE usage_deck_rows (
     format_id varchar(16) NOT NULL,
-    window_end_exclusive date NOT NULL,
+    window_start date NOT NULL,
     deck_type_code varchar(64) NOT NULL,
     deck_count bigint NOT NULL CHECK (deck_count > 0),
-    PRIMARY KEY (format_id, window_end_exclusive, deck_type_code),
-    FOREIGN KEY (format_id, window_end_exclusive)
-        REFERENCES usage_stat_runs (format_id, window_end_exclusive) ON DELETE CASCADE,
+    PRIMARY KEY (format_id, window_start, deck_type_code),
+    FOREIGN KEY (format_id, window_start)
+        REFERENCES usage_stat_runs (format_id, window_start) ON DELETE CASCADE,
     FOREIGN KEY (format_id, deck_type_code)
         REFERENCES deck_types (format_id, code)
 );
 
 CREATE TABLE usage_card_rows (
     format_id varchar(16) NOT NULL,
-    window_end_exclusive date NOT NULL,
+    window_start date NOT NULL,
     metric varchar(16) NOT NULL
         CHECK (metric IN ('monster', 'spell', 'trap', 'extra', 'side')),
     card_id integer NOT NULL CHECK (card_id > 0),
@@ -114,16 +123,16 @@ CREATE TABLE usage_card_rows (
     copies_1 bigint NOT NULL CHECK (copies_1 >= 0),
     copies_2 bigint NOT NULL CHECK (copies_2 >= 0),
     copies_3 bigint NOT NULL CHECK (copies_3 >= 0),
-    PRIMARY KEY (format_id, window_end_exclusive, metric, card_id),
-    FOREIGN KEY (format_id, window_end_exclusive)
-        REFERENCES usage_stat_runs (format_id, window_end_exclusive) ON DELETE CASCADE,
+    PRIMARY KEY (format_id, window_start, metric, card_id),
+    FOREIGN KEY (format_id, window_start)
+        REFERENCES usage_stat_runs (format_id, window_start) ON DELETE CASCADE,
     CHECK (copies_1 + copies_2 + copies_3 = deck_count)
 );
 
 CREATE INDEX idx_usage_deck_rows_rank
-    ON usage_deck_rows (format_id, window_end_exclusive, deck_count DESC, deck_type_code);
+    ON usage_deck_rows (format_id, window_start, deck_count DESC, deck_type_code);
 CREATE INDEX idx_usage_card_rows_rank
-    ON usage_card_rows (format_id, window_end_exclusive, metric, deck_count DESC, card_id);
+    ON usage_card_rows (format_id, window_start, metric, deck_count DESC, card_id);
 CREATE INDEX idx_matches_usage_active_window
     ON matches (format_id, date, id)
     WHERE deleted_at IS NULL AND anulled = false;
@@ -131,10 +140,10 @@ CREATE INDEX idx_matches_usage_active_window
 
 零次采用的类别或卡片不插入子表；没有比赛的窗口仍必须（MUST）有一行三个覆盖计数均为零的 `usage_stat_runs`。跨表的 `SUM(usage_deck_rows.deck_count) = usage_stat_runs.valid_decks`、卡片采用量不超过对应分母，以及卡片 ID 属于固定资源，由任务在发布前核对，不能（MUST NOT）把这些跨表或跨数据库关系伪装成单行 `CHECK` 约束。
 
-#### Scenario: 两个环境的同一天窗口
+#### Scenario: 两个环境的同一半年度
 
-- **WHEN** 1103 和 1109 都成功发布以同一天为结束日期的窗口
-- **THEN** `usage_stat_runs` 有两条由 `format_id` 区分的记录，子表只引用各自环境的窗口，卡组类型外键也不能跨环境匹配
+- **WHEN** 1103 和 1109 都成功发布 `2026H2` 的结果
+- **THEN** `usage_stat_runs` 有两条 `window_start=2026-07-01` 且由 `format_id` 区分的记录，子表只引用各自环境的半年度，卡组类型外键也不能跨环境匹配
 
 #### Scenario: 非法计数无法落库
 
@@ -143,24 +152,24 @@ CREATE INDEX idx_matches_usage_active_window
 
 ### Requirement: 每日任务可重建且发布原子
 
-系统必须（MUST）提供由宿主 crontab 按北京时间每天计划调用一次的一次性统计任务，为两个环境重建当前 90 天窗口；应用启动与在线对局结算不得（MUST NOT）额外触发该全量任务。人工重跑允许使用同一命令。相同窗口重复执行不得（MUST NOT）累加或重复发布数量；并发执行不得（MUST NOT）产生相互覆盖的部分结果。只有某环境的覆盖计数、卡组计数和全部卡片指标均成功计算并通过一致性检查后，才能（MUST）发布该环境新窗口；失败时必须（MUST）保留该环境上一次成功结果并以非零状态报告失败。窗口内迟到的可信快照或撤销比赛必须（MUST）在下一次成功重建后反映出来。
+系统必须（MUST）提供由宿主 crontab 按北京时间每天计划调用一次的一次性统计任务，为两个环境重建当前半年度；换期后还必须（MUST）重建上一半年度，直到该半年度成功发布 `data_end_exclusive=window_end_exclusive` 的最终结果。应用启动与在线对局结算不得（MUST NOT）额外触发全量任务。人工重跑必须（MUST）支持指定 `YYYYH1` 或 `YYYYH2`，用于历史回填与修正。相同半年度重复执行不得（MUST NOT）累加数量；并发执行不得（MUST NOT）产生相互覆盖的部分结果。只有某环境的覆盖计数、卡组计数和全部卡片指标均成功计算并通过一致性检查后，才能（MUST）发布该环境新结果；失败时必须（MUST）保留该环境上一次成功结果并以非零状态报告失败。当前半年度内迟到的可信快照或撤销比赛必须（MUST）在下一次成功重建后反映；已结束半年度的修正由人工重建反映。
 
 #### Scenario: 每天一次计划执行
 
 - **WHEN** 宿主 crontab 在北京时间新的一天触发统计命令
-- **THEN** 命令各为 1103 与 1109 重建一个相同日期范围的窗口，服务启动和页面访问不额外启动统计计算
+- **THEN** 命令各为 1103 与 1109 重建当前半年度截至前一日的窗口；若上一半年度尚未最终发布，同一次命令还补齐上一半年度，服务启动和页面访问不额外启动统计计算
 
 #### Scenario: 重复执行同一窗口
 
-- **WHEN** 运维对同一天的 90 天窗口连续运行任务两次且源数据未改变
+- **WHEN** 运维对同一半年度相同截止日连续运行任务两次且源数据未改变
 - **THEN** 对外计数与使用率相同，不出现双倍统计
 
 #### Scenario: 重建中途失败
 
 - **WHEN** 某环境的卡片汇总失败，而该环境已有上次成功结果
-- **THEN** 对外仍可读取完整的上次成功窗口与更新时间，不出现新旧指标混合
+- **THEN** 对外仍可读取该半年度完整的上次成功结果与更新时间，不出现新旧指标混合
 
 #### Scenario: 空窗口
 
-- **WHEN** 某环境的 90 天窗口没有有效排位 Match
+- **WHEN** 某环境的当前半年度截至统计日没有有效排位 Match
 - **THEN** 任务仍发布窗口与三个零覆盖计数，所有榜单为空
