@@ -9,7 +9,10 @@ import { GetDatabaseCardsController } from "../controllers/GetDatabaseCardsContr
 import { GetDatabasesController } from "../controllers/GetDatabasesController";
 import { GetResourceVersionController } from "../controllers/GetResourceVersionController";
 import { GetLeaderboardController } from "../controllers/GetLeaderboardController";
+import { GetUsageStatisticsController } from "../controllers/GetUsageStatisticsController";
+import { GetUsagePeriodsController } from "../controllers/GetUsagePeriodsController";
 import { LeaderboardPageController } from "../controllers/LeaderboardPageController";
+import { UsageDashboardPageController } from "../controllers/UsageDashboardPageController";
 import { GetReplayListController } from "../controllers/GetReplayListController";
 import { DownloadReplayController } from "../controllers/DownloadReplayController";
 import { DownloadMatchDeckController } from "../controllers/DownloadMatchDeckController";
@@ -58,6 +61,9 @@ export function loadRoutes(app: Express, logger: Logger, tickets: TicketReposito
 	});
 
 	app.get("/leaderboards/:format", (req, res) => new LeaderboardPageController().run(req, res));
+	app.get("/leaderboards/:format/usage", (req, res) =>
+		new UsageDashboardPageController().run(req, res),
+	);
 
 	app.get("/api/replays/:format", RateLimitMiddleware, async (req, res) => {
 		await new GetReplayListController().run(req, res);
@@ -69,6 +75,14 @@ export function loadRoutes(app: Express, logger: Logger, tickets: TicketReposito
 
 	app.get("/api/ladder/:format/matches/:matchId/deck", RateLimitMiddleware, async (req, res) => {
 		await new DownloadMatchDeckController().run(req, res);
+	});
+
+	app.get("/api/ladder/:format/usage/periods", RateLimitMiddleware, async (req, res) => {
+		await new GetUsagePeriodsController().run(req, res);
+	});
+
+	app.get("/api/ladder/:format/usage", RateLimitMiddleware, async (req, res) => {
+		await new GetUsageStatisticsController().run(req, res);
 	});
 
 	app.get("/api/leaderboards/:format", RateLimitMiddleware, async (req, res) => {

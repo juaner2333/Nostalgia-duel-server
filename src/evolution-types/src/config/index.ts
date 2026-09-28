@@ -1,6 +1,7 @@
 import * as dotenv from "dotenv";
 
 dotenv.config();
+process.env.TZ = process.env.TZ || "Asia/Shanghai";
 
 export const config = {
 	postgres: {

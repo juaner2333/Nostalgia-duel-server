@@ -7,6 +7,11 @@ module.exports = {
 	modulePaths: [compilerOptions.baseUrl],
 	moduleNameMapper: pathsToModuleNameMapper(compilerOptions.paths),
 	roots: ["<rootDir>/src"],
+	testPathIgnorePatterns: [
+		"/src/evolution-types/src/.*Postgres\\.integration\\.test\\.ts$",
+		"/src/shared/stats/usage/infrastructure/postgres/.*\\.integration\\.test\\.ts$",
+		"/src/shared/stats/usage/UsagePipeline\\.integration\\.test\\.ts$",
+	],
 	maxWorkers: "50%",
 	transform: {
 		"^.+\\.tsx?$": ["ts-jest", { tsconfig: "tsconfig.test.json" }],

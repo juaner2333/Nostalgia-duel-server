@@ -8,6 +8,9 @@ import { DuelResumeEntity } from "./entities/DuelResumeEntity";
 import { PlayerStatsEntity } from "./entities/PlayerStatsEntity";
 import { DeckTypeEntity } from "./entities/DeckTypeEntity";
 import { MatchDeckEntity } from "./entities/MatchDeckEntity";
+import { UsageStatRunEntity } from "./entities/UsageStatRunEntity";
+import { UsageDeckRowEntity } from "./entities/UsageDeckRowEntity";
+import { UsageCardRowEntity } from "./entities/UsageCardRowEntity";
 
 describe("InitialRankedSchema and DataSource baseline", () => {
 	it("registers the target ranked entities in dataSource", () => {
@@ -21,8 +24,11 @@ describe("InitialRankedSchema and DataSource baseline", () => {
 			PlayerStatsEntity.name,
 			DeckTypeEntity.name,
 			MatchDeckEntity.name,
+			UsageStatRunEntity.name,
+			UsageDeckRowEntity.name,
+			UsageCardRowEntity.name,
 		]);
-		expect(entities).toHaveLength(8);
+		expect(entities).toHaveLength(11);
 	});
 
 	it("runs InitialRankedSchema up and down queries matching DDL specification", async () => {

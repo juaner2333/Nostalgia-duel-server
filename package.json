@@ -8,6 +8,7 @@
 	"main": "index.js",
 	"scripts": {
 		"test": "jest",
+		"test:postgres": "jest --config jest.postgres.config.js --runInBand",
 		"test:watch": "jest --watch",
 		"dev": "ts-node-dev --inspect=0.0.0.0:9229 -r tsconfig-paths/register --respawn --poll --require dotenv/config src/index.ts ",
 		"clean": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\"",
@@ -28,7 +29,9 @@
 		"migration:revert": "ts-node -r tsconfig-paths/register --require dotenv/config ./node_modules/typeorm/cli.js migration:revert -d ./src/evolution-types/src/data-source.ts",
 		"smoke:duel": "node scripts/smoke-duel.mjs",
 		"smoke:ranked": "node scripts/smoke-ranked-duel.mjs",
-		"backfill:replay-decks": "ts-node -r tsconfig-paths/register scripts/backfill-replay-decks.ts"
+		"backfill:replay-decks": "ts-node -r tsconfig-paths/register scripts/backfill-replay-decks.ts",
+		"reclassify:decks": "ts-node -r tsconfig-paths/register scripts/reclassify-match-decks.ts",
+		"rebuild:usage": "node ./dist/src/shared/stats/usage/cli/rebuild-usage-cli.js"
 	},
 	"keywords": [],
 	"author": "",

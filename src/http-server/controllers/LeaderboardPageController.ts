@@ -372,6 +372,7 @@ export function renderLeaderboardPage(formatId: string): string {
 			<button class="tab-btn active" data-tab="rooms">房间列表</button>
 			<button class="tab-btn" data-tab="replays">录像下载</button>
 			<button class="tab-btn" data-tab="ladder">天梯排行</button>
+			<a href="/leaderboards/${formatId}/usage" class="tab-btn" style="text-decoration: none; display: inline-flex; align-items: center;">使用率</a>
 		</nav>
 	</header>
 
@@ -615,17 +616,23 @@ export function renderLeaderboardPage(formatId: string): string {
 			var tabButtons = document.querySelectorAll(".tab-btn");
 			var tabContents = document.querySelectorAll(".tab-content");
 
+			function switchTab(tabId) {
+				var targetBtn = document.querySelector('.tab-btn[data-tab="' + tabId + '"]');
+				var target = document.getElementById("tab-" + tabId);
+				if (!targetBtn || !target) return;
+				tabButtons.forEach(function(b) { b.classList.remove("active"); });
+				tabContents.forEach(function(c) { c.classList.remove("active"); });
+				targetBtn.classList.add("active");
+				target.classList.add("active");
+				if (tabId === "rooms" && !roomsState.loaded) loadRooms();
+				if (tabId === "replays" && !replaysState.loaded) loadReplays();
+				if (tabId === "ladder" && !ladderState.loaded) loadLadder();
+			}
+
 			tabButtons.forEach(function(btn) {
 				btn.addEventListener("click", function() {
 					var tabId = btn.getAttribute("data-tab");
-					tabButtons.forEach(function(b) { b.classList.remove("active"); });
-					tabContents.forEach(function(c) { c.classList.remove("active"); });
-					btn.classList.add("active");
-					var target = document.getElementById("tab-" + tabId);
-					if (target) target.classList.add("active");
-					if (tabId === "rooms" && !roomsState.loaded) loadRooms();
-					if (tabId === "replays" && !replaysState.loaded) loadReplays();
-					if (tabId === "ladder" && !ladderState.loaded) loadLadder();
+					if (tabId) switchTab(tabId);
 				});
 			});
 
@@ -1265,8 +1272,21 @@ export function renderLeaderboardPage(formatId: string): string {
 				}
 			});
 
-			// Initial load: Tab 1
-			loadRooms();
+			// Initial load: Tab 1 or requested tab
+			var initialTab = "rooms";
+			try {
+				var urlParams = new URLSearchParams(window.location.search);
+				var requestedTab = urlParams.get("tab") || window.location.hash.replace("#", "");
+				if (requestedTab && ["rooms", "replays", "ladder"].indexOf(requestedTab) !== -1) {
+					initialTab = requestedTab;
+				}
+			} catch(e) {}
+
+			if (initialTab !== "rooms") {
+				switchTab(initialTab);
+			} else {
+				loadRooms();
+			}
 		})();
 	</script>
 </body>

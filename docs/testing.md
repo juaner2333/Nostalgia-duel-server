@@ -12,6 +12,8 @@ How we write tests in Nostalgia-duel-server: where they live, how we build test 
 4. **Reset singletons** in `afterEach` (e.g. `WindbotModule.resetForTests()`, `JoinStrategyRegistry.reset()`).
 5. **Format:** tab indentation — Biome applies it (`npm run format`), and your editor via `.editorconfig`.
 
+`npm test` runs without PostgreSQL. Run the database integration suites with `npm run test:postgres` against a disposable PostgreSQL database configured through `POSTGRES_TEST_*`. These suites recreate the database's `public` schema.
+
 ## Where tests live
 
 | Rule | Detail |

@@ -8,6 +8,9 @@ import { DuelResumeEntity } from "./entities/DuelResumeEntity";
 import { MatchDeckEntity } from "./entities/MatchDeckEntity";
 import { MatchResumeEntity } from "./entities/MatchResumeEntity";
 import { PlayerStatsEntity } from "./entities/PlayerStatsEntity";
+import { UsageCardRowEntity } from "./entities/UsageCardRowEntity";
+import { UsageDeckRowEntity } from "./entities/UsageDeckRowEntity";
+import { UsageStatRunEntity } from "./entities/UsageStatRunEntity";
 import { UserBanEntity } from "./entities/UserBanEntity";
 import { UserProfileEntity } from "./entities/UserProfileEntity";
 
@@ -29,6 +32,9 @@ const options: DataSourceOptions = {
 		PlayerStatsEntity,
 		DeckTypeEntity,
 		MatchDeckEntity,
+		UsageStatRunEntity,
+		UsageDeckRowEntity,
+		UsageCardRowEntity,
 	],
 	subscribers: [],
 	migrations: [

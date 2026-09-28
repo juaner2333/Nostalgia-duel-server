@@ -1,3 +1,5 @@
+process.env.TZ = process.env.TZ || "Asia/Shanghai";
+
 import "reflect-metadata";
 import "src/shared/error-handler/error-handler";
 

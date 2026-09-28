@@ -1,9 +1,10 @@
-import { DataSource } from "typeorm";
+import { DataSource, QueryRunner } from "typeorm";
 import { InitialRankedSchema1741000000000 } from "./migrations/1741000000000-InitialRankedSchema";
 import { AddReplayDeckAccess1741000001000 } from "./migrations/1741000001000-AddReplayDeckAccess";
 
 describe("ReplayDeckAccess Isolated PostgreSQL Integration", () => {
 	let ds: DataSource | undefined;
+	let suiteLockRunner: QueryRunner | undefined;
 	let isDbAvailable = false;
 
 	beforeAll(async () => {
@@ -19,6 +20,9 @@ describe("ReplayDeckAccess Isolated PostgreSQL Integration", () => {
 				logging: false,
 			});
 			await ds.initialize();
+			suiteLockRunner = ds.createQueryRunner();
+			await suiteLockRunner.connect();
+			await suiteLockRunner.query("SELECT pg_advisory_lock(88888888)");
 			await ds.query(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`);
 			isDbAvailable = true;
 		} catch {
@@ -27,6 +31,15 @@ describe("ReplayDeckAccess Isolated PostgreSQL Integration", () => {
 	});
 
 	afterAll(async () => {
+		if (suiteLockRunner) {
+			try {
+				await suiteLockRunner.query("SELECT pg_advisory_unlock(88888888)");
+			} catch {
+				// Unlock failure cleanup
+			} finally {
+				await suiteLockRunner.release();
+			}
+		}
 		if (ds?.isInitialized) {
 			await ds.destroy();
 		}
@@ -41,6 +54,10 @@ describe("ReplayDeckAccess Isolated PostgreSQL Integration", () => {
 		const queryRunner = ds.createQueryRunner();
 
 		try {
+			// Ensure clean schema
+			await queryRunner.query(`DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;`);
+			await queryRunner.query(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp";`);
+
 			// 1. Run migrations up
 			await initialMigration.up(queryRunner);
 			await deckMigration.up(queryRunner);

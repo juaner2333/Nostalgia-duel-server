@@ -22,6 +22,8 @@ RUN apt-get update -y && \
 
 WORKDIR /app
 
+ENV TZ=Asia/Shanghai
+
 COPY --from=server-builder /server/dist ./dist
 COPY --from=server-builder /server/package.json ./package.json
 COPY --from=server-builder /server/node_modules ./node_modules

@@ -91,9 +91,10 @@ describe("GetReplayList use case", () => {
 		expect(res1103.deckTypes).toEqual([{ code: "OTHERS", nameZh: "其他" }]);
 
 		const res1109 = await getReplayList.run({ format: "1109" });
-		expect(res1109.deckTypes).toHaveLength(26);
+		expect(res1109.deckTypes).toHaveLength(31);
 		expect(res1109.deckTypes[0]).toEqual({ code: "D01", nameZh: "代行天使" });
-		expect(res1109.deckTypes[25]).toEqual({ code: "OTHERS", nameZh: "其他" });
+		expect(res1109.deckTypes[29]).toEqual({ code: "D30", nameZh: "不死均" });
+		expect(res1109.deckTypes[30]).toEqual({ code: "OTHERS", nameZh: "其他" });
 	});
 
 	it("passes valid deckTypeCode to repository", async () => {

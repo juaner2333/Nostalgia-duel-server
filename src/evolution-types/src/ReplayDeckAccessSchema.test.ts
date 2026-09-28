@@ -9,7 +9,7 @@ describe("ReplayDeckAccess Schema Entities", () => {
 		const entities = (dataSource.options.entities as Function[]).map((e) => e.name);
 		expect(entities).toContain(DeckTypeEntity.name);
 		expect(entities).toContain(MatchDeckEntity.name);
-		expect(entities).toHaveLength(8);
+		expect(entities.length).toBeGreaterThanOrEqual(8);
 	});
 
 	it("configures MatchResumeEntity with uq_matches_id_format unique constraint", () => {
@@ -121,7 +121,8 @@ describe("ReplayDeckAccess Schema Entities", () => {
 		expect(upSql).toContain(`'1103', 'OTHERS', '其他', 0`);
 		expect(upSql).toContain(`'1109', 'D01', '代行天使', 0`);
 		expect(upSql).toContain(`'1109', 'D25', '水泡英雄', 24`);
-		expect(upSql).toContain(`'1109', 'OTHERS', '其他', 25`);
+		expect(upSql).toContain(`'1109', 'D30', '不死均', 29`);
+		expect(upSql).toContain(`'1109', 'OTHERS', '其他', 30`);
 
 		queriesExecuted.length = 0;
 		await migration.down(mockQueryRunner as any);

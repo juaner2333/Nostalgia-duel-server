@@ -19,6 +19,9 @@ import { UserProfileEntity } from "./UserProfileEntity";
 @Unique("UQ_matches_game_user", ["gameId", "userId"])
 @Unique("uq_matches_id_format", ["id", "formatId"])
 @Index("IDX_matches_format_season_user", ["formatId", "season", "userId"])
+@Index("idx_matches_usage_active_window", ["formatId", "date", "id"], {
+	where: "deleted_at IS NULL AND anulled = false",
+})
 export class MatchResumeEntity {
 	@PrimaryColumn()
 	id: string;

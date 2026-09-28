@@ -132,9 +132,34 @@ describe("DeckClassifier (1109 & 1103)", () => {
 			nameZh: "水泡英雄",
 			main: [79979666, 79979666, 45906428, 8949584],
 		},
+		神风鹰身: {
+			code: "D26",
+			nameZh: "神风鹰身",
+			main: [15854426, 75064463, 75782277],
+		},
+		念动力: {
+			code: "D27",
+			nameZh: "念动力",
+			main: [67723438, 21454943, 13440154],
+		},
+		纯电子龙: {
+			code: "D28",
+			nameZh: "纯电子龙",
+			main: [70095154, 70095154, 46461247],
+		},
+		宝石骑士: {
+			code: "D29",
+			nameZh: "宝石骑士",
+			main: [1264319, 27004302, 45662855],
+		},
+		不死均: {
+			code: "D30",
+			nameZh: "不死均",
+			main: [92826944, 2204140, 63665875],
+		},
 	};
 
-	it("classifies all 25 supported categories for 1109", () => {
+	it("classifies all 30 supported categories for 1109", () => {
 		for (const [categoryName, sample] of Object.entries(SAMPLES_1109)) {
 			const result = classifyDeck("1109", sample.main);
 			expect(result.deckTypeCode).toBe(sample.code);
@@ -198,10 +223,11 @@ describe("DeckClassifier (1109 & 1103)", () => {
 
 	it("provides catalog metadata consistent with deck_types seed", () => {
 		const catalog1109 = DECK_TYPE_CATALOG["1109"];
-		expect(catalog1109).toHaveLength(26);
+		expect(catalog1109).toHaveLength(31);
 		expect(catalog1109[0]).toEqual({ code: "D01", nameZh: "代行天使", sortOrder: 0 });
 		expect(catalog1109[24]).toEqual({ code: "D25", nameZh: "水泡英雄", sortOrder: 24 });
-		expect(catalog1109[25]).toEqual({ code: "OTHERS", nameZh: "其他", sortOrder: 25 });
+		expect(catalog1109[29]).toEqual({ code: "D30", nameZh: "不死均", sortOrder: 29 });
+		expect(catalog1109[30]).toEqual({ code: "OTHERS", nameZh: "其他", sortOrder: 30 });
 
 		const catalog1103 = DECK_TYPE_CATALOG["1103"];
 		expect(catalog1103).toHaveLength(1);

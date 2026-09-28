@@ -13,7 +13,7 @@ export interface DeckTypeMetadata {
 }
 
 export const CLASSIFIER_VERSIONS: Record<string, string> = {
-	"1109": "1109-c9ba01c-v1",
+	"1109": "1109-c9ba01c-v2",
 	"1103": "1103-fallback-v1",
 };
 
@@ -45,7 +45,12 @@ export const DECK_TYPE_CATALOG: Record<string, readonly DeckTypeMetadata[]> = {
 		{ code: "D23", nameZh: "削血", sortOrder: 22 },
 		{ code: "D24", nameZh: "机巧", sortOrder: 23 },
 		{ code: "D25", nameZh: "水泡英雄", sortOrder: 24 },
-		{ code: "OTHERS", nameZh: "其他", sortOrder: 25 },
+		{ code: "D26", nameZh: "神风鹰身", sortOrder: 25 },
+		{ code: "D27", nameZh: "念动力", sortOrder: 26 },
+		{ code: "D28", nameZh: "纯电子龙", sortOrder: 27 },
+		{ code: "D29", nameZh: "宝石骑士", sortOrder: 28 },
+		{ code: "D30", nameZh: "不死均", sortOrder: 29 },
+		{ code: "OTHERS", nameZh: "其他", sortOrder: 30 },
 	]),
 };
 
@@ -79,6 +84,12 @@ const KARAKURI_CARDS = new Set<number>([
 const BURN_CARDS = new Set<number>([
 	27053506, 24068492, 77622396, 27301787, 3510565, 80036543, 98444741, 30461781,
 ]);
+
+const GEM_KNIGHT_MONSTERS = new Set<number>([
+	19163116, 45662855, 54620698, 91731841, 72056560, 27126980, 8692301, 13108445,
+]);
+
+const ZOMBIE_CORE_CARDS = new Set<number>([92826944, 2204140, 63665875, 17259470, 77044671]);
 
 export function normalizeCardCounts(
 	cards: readonly number[],
@@ -301,6 +312,55 @@ const RULES_1109: readonly RuleDefinition[] = [
 		matches: (_count, total) =>
 			total([27053506, 24068492, 77622396, 27301787, 3510565, 80036543]) >= 2 ||
 			total(BURN_CARDS) >= 4,
+	},
+	{
+		code: "D26",
+		nameZh: "神风鹰身",
+		candidateEvidence: [15854426, 75064463, 75782277, 77778835, 82199284],
+		matches: (count, total) =>
+			(count(15854426) >= 1 &&
+				(total([75064463, 75782277, 77778835, 76812113, 12206212, 82199284]) >= 1 ||
+					count(82199284) >= 1)) ||
+			total([75064463, 75782277, 77778835]) >= 2 ||
+			(count(82199284) >= 2 && count(22837504) >= 1),
+	},
+	{
+		code: "D27",
+		nameZh: "念动力",
+		candidateEvidence: [67723438, 21454943, 13440154, 60999392, 36484016],
+		matches: (count, total) =>
+			(count(36484016) >= 1 && total([67723438, 21454943, 13440154, 60999392]) >= 1) ||
+			total([13440154, 60999392, 6631034, 15883905]) >= 2 ||
+			(count(67723438) >= 1 &&
+				count(21454943) >= 1 &&
+				total([13440154, 60999392, 36484016, 6631034]) >= 1),
+	},
+	{
+		code: "D28",
+		nameZh: "纯电子龙",
+		candidateEvidence: [70095154, 46461247, 5373478, 3659803],
+		matches: (count, total) =>
+			(count(70095154) >= 2 &&
+				(total([46461247, 5373478, 3659803, 63995093]) >= 1 || count(70095154) === 3)) ||
+			total([46461247, 5373478]) >= 2,
+	},
+	{
+		code: "D29",
+		nameZh: "宝石骑士",
+		candidateEvidence: [1264319, 27004302, 45662855, 19163116],
+		matches: (_count, total, distinct) =>
+			total([1264319, 1264320, 27004302]) >= 1 || distinct(GEM_KNIGHT_MONSTERS) >= 2,
+	},
+	{
+		code: "D30",
+		nameZh: "不死均",
+		candidateEvidence: [92826944, 2204140, 63665875, 17259470],
+		matches: (count, total) =>
+			(count(92826944) >= 1 ||
+				count(2204140) >= 1 ||
+				count(17259470) >= 1 ||
+				count(63665875) >= 1) &&
+			(total(ZOMBIE_CORE_CARDS) >= 2 || (total(ZOMBIE_CORE_CARDS) >= 1 && count(33420078) >= 1)),
 	},
 	{
 		code: "D10",
