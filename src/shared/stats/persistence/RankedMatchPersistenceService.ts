@@ -182,6 +182,8 @@ export class RankedMatchPersistenceService {
 							matchId: savedMatch.id,
 							season,
 							ipAddress: game.ipAddress,
+							duelIndex: game.duelIndex ?? null,
+							isFirst: game.isFirst ?? null,
 						});
 						await manager.save(duelEntity);
 					}

@@ -156,6 +156,10 @@ export abstract class YgoRoom {
 		this._match.duelWinner(winner, this.turn, ips);
 	}
 
+	recordDuelStart(duelIndex: number, firstPlayerName: string): void {
+		this._match?.recordDuelStart(duelIndex, firstPlayerName);
+	}
+
 	get matchPlayersHistory(): PlayerData[] {
 		return this._match?.playersHistory ?? [];
 	}

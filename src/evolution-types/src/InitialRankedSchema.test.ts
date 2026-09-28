@@ -11,6 +11,7 @@ import { MatchDeckEntity } from "./entities/MatchDeckEntity";
 import { UsageStatRunEntity } from "./entities/UsageStatRunEntity";
 import { UsageDeckRowEntity } from "./entities/UsageDeckRowEntity";
 import { UsageCardRowEntity } from "./entities/UsageCardRowEntity";
+import { StatsDeckMatchupEntity } from "./entities/StatsDeckMatchupEntity";
 
 describe("InitialRankedSchema and DataSource baseline", () => {
 	it("registers the target ranked entities in dataSource", () => {
@@ -27,8 +28,9 @@ describe("InitialRankedSchema and DataSource baseline", () => {
 			UsageStatRunEntity.name,
 			UsageDeckRowEntity.name,
 			UsageCardRowEntity.name,
+			StatsDeckMatchupEntity.name,
 		]);
-		expect(entities).toHaveLength(11);
+		expect(entities).toHaveLength(12);
 	});
 
 	it("runs InitialRankedSchema up and down queries matching DDL specification", async () => {

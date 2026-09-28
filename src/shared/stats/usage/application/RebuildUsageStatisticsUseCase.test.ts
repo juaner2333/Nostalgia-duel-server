@@ -8,6 +8,10 @@ import { PlayerMatchDeckSnapshot } from "../domain/DeckUsageCalculator";
 import { HalfYearWindow } from "../domain/HalfYearWindow";
 import { CdbCardMetadataProvider } from "../infrastructure/cdb/CdbCardMetadataProvider";
 import { CardTypes } from "@shared/card/domain/CardTypes";
+import {
+	DeckMatchupRowData,
+	RawPhysicalMatchPerspective,
+} from "@shared/stats/matchup/domain/DeckMatchupCalculator";
 
 describe("RebuildUsageStatisticsUseCase", () => {
 	class MockUsageRepository implements UsageStatisticsRepository {
@@ -48,15 +52,38 @@ describe("RebuildUsageStatisticsUseCase", () => {
 			return Array.from(this.runs.values()).filter((r) => r.formatId === formatId);
 		}
 
+		public matchupRows = new Map<string, DeckMatchupRowData[]>();
+		public perspectives: RawPhysicalMatchPerspective[] = [];
+		public matchupExists = new Map<string, boolean>();
+
+		async queryPhysicalMatchPerspectives(
+			formatId: string,
+			_start: string,
+			_end: string,
+		): Promise<RawPhysicalMatchPerspective[]> {
+			return this.perspectives.filter((p) => p.formatId === formatId);
+		}
+
+		async hasMatchupData(formatId: string, windowStart: string): Promise<boolean> {
+			return (
+				this.matchupExists.get(`${formatId}:${windowStart}`) ??
+				(this.matchupRows.get(`${formatId}:${windowStart}`)?.length ?? 0) > 0
+			);
+		}
+
 		async publishPeriodStatistics(
 			run: UsageStatRunData,
 			deckRows: readonly UsageDeckRowData[],
 			cardRows: readonly CardUsageRow[],
+			matchupRows?: readonly DeckMatchupRowData[],
 		): Promise<void> {
 			const key = `${run.formatId}:${run.windowStart}`;
 			this.runs.set(key, run);
 			this.deckRows.set(key, [...deckRows]);
 			this.cardRows.set(key, [...cardRows]);
+			if (matchupRows) {
+				this.matchupRows.set(key, [...matchupRows]);
+			}
 		}
 	}
 
@@ -199,5 +226,99 @@ describe("RebuildUsageStatisticsUseCase", () => {
 		const result = await useCase.rebuildPeriod("2026H1");
 		expect(result.success).toBe(false);
 		expect(publishSpy).not.toHaveBeenCalled();
+	});
+
+	it("rebuilds 1109 window, selects Top 15, calculates matchups, and publishes atomic matchup rows", async () => {
+		const repo = new MockUsageRepository();
+		repo.snapshots = [
+			{
+				matchId: "m1",
+				formatId: "1109",
+				deckTypeCode: "D01",
+				mainCards: Array(40).fill(101),
+				extraCards: [],
+				sideCards: [],
+			},
+			{
+				matchId: "m2",
+				formatId: "1109",
+				deckTypeCode: "D02",
+				mainCards: Array(40).fill(101),
+				extraCards: [],
+				sideCards: [],
+			},
+		];
+		repo.perspectives = [
+			{
+				gameId: "game-101",
+				matchId: "m1",
+				userId: "u1",
+				formatId: "1109",
+				winner: true,
+				playerScore: 2,
+				opponentScore: 0,
+				isAnnulled: false,
+				isDeleted: false,
+				deckTypeCode: "D01",
+				g1IsFirst: true,
+			},
+			{
+				gameId: "game-101",
+				matchId: "m2",
+				userId: "u2",
+				formatId: "1109",
+				winner: false,
+				playerScore: 0,
+				opponentScore: 2,
+				isAnnulled: false,
+				isDeleted: false,
+				deckTypeCode: "D02",
+				g1IsFirst: false,
+			},
+		];
+
+		const useCase = new RebuildUsageStatisticsUseCase(repo, mockCdbProvider);
+		const window = HalfYearWindow.current("2026-09-27");
+		const result = await useCase.rebuildFormatWindow("1109", window);
+
+		expect(result.success).toBe(true);
+		expect(result.admittedPhysicalMatches).toBe(1);
+
+		const matchupRows = repo.matchupRows.get("1109:2026-07-01");
+		expect(matchupRows).toBeDefined();
+		expect(matchupRows).toHaveLength(1);
+		expect(matchupRows![0]).toEqual({
+			formatId: "1109",
+			windowStart: "2026-07-01",
+			firstDeckCode: "D01",
+			secondDeckCode: "D02",
+			matchCount: 1,
+			firstWins: 1,
+		});
+	});
+
+	it("catches up previous 1109 half-year when usage was finalized but matchup table is missing", async () => {
+		const repo = new MockUsageRepository();
+		const prevWindow = HalfYearWindow.previousOf("2026H2"); // 2026H1
+		// Finalized run for 2026H1
+		repo.runs.set("1109:2026-01-01", {
+			formatId: "1109",
+			windowStart: "2026-01-01",
+			windowEndExclusive: "2026-07-01",
+			dataEndExclusive: "2026-07-01",
+			totalDecks: 10,
+			sideKnownDecks: 10,
+			publishedAt: new Date("2026-07-01T03:00:00Z"),
+		});
+		// But hasMatchupData is false for 2026H1!
+		repo.matchupExists.set("1109:2026-01-01", false);
+
+		const useCase = new RebuildUsageStatisticsUseCase(repo, mockCdbProvider);
+		const report = await useCase.rebuildDaily("2026-07-05");
+
+		expect(report.success).toBe(true);
+		// 1109 caught up 2026H1 because matchup was missing
+		const f1109Reports = report.formatReports.filter((r) => r.formatId === "1109");
+		expect(f1109Reports.some((r) => r.windowStart === "2026-01-01")).toBe(true);
 	});
 });

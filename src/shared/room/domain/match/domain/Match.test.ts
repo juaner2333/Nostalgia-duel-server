@@ -499,4 +499,118 @@ describe("Match", () => {
 			expect(history[1].games.filter((g) => g.result === "loser")).toHaveLength(3);
 		});
 	});
+
+	describe("recordDuelStart and seat freezing", () => {
+		beforeEach(() => {
+			match = new Match({ bestOf: 3 });
+			match.initializeHistoricalData(players);
+		});
+
+		it("records G1 actual starter and complementary isFirst values", () => {
+			match.recordDuelStart(1, "Player One");
+			match.duelWinner(0, 5, [
+				{ name: "Player One", ipAddress: "127.0.0.1" },
+				{ name: "Player Two", ipAddress: "127.0.0.2" },
+			]);
+
+			const history = match.playersHistory;
+			expect(history[0].games[0].duelIndex).toBe(1);
+			expect(history[0].games[0].isFirst).toBe(true);
+			expect(history[1].games[0].duelIndex).toBe(1);
+			expect(history[1].games[0].isFirst).toBe(false);
+		});
+
+		it("handles G2/G3 side switches where opponent goes first", () => {
+			// G1: Player One goes first and wins
+			match.recordDuelStart(1, "Player One");
+			match.duelWinner(0, 5, [
+				{ name: "Player One", ipAddress: "127.0.0.1" },
+				{ name: "Player Two", ipAddress: "127.0.0.2" },
+			]);
+
+			// G2: Player Two goes first (swapped) and wins
+			match.recordDuelStart(2, "Player Two");
+			match.duelWinner(1, 8, [
+				{ name: "Player One", ipAddress: "127.0.0.1" },
+				{ name: "Player Two", ipAddress: "127.0.0.2" },
+			]);
+
+			// G3: Player One goes first and wins
+			match.recordDuelStart(3, "Player One");
+			match.duelWinner(0, 12, [
+				{ name: "Player One", ipAddress: "127.0.0.1" },
+				{ name: "Player Two", ipAddress: "127.0.0.2" },
+			]);
+
+			const history = match.playersHistory;
+			// G1
+			expect(history[0].games[0].duelIndex).toBe(1);
+			expect(history[0].games[0].isFirst).toBe(true);
+			expect(history[1].games[0].duelIndex).toBe(1);
+			expect(history[1].games[0].isFirst).toBe(false);
+
+			// G2
+			expect(history[0].games[1].duelIndex).toBe(2);
+			expect(history[0].games[1].isFirst).toBe(false);
+			expect(history[1].games[1].duelIndex).toBe(2);
+			expect(history[1].games[1].isFirst).toBe(true);
+
+			// G3
+			expect(history[0].games[2].duelIndex).toBe(3);
+			expect(history[0].games[2].isFirst).toBe(true);
+			expect(history[1].games[2].duelIndex).toBe(3);
+			expect(history[1].games[2].isFirst).toBe(false);
+		});
+
+		it("keeps duelIndex and isFirst as null for unstarted forfeited duels without G1", () => {
+			// Match forfeited before any duel starts
+			match.duelWinner(0, 1, [
+				{ name: "Player One", ipAddress: "127.0.0.1" },
+				{ name: "Player Two", ipAddress: "127.0.0.2" },
+			]);
+			match.duelWinner(0, 1, [
+				{ name: "Player One", ipAddress: "127.0.0.1" },
+				{ name: "Player Two", ipAddress: "127.0.0.2" },
+			]);
+
+			const history = match.playersHistory;
+			expect(history[0].games[0].duelIndex).toBeNull();
+			expect(history[0].games[0].isFirst).toBeNull();
+			expect(history[1].games[0].duelIndex).toBeNull();
+			expect(history[1].games[0].isFirst).toBeNull();
+
+			expect(history[0].games[1].duelIndex).toBeNull();
+			expect(history[0].games[1].isFirst).toBeNull();
+			expect(history[1].games[1].duelIndex).toBeNull();
+			expect(history[1].games[1].isFirst).toBeNull();
+		});
+
+		it("records G1 seats when started, but keeps subsequent unstarted duels as null", () => {
+			// G1 starts and finishes
+			match.recordDuelStart(1, "Player One");
+			match.duelWinner(0, 7, [
+				{ name: "Player One", ipAddress: "127.0.0.1" },
+				{ name: "Player Two", ipAddress: "127.0.0.2" },
+			]);
+
+			// G2 is forfeited without recordDuelStart
+			match.duelWinner(0, 1, [
+				{ name: "Player One", ipAddress: "127.0.0.1" },
+				{ name: "Player Two", ipAddress: "127.0.0.2" },
+			]);
+
+			const history = match.playersHistory;
+			// G1 has frozen seats
+			expect(history[0].games[0].duelIndex).toBe(1);
+			expect(history[0].games[0].isFirst).toBe(true);
+			expect(history[1].games[0].duelIndex).toBe(1);
+			expect(history[1].games[0].isFirst).toBe(false);
+
+			// G2 was never started -> null
+			expect(history[0].games[1].duelIndex).toBeNull();
+			expect(history[0].games[1].isFirst).toBeNull();
+			expect(history[1].games[1].duelIndex).toBeNull();
+			expect(history[1].games[1].isFirst).toBeNull();
+		});
+	});
 });

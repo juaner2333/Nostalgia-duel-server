@@ -341,6 +341,7 @@ export function renderUsageDashboardPage(formatId: string): string {
 			<a href="/leaderboards/${formatId}?tab=replays" class="tab-btn">录像下载</a>
 			<a href="/leaderboards/${formatId}?tab=ladder" class="tab-btn">天梯排行</a>
 			<a href="/leaderboards/${formatId}/usage" class="tab-btn active">使用率</a>
+			${formatId === "1109" ? `<a href="/leaderboards/${formatId}/deck-stats" class="tab-btn">卡组胜率</a>` : ""}
 		</nav>
 	</header>
 

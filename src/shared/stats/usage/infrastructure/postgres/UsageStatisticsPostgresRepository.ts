@@ -7,9 +7,14 @@ import {
 import { UsageStatRunData, UsageDeckRowData } from "../../domain/UsageConsistencyValidator";
 import { CardUsageRow } from "../../domain/CardUsageCalculator";
 import { PlayerMatchDeckSnapshot } from "../../domain/DeckUsageCalculator";
+import {
+	DeckMatchupRowData,
+	RawPhysicalMatchPerspective,
+} from "@shared/stats/matchup/domain/DeckMatchupCalculator";
+import { MatchupQueryRepository } from "@shared/stats/matchup/application/GetDeckMatchupStatsUseCase";
 
 export class UsageStatisticsPostgresRepository
-	implements UsageStatisticsRepository, UsageQueryRepository
+	implements UsageStatisticsRepository, UsageQueryRepository, MatchupQueryRepository
 {
 	private readonly lockRunners = new Map<string, QueryRunner>();
 
@@ -213,10 +218,84 @@ export class UsageStatisticsPostgresRepository
 		}));
 	}
 
+	public async queryPhysicalMatchPerspectives(
+		formatId: string,
+		startInclusive: string,
+		endExclusive: string,
+	): Promise<RawPhysicalMatchPerspective[]> {
+		const rows: {
+			game_id: string;
+			match_id: string;
+			user_id: string;
+			format_id: string;
+			winner: boolean;
+			player_score: number;
+			opponent_score: number;
+			is_annulled: boolean;
+			is_deleted: boolean;
+			deck_type_code: string | null;
+			g1_is_first: boolean | null;
+		}[] = await this.dataSource.query(
+			`
+			SELECT 
+				m.game_id,
+				m.id AS match_id,
+				m.user_id,
+				m.format_id,
+				m.winner,
+				m.player_score,
+				m.opponent_score,
+				m.anulled AS is_annulled,
+				(m.deleted_at IS NOT NULL) AS is_deleted,
+				md.deck_type_code,
+				g1.is_first AS g1_is_first
+			FROM matches m
+			LEFT JOIN match_decks md ON m.id = md.match_id AND m.format_id = md.format_id
+			LEFT JOIN duels g1 ON m.id = g1.match_id AND g1.duel_index = 1 AND g1.deleted_at IS NULL
+			WHERE m.format_id = $1
+			  AND m.date >= $2::timestamp
+			  AND m.date < $3::timestamp
+			  AND m.deleted_at IS NULL
+			  AND m.anulled = false
+			ORDER BY m.game_id ASC, m.id ASC;
+		`,
+			[formatId, startInclusive, endExclusive],
+		);
+
+		return (rows ?? []).map((r) => ({
+			gameId: r.game_id,
+			matchId: r.match_id,
+			userId: r.user_id,
+			formatId: r.format_id,
+			winner: r.winner,
+			playerScore: Number(r.player_score),
+			opponentScore: Number(r.opponent_score),
+			isAnnulled: r.is_annulled,
+			isDeleted: r.is_deleted,
+			deckTypeCode: r.deck_type_code,
+			g1IsFirst: r.g1_is_first,
+		}));
+	}
+
+	public async hasMatchupData(formatId: string, windowStart: string): Promise<boolean> {
+		if (formatId !== "1109") {
+			return true;
+		}
+		const rows: { exists: boolean }[] = await this.dataSource.query(
+			`SELECT EXISTS(
+				SELECT 1 FROM "stats_deck_matchups" 
+				WHERE format_id = $1 AND window_start = $2::date
+			) AS exists;`,
+			[formatId, windowStart],
+		);
+		return rows && rows[0]?.exists === true;
+	}
+
 	public async publishPeriodStatistics(
 		run: UsageStatRunData,
 		deckRows: readonly UsageDeckRowData[],
 		cardRows: readonly CardUsageRow[],
+		matchupRows: readonly DeckMatchupRowData[] = [],
 	): Promise<void> {
 		const queryRunner = this.dataSource.createQueryRunner();
 		await queryRunner.connect();
@@ -224,6 +303,12 @@ export class UsageStatisticsPostgresRepository
 
 		try {
 			// 1. Delete details for this format and window
+			if (run.formatId === "1109") {
+				await queryRunner.query(
+					`DELETE FROM "stats_deck_matchups" WHERE format_id = $1 AND window_start = $2::date`,
+					[run.formatId, run.windowStart],
+				);
+			}
 			await queryRunner.query(
 				`DELETE FROM "usage_card_rows" WHERE format_id = $1 AND window_start = $2::date`,
 				[run.formatId, run.windowStart],
@@ -307,6 +392,53 @@ export class UsageStatisticsPostgresRepository
 				);
 			}
 
+			// 5. Batch insert matchup rows (1109 only)
+			if (run.formatId === "1109" && matchupRows.length > 0) {
+				const matchupBatchSize = 100;
+				for (let i = 0; i < matchupRows.length; i += matchupBatchSize) {
+					const chunk = matchupRows.slice(i, i + matchupBatchSize);
+					const valuesClauses: string[] = [];
+					const params: unknown[] = [];
+					chunk.forEach((row, idx) => {
+						const base = idx * 6;
+						valuesClauses.push(
+							`($${base + 1}, $${base + 2}::date, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6})`,
+						);
+						params.push(
+							row.formatId,
+							row.windowStart,
+							row.firstDeckCode,
+							row.secondDeckCode,
+							row.matchCount,
+							row.firstWins,
+						);
+					});
+					await queryRunner.query(
+						`INSERT INTO "stats_deck_matchups" (
+							"format_id", "window_start", "first_deck_code", "second_deck_code", "match_count", "first_wins"
+						 ) VALUES ${valuesClauses.join(", ")}`,
+						params,
+					);
+				}
+			}
+
+			// 6. Verify checksum: COALESCE(SUM(match_count), 0) must equal expected sum
+			if (run.formatId === "1109") {
+				const sumRes = await queryRunner.query(
+					`SELECT COALESCE(SUM(match_count), 0)::bigint AS sum_matches 
+					 FROM "stats_deck_matchups" 
+					 WHERE format_id = $1 AND window_start = $2::date`,
+					[run.formatId, run.windowStart],
+				);
+				const actualSum = Number(sumRes[0]?.sum_matches ?? 0);
+				const expectedSum = matchupRows.reduce((acc, r) => acc + r.matchCount, 0);
+				if (actualSum !== expectedSum) {
+					throw new Error(
+						`Published matchup match_count sum (${actualSum}) does not match expected (${expectedSum})`,
+					);
+				}
+			}
+
 			await queryRunner.commitTransaction();
 		} catch (error) {
 			await queryRunner.rollbackTransaction();
@@ -318,6 +450,44 @@ export class UsageStatisticsPostgresRepository
 
 	public async listRuns(formatId: string): Promise<UsageStatRunData[]> {
 		return this.listPublishedRuns(formatId);
+	}
+
+	public async queryTopDecksUsage(
+		formatId: string,
+		windowStart: string,
+	): Promise<{ deckTypeCode: string; deckCount: number }[]> {
+		const rowsRes = await this.dataSource.query(
+			`SELECT deck_type_code, deck_count
+			 FROM "usage_deck_rows"
+			 WHERE format_id = $1 AND window_start = $2::date
+			 ORDER BY deck_count DESC, deck_type_code ASC`,
+			[formatId, windowStart],
+		);
+		return (rowsRes ?? []).map((r: any) => ({
+			deckTypeCode: r.deck_type_code,
+			deckCount: Number(r.deck_count),
+		}));
+	}
+
+	public async queryMatchupRows(
+		formatId: string,
+		windowStart: string,
+	): Promise<DeckMatchupRowData[]> {
+		const rowsRes = await this.dataSource.query(
+			`SELECT format_id, window_start::text, first_deck_code, second_deck_code, match_count, first_wins
+			 FROM "stats_deck_matchups"
+			 WHERE format_id = $1 AND window_start = $2::date
+			 ORDER BY first_deck_code ASC, second_deck_code ASC`,
+			[formatId, windowStart],
+		);
+		return (rowsRes ?? []).map((r: any) => ({
+			formatId: r.format_id,
+			windowStart: r.window_start,
+			firstDeckCode: r.first_deck_code,
+			secondDeckCode: r.second_deck_code,
+			matchCount: Number(r.match_count),
+			firstWins: Number(r.first_wins),
+		}));
 	}
 
 	public async queryDecks(

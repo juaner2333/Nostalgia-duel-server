@@ -1,6 +1,7 @@
 import { DECK_TYPE_CATALOG } from "@shared/deck/domain/classifier/DeckClassifier";
 import { CardUsageRow } from "./CardUsageCalculator";
 import { CdbCardMetadataProvider } from "../infrastructure/cdb/CdbCardMetadataProvider";
+import { DeckMatchupRowData } from "@shared/stats/matchup/domain/DeckMatchupCalculator";
 
 export interface UsageStatRunData {
 	readonly formatId: string;
@@ -108,6 +109,69 @@ export class UsageConsistencyValidator {
 			if (metadataProvider && !metadataProvider.hasCard(card.cardId)) {
 				throw new Error(`Card ${card.cardId} does not exist in fixed resource CDB`);
 			}
+		}
+	}
+
+	public static validateMatchupRows(
+		formatId: string,
+		windowStart: string,
+		matchupRows: readonly DeckMatchupRowData[],
+		expectedAdmittedMatches: number,
+		topDeckCodes: readonly string[],
+	): void {
+		if (formatId === "1103") {
+			if (matchupRows.length > 0 || expectedAdmittedMatches > 0) {
+				throw new Error("Format 1103 must not have matchup rows");
+			}
+			return;
+		}
+
+		if (formatId !== "1109") {
+			throw new Error(`Unsupported format for matchups: ${formatId}`);
+		}
+
+		const topDeckCodesSet = new Set(topDeckCodes);
+		let sumMatchCount = 0;
+		const seenKeys = new Set<string>();
+
+		for (const row of matchupRows) {
+			if (row.formatId !== "1109") {
+				throw new Error(`Matchup row formatId mismatch: ${row.formatId} !== 1109`);
+			}
+			if (row.windowStart !== windowStart) {
+				throw new Error(`Matchup row windowStart mismatch: ${row.windowStart} !== ${windowStart}`);
+			}
+			if (row.firstDeckCode === "OTHERS" || row.secondDeckCode === "OTHERS") {
+				throw new Error("Matchup rows cannot contain OTHERS");
+			}
+			if (!topDeckCodesSet.has(row.firstDeckCode)) {
+				throw new Error(`firstDeckCode ${row.firstDeckCode} is not in top 15 decks`);
+			}
+			if (!topDeckCodesSet.has(row.secondDeckCode)) {
+				throw new Error(`secondDeckCode ${row.secondDeckCode} is not in top 15 decks`);
+			}
+			if (row.matchCount <= 0) {
+				throw new Error(`matchCount must be positive, got ${row.matchCount}`);
+			}
+			if (row.firstWins < 0 || row.firstWins > row.matchCount) {
+				throw new Error(
+					`firstWins must be between 0 and matchCount (${row.matchCount}), got ${row.firstWins}`,
+				);
+			}
+
+			const key = `${row.firstDeckCode}::${row.secondDeckCode}`;
+			if (seenKeys.has(key)) {
+				throw new Error(`Duplicate matchup row for key: ${key}`);
+			}
+			seenKeys.add(key);
+
+			sumMatchCount += row.matchCount;
+		}
+
+		if (sumMatchCount !== expectedAdmittedMatches) {
+			throw new Error(
+				`Sum of matchup match_count (${sumMatchCount}) does not match admittedPhysicalMatches (${expectedAdmittedMatches})`,
+			);
 		}
 	}
 }

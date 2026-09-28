@@ -136,4 +136,88 @@ describe("UsageConsistencyValidator", () => {
 			UsageConsistencyValidator.validate(validRun, validDeckRows, exceedingSideCardRows),
 		).toThrow(/exceeds sideKnownDecks/);
 	});
+
+	describe("validateMatchupRows", () => {
+		const top15 = ["D01", "D02"];
+
+		it("passes valid matchup rows matching admittedPhysicalMatches", () => {
+			const rows = [
+				{
+					formatId: "1109",
+					windowStart: "2026-07-01",
+					firstDeckCode: "D01",
+					secondDeckCode: "D02",
+					matchCount: 5,
+					firstWins: 3,
+				},
+			];
+			expect(() =>
+				UsageConsistencyValidator.validateMatchupRows("1109", "2026-07-01", rows, 5, top15),
+			).not.toThrow();
+		});
+
+		it("rejects format 1103 if it has any matchup rows", () => {
+			const rows = [
+				{
+					formatId: "1103",
+					windowStart: "2026-07-01",
+					firstDeckCode: "D01",
+					secondDeckCode: "D02",
+					matchCount: 1,
+					firstWins: 1,
+				},
+			];
+			expect(() =>
+				UsageConsistencyValidator.validateMatchupRows("1103", "2026-07-01", rows, 1, top15),
+			).toThrow(/Format 1103 must not have matchup rows/);
+		});
+
+		it("rejects when sum of matchCount does not match expectedAdmittedMatches", () => {
+			const rows = [
+				{
+					formatId: "1109",
+					windowStart: "2026-07-01",
+					firstDeckCode: "D01",
+					secondDeckCode: "D02",
+					matchCount: 5,
+					firstWins: 3,
+				},
+			];
+			expect(() =>
+				UsageConsistencyValidator.validateMatchupRows("1109", "2026-07-01", rows, 6, top15),
+			).toThrow(/Sum of matchup match_count \(5\) does not match admittedPhysicalMatches \(6\)/);
+		});
+
+		it("rejects rows containing OTHERS", () => {
+			const rows = [
+				{
+					formatId: "1109",
+					windowStart: "2026-07-01",
+					firstDeckCode: "OTHERS",
+					secondDeckCode: "D02",
+					matchCount: 1,
+					firstWins: 1,
+				},
+			];
+			expect(() =>
+				UsageConsistencyValidator.validateMatchupRows("1109", "2026-07-01", rows, 1, ["D02"]),
+			).toThrow(/cannot contain OTHERS/);
+		});
+
+		it("rejects rows with invalid firstWins > matchCount", () => {
+			const rows = [
+				{
+					formatId: "1109",
+					windowStart: "2026-07-01",
+					firstDeckCode: "D01",
+					secondDeckCode: "D02",
+					matchCount: 2,
+					firstWins: 3, // 3 > 2!
+				},
+			];
+			expect(() =>
+				UsageConsistencyValidator.validateMatchupRows("1109", "2026-07-01", rows, 2, top15),
+			).toThrow(/firstWins must be between 0 and matchCount/);
+		});
+	});
 });

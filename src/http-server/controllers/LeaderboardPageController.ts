@@ -373,6 +373,7 @@ export function renderLeaderboardPage(formatId: string): string {
 			<button class="tab-btn" data-tab="replays">录像下载</button>
 			<button class="tab-btn" data-tab="ladder">天梯排行</button>
 			<a href="/leaderboards/${formatId}/usage" class="tab-btn" style="text-decoration: none; display: inline-flex; align-items: center;">使用率</a>
+			${formatId === "1109" ? `<a href="/leaderboards/${formatId}/deck-stats" class="tab-btn" style="text-decoration: none; display: inline-flex; align-items: center;">卡组胜率</a>` : ""}
 		</nav>
 	</header>
 

@@ -192,6 +192,11 @@ export class YGOProDuelingState extends YGOProRoomState {
 		const side0Players = this.ocgCore.getPlayersAtIngamePosition(0);
 		const side1Players = this.ocgCore.getPlayersAtIngamePosition(1);
 
+		if (side0Players.length > 0) {
+			const duelIndex = this.room.duelRecords.length;
+			this.room.recordDuelStart(duelIndex, side0Players[0].name);
+		}
+
 		side0Players.forEach((p) =>
 			p.sendMessageToClient(Buffer.from(createStartMsg(0).toFullPayload())),
 		);

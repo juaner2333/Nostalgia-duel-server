@@ -6,6 +6,8 @@ export type Game = {
 	result: "winner" | "loser" | "deuce";
 	turns: number;
 	ipAddress: string | null;
+	duelIndex?: number | null;
+	isFirst?: boolean | null;
 };
 
 export type PlayerMatchSummary = {

@@ -30,6 +30,7 @@
 		"smoke:duel": "node scripts/smoke-duel.mjs",
 		"smoke:ranked": "node scripts/smoke-ranked-duel.mjs",
 		"backfill:replay-decks": "ts-node -r tsconfig-paths/register scripts/backfill-replay-decks.ts",
+		"backfill:duel-seats": "ts-node -r tsconfig-paths/register scripts/backfill-duel-seats.ts",
 		"reclassify:decks": "ts-node -r tsconfig-paths/register scripts/reclassify-match-decks.ts",
 		"rebuild:usage": "node ./dist/src/shared/stats/usage/cli/rebuild-usage-cli.js"
 	},

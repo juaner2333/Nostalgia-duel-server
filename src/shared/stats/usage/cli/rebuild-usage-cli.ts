@@ -71,8 +71,12 @@ export async function runUsageCli(
 		for (const r of report.formatReports) {
 			const periodStr = HalfYearWindow.periodFromWindowStart(r.windowStart);
 			if (r.success) {
+				const matchesInfo =
+					r.admittedPhysicalMatches !== undefined
+						? ` | AdmittedMatches: ${r.admittedPhysicalMatches}`
+						: "";
 				process.stdout.write(
-					`[SUCCESS] Format: ${r.formatId} | Period: ${periodStr} | Cutoff: ${r.dataEndExclusive} | Decks: ${r.totalDecks} | SideKnown: ${r.sideKnownDecks} (${r.durationMs}ms)\n`,
+					`[SUCCESS] Format: ${r.formatId} | Period: ${periodStr} | Cutoff: ${r.dataEndExclusive} | Decks: ${r.totalDecks} | SideKnown: ${r.sideKnownDecks}${matchesInfo} (${r.durationMs}ms)\n`,
 				);
 			} else {
 				process.stderr.write(

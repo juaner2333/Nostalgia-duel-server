@@ -22,6 +22,9 @@ import { UserProfileEntity } from "./UserProfileEntity";
 @Index("idx_matches_usage_active_window", ["formatId", "date", "id"], {
 	where: "deleted_at IS NULL AND anulled = false",
 })
+@Index("idx_matches_matchup_active_game", ["formatId", "gameId"], {
+	where: "deleted_at IS NULL AND anulled = false",
+})
 export class MatchResumeEntity {
 	@PrimaryColumn()
 	id: string;

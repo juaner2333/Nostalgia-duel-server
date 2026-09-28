@@ -1,4 +1,5 @@
 import {
+	Check,
 	Column,
 	CreateDateColumn,
 	DeleteDateColumn,
@@ -14,6 +15,12 @@ import {
 })
 @Unique("UQ_duels_user_replay", ["userId", "replayId"])
 @Index("IDX_duels_replay", ["replayId"])
+@Index("uq_duels_active_match_duel_index", ["matchId", "duelIndex"], {
+	unique: true,
+	where: "duel_index IS NOT NULL AND deleted_at IS NULL",
+})
+@Check("ck_duels_matchup_duel_index", "duel_index IS NULL OR duel_index BETWEEN 1 AND 3")
+@Check("ck_duels_matchup_first_requires_index", "is_first IS NULL OR duel_index IS NOT NULL")
 export class DuelResumeEntity {
 	@PrimaryColumn()
 	id: string;
@@ -53,6 +60,12 @@ export class DuelResumeEntity {
 
 	@Column()
 	season: number;
+
+	@Column({ name: "duel_index", type: "smallint", nullable: true, default: null })
+	duelIndex: number | null;
+
+	@Column({ name: "is_first", type: "boolean", nullable: true, default: null })
+	isFirst: boolean | null;
 
 	@Column({ name: "ip_address", type: "varchar", nullable: true, default: null })
 	ipAddress: string | null;

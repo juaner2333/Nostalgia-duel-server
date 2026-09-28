@@ -11,8 +11,11 @@ import { GetResourceVersionController } from "../controllers/GetResourceVersionC
 import { GetLeaderboardController } from "../controllers/GetLeaderboardController";
 import { GetUsageStatisticsController } from "../controllers/GetUsageStatisticsController";
 import { GetUsagePeriodsController } from "../controllers/GetUsagePeriodsController";
+import { GetDeckStatsController } from "../controllers/GetDeckStatsController";
+import { GetDeckStatsPeriodsController } from "../controllers/GetDeckStatsPeriodsController";
 import { LeaderboardPageController } from "../controllers/LeaderboardPageController";
 import { UsageDashboardPageController } from "../controllers/UsageDashboardPageController";
+import { DeckStatsPageController } from "../controllers/DeckStatsPageController";
 import { GetReplayListController } from "../controllers/GetReplayListController";
 import { DownloadReplayController } from "../controllers/DownloadReplayController";
 import { DownloadMatchDeckController } from "../controllers/DownloadMatchDeckController";
@@ -64,6 +67,9 @@ export function loadRoutes(app: Express, logger: Logger, tickets: TicketReposito
 	app.get("/leaderboards/:format/usage", (req, res) =>
 		new UsageDashboardPageController().run(req, res),
 	);
+	app.get("/leaderboards/:format/deck-stats", (req, res) =>
+		new DeckStatsPageController().run(req, res),
+	);
 
 	app.get("/api/replays/:format", RateLimitMiddleware, async (req, res) => {
 		await new GetReplayListController().run(req, res);
@@ -83,6 +89,14 @@ export function loadRoutes(app: Express, logger: Logger, tickets: TicketReposito
 
 	app.get("/api/ladder/:format/usage", RateLimitMiddleware, async (req, res) => {
 		await new GetUsageStatisticsController().run(req, res);
+	});
+
+	app.get("/api/ladder/:format/deck-stats/periods", RateLimitMiddleware, async (req, res) => {
+		await new GetDeckStatsPeriodsController().run(req, res);
+	});
+
+	app.get("/api/ladder/:format/deck-stats", RateLimitMiddleware, async (req, res) => {
+		await new GetDeckStatsController().run(req, res);
 	});
 
 	app.get("/api/leaderboards/:format", RateLimitMiddleware, async (req, res) => {

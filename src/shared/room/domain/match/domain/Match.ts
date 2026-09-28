@@ -14,6 +14,8 @@ export type MatchHistory = {
 		result: "winner" | "loser" | "deuce";
 		turns: number;
 		ipAddress: string | null;
+		duelIndex?: number | null;
+		isFirst?: boolean | null;
 		// score: number;
 	}[];
 };
@@ -25,6 +27,10 @@ export class Match {
 	private readonly needWins: number;
 	private _players: (Player & MatchHistory)[] = [];
 	private readonly DRAW = 2;
+	private currentDuelSeat?: {
+		duelIndex: number;
+		firstPlayerName: string;
+	};
 
 	constructor({ bestOf }: { bestOf: number }) {
 		this.bestOf = bestOf;
@@ -40,19 +46,30 @@ export class Match {
 		}));
 	}
 
+	recordDuelStart(duelIndex: number, firstPlayerName: string): void {
+		this.currentDuelSeat = { duelIndex, firstPlayerName };
+	}
+
 	duelWinner(
 		winner: number,
 		turns: number,
 		ips: { name: string; ipAddress: string | null }[],
 	): void {
+		const currentSeat = this.currentDuelSeat;
+		this.currentDuelSeat = undefined;
+
 		this._players.forEach((player) => {
 			const ipAddress = ips.find((data) => data.name === player.name)?.ipAddress ?? null;
+			const isFirst = currentSeat ? player.name === currentSeat.firstPlayerName : null;
+			const duelIndex = currentSeat ? currentSeat.duelIndex : null;
 
 			if (winner === this.DRAW) {
 				player.games.push({
 					result: "deuce",
 					turns,
 					ipAddress,
+					duelIndex,
+					isFirst,
 					// score: 1,
 				});
 			} else if (player.team === winner) {
@@ -60,6 +77,8 @@ export class Match {
 					result: "winner",
 					turns,
 					ipAddress,
+					duelIndex,
+					isFirst,
 					// score: 1,
 				});
 			} else {
@@ -67,6 +86,8 @@ export class Match {
 					result: "loser",
 					turns,
 					ipAddress,
+					duelIndex,
+					isFirst,
 					// score: 0,
 				});
 			}

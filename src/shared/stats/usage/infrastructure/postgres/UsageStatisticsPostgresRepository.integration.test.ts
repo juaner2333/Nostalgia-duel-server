@@ -2,6 +2,7 @@ import { DataSource, QueryRunner } from "typeorm";
 import { InitialRankedSchema1741000000000 } from "../../../../../evolution-types/src/migrations/1741000000000-InitialRankedSchema";
 import { AddReplayDeckAccess1741000001000 } from "../../../../../evolution-types/src/migrations/1741000001000-AddReplayDeckAccess";
 import { AddHalfYearUsageStatistics1741000002000 } from "../../../../../evolution-types/src/migrations/1741000002000-AddHalfYearUsageStatistics";
+import { AddHalfYearDeckMatchups1741000003000 } from "../../../../../evolution-types/src/migrations/1741000003000-AddHalfYearDeckMatchups";
 import { UsageStatisticsPostgresRepository } from "./UsageStatisticsPostgresRepository";
 
 describe("UsageStatisticsPostgresRepository Integration", () => {
@@ -85,6 +86,7 @@ describe("UsageStatisticsPostgresRepository Integration", () => {
 			await new InitialRankedSchema1741000000000().up(queryRunner);
 			await new AddReplayDeckAccess1741000001000().up(queryRunner);
 			await new AddHalfYearUsageStatistics1741000002000().up(queryRunner);
+			await new AddHalfYearDeckMatchups1741000003000().up(queryRunner);
 
 			await queryRunner.query(`
 				INSERT INTO "users" ("id", "username", "password", "email") VALUES
@@ -199,5 +201,128 @@ describe("UsageStatisticsPostgresRepository Integration", () => {
 		const rerun = await repo.findRun("1109", "2026-07-01");
 		expect(rerun?.totalDecks).toBe(60);
 		expect(rerun?.dataEndExclusive).toBe("2026-09-28");
+	});
+
+	it("queries physical match perspectives with deck classifications and G1 seats", async () => {
+		if (!isDbAvailable || !ds) return;
+		const queryRunner = ds.createQueryRunner();
+		try {
+			await queryRunner.query(`
+				INSERT INTO "users" ("id", "username", "password", "email") VALUES
+					('u-matchup-1', 'player1', 'hash', 'p1@test.com'),
+					('u-matchup-2', 'player2', 'hash', 'p2@test.com')
+				ON CONFLICT ("id") DO NOTHING;
+			`);
+
+			const gameId = "11111111-2222-3333-4444-555555555555";
+			await queryRunner.query(`
+				INSERT INTO "matches" (
+					"id", "user_id", "game_id", "format_id", "best_of", "player_names", "opponent_names",
+					"date", "ban_list_name", "ban_list_hash", "player_score", "opponent_score", "winner",
+					"season", "points", "anulled"
+				) VALUES 
+					('m-p-1', 'u-matchup-1', '${gameId}', '1109', 3, 'P1', 'P2', '2026-07-03 10:00:00', '1109', 'hash', 2, 1, true, 202601, 1000, false),
+					('m-p-2', 'u-matchup-2', '${gameId}', '1109', 3, 'P2', 'P1', '2026-07-03 10:00:00', '1109', 'hash', 1, 2, false, 202601, 1000, false);
+			`);
+
+			await queryRunner.query(`
+				INSERT INTO "match_decks" ("match_id", "format_id", "deck_type_code", "classifier_version", "snapshot_source", "main_cards", "extra_cards")
+				VALUES 
+					('m-p-1', '1109', 'D01', 'v1', 'online', '{10000}', '{}'),
+					('m-p-2', '1109', 'D02', 'v1', 'online', '{20000}', '{}');
+			`);
+
+			await queryRunner.query(`
+				INSERT INTO "duels" (
+					"id", "match_id", "user_id", "game_id", "replay_id", "player_names", "opponent_names",
+					"date", "ban_list_name", "ban_list_hash", "result", "turns", "season", "duel_index", "is_first"
+				) VALUES 
+					('d-p-1', 'm-p-1', 'u-matchup-1', '${gameId}', '11111111-0000-0000-0000-000000000001', 'P1', 'P2', '2026-07-03 10:00:00', '1109', 'hash', 1, 5, 202601, 1, true),
+					('d-p-2', 'm-p-2', 'u-matchup-2', '${gameId}', '11111111-0000-0000-0000-000000000001', 'P2', 'P1', '2026-07-03 10:00:00', '1109', 'hash', 2, 5, 202601, 1, false);
+			`);
+
+			const repo = new UsageStatisticsPostgresRepository(ds);
+			const perspectives = await repo.queryPhysicalMatchPerspectives(
+				"1109",
+				"2026-07-01",
+				"2026-07-10",
+			);
+
+			const gamePerspectives = perspectives.filter((p) => p.gameId === gameId);
+			expect(gamePerspectives).toHaveLength(2);
+			const p1 = gamePerspectives.find((p) => p.userId === "u-matchup-1");
+			const p2 = gamePerspectives.find((p) => p.userId === "u-matchup-2");
+			expect(p1?.deckTypeCode).toBe("D01");
+			expect(p1?.g1IsFirst).toBe(true);
+			expect(p1?.winner).toBe(true);
+			expect(p2?.deckTypeCode).toBe("D02");
+			expect(p2?.g1IsFirst).toBe(false);
+			expect(p2?.winner).toBe(false);
+		} finally {
+			await queryRunner.release();
+		}
+	});
+
+	it("publishes matchup rows atomically and checks hasMatchupData", async () => {
+		if (!isDbAvailable || !ds) return;
+		const repo = new UsageStatisticsPostgresRepository(ds);
+
+		const windowStart = "2026-07-01";
+		expect(await repo.hasMatchupData("1109", windowStart)).toBe(false);
+
+		const runData = {
+			formatId: "1109",
+			windowStart,
+			windowEndExclusive: "2027-01-01",
+			dataEndExclusive: "2026-09-27",
+			totalDecks: 10,
+			sideKnownDecks: 10,
+			publishedAt: new Date(),
+		};
+		const deckRows = [
+			{ formatId: "1109", windowStart, deckTypeCode: "D01", deckCount: 5 },
+			{ formatId: "1109", windowStart, deckTypeCode: "D02", deckCount: 5 },
+		];
+		const cardRows = [
+			{
+				formatId: "1109",
+				windowStart,
+				metric: "monster" as const,
+				cardId: 10000,
+				deckCount: 5,
+				copies1: 5,
+				copies2: 0,
+				copies3: 0,
+			},
+		];
+		const matchupRows = [
+			{
+				formatId: "1109",
+				windowStart,
+				firstDeckCode: "D01",
+				secondDeckCode: "D02",
+				matchCount: 3,
+				firstWins: 2,
+			},
+		];
+
+		// Publish with matchups
+		await repo.publishPeriodStatistics(runData, deckRows, cardRows, matchupRows);
+
+		expect(await repo.hasMatchupData("1109", windowStart)).toBe(true);
+
+		// Verify rows in DB
+		const rows: any[] = await ds.query(
+			`SELECT * FROM "stats_deck_matchups" WHERE format_id = '1109' AND window_start = $1::date;`,
+			[windowStart],
+		);
+		expect(rows).toHaveLength(1);
+		expect(rows[0].first_deck_code).toBe("D01");
+		expect(rows[0].second_deck_code).toBe("D02");
+		expect(Number(rows[0].match_count)).toBe(3);
+		expect(Number(rows[0].first_wins)).toBe(2);
+
+		// Format 1103 isolation: 1103 hasMatchupData is always true and does not touch stats_deck_matchups
+		expect(await repo.hasMatchupData("1103", windowStart)).toBe(true);
 	});
 });

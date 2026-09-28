@@ -11,6 +11,7 @@ import { PlayerStatsEntity } from "./entities/PlayerStatsEntity";
 import { UsageCardRowEntity } from "./entities/UsageCardRowEntity";
 import { UsageDeckRowEntity } from "./entities/UsageDeckRowEntity";
 import { UsageStatRunEntity } from "./entities/UsageStatRunEntity";
+import { StatsDeckMatchupEntity } from "./entities/StatsDeckMatchupEntity";
 import { UserBanEntity } from "./entities/UserBanEntity";
 import { UserProfileEntity } from "./entities/UserProfileEntity";
 
@@ -35,6 +36,7 @@ const options: DataSourceOptions = {
 		UsageStatRunEntity,
 		UsageDeckRowEntity,
 		UsageCardRowEntity,
+		StatsDeckMatchupEntity,
 	],
 	subscribers: [],
 	migrations: [

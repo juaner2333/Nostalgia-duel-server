@@ -6,6 +6,7 @@ import { UserProfile } from "@shared/user-profile/domain/UserProfile";
 import { Team } from "@shared/room/Team";
 import { dataSource } from "../../../evolution-types/src/data-source";
 import { MatchDeckEntity } from "../../../evolution-types/src/entities/MatchDeckEntity";
+import { DuelResumeEntity } from "../../../evolution-types/src/entities/DuelResumeEntity";
 import { YGOProYrp, ReplayHeader } from "ygopro-yrp-encode";
 
 jest.mock("../../../evolution-types/src/data-source", () => ({
@@ -751,5 +752,196 @@ describe("RankedMatchPersistenceService", () => {
 		const p1Deck = matchDeckCreations[0][1];
 		expect(p1Deck.formatId).toBe("1109");
 		expect(p1Deck.deckTypeCode).toBe("D03");
+	});
+
+	it("persists G1 duels with complementary isFirst seats (one true, one false) and duel_index = 1, while unstarted duel has NULL", async () => {
+		const user1 = await UserProfile.create({
+			id: "user-1",
+			username: "Player1",
+			password: "pin",
+			email: null,
+			avatar: null,
+		});
+		const user2 = await UserProfile.create({
+			id: "user-2",
+			username: "Player2",
+			password: "pin",
+			email: null,
+			avatar: null,
+		});
+
+		userProfileRepository.findByUsername.mockResolvedValueOnce(user1).mockResolvedValueOnce(user2);
+
+		const event = new GameOverDomainEvent({
+			bestOf: 3,
+			date: new Date("2026-09-01T20:00:00Z"),
+			formatId: "1109",
+			banListHash: 1109,
+			banListName: "OCG 1109",
+			ranked: true,
+			players: [
+				{
+					id: "user-1",
+					name: "Player1",
+					team: Team.PLAYER,
+					winner: true,
+					score: 2,
+					games: [
+						{ result: "winner", turns: 5, ipAddress: "127.0.0.1", duelIndex: 1, isFirst: true },
+						{ result: "winner", turns: 1, ipAddress: "127.0.0.1", duelIndex: null, isFirst: null },
+					],
+				},
+				{
+					id: "user-2",
+					name: "Player2",
+					team: Team.OPPONENT,
+					winner: false,
+					score: 0,
+					games: [
+						{ result: "loser", turns: 5, ipAddress: "127.0.0.1", duelIndex: 1, isFirst: false },
+						{ result: "loser", turns: 1, ipAddress: "127.0.0.1", duelIndex: null, isFirst: null },
+					],
+				},
+			],
+		});
+
+		await service.persist(event);
+
+		const duelCreations = mockEntityManager.create.mock.calls.filter(
+			(call) => call[0] === DuelResumeEntity,
+		);
+		expect(duelCreations).toHaveLength(4);
+
+		// Player 1 G1
+		expect(duelCreations[0][1].duelIndex).toBe(1);
+		expect(duelCreations[0][1].isFirst).toBe(true);
+
+		// Player 1 G2 (unstarted/forfeited)
+		expect(duelCreations[1][1].duelIndex).toBeNull();
+		expect(duelCreations[1][1].isFirst).toBeNull();
+
+		// Player 2 G1 (complementary seat)
+		expect(duelCreations[2][1].duelIndex).toBe(1);
+		expect(duelCreations[2][1].isFirst).toBe(false);
+
+		// Player 2 G2 (unstarted/forfeited)
+		expect(duelCreations[3][1].duelIndex).toBeNull();
+		expect(duelCreations[3][1].isFirst).toBeNull();
+	});
+
+	it("persists all NULL duel_index and is_first when match forfeited without real G1", async () => {
+		const user1 = await UserProfile.create({
+			id: "user-1",
+			username: "Player1",
+			password: "pin",
+			email: null,
+			avatar: null,
+		});
+		const user2 = await UserProfile.create({
+			id: "user-2",
+			username: "Player2",
+			password: "pin",
+			email: null,
+			avatar: null,
+		});
+
+		userProfileRepository.findByUsername.mockResolvedValueOnce(user1).mockResolvedValueOnce(user2);
+
+		const event = new GameOverDomainEvent({
+			bestOf: 3,
+			date: new Date("2026-09-01T20:00:00Z"),
+			formatId: "1109",
+			banListHash: 1109,
+			banListName: "OCG 1109",
+			ranked: true,
+			players: [
+				{
+					id: "user-1",
+					name: "Player1",
+					team: Team.PLAYER,
+					winner: true,
+					score: 2,
+					games: [
+						{ result: "winner", turns: 1, ipAddress: "127.0.0.1", duelIndex: null, isFirst: null },
+						{ result: "winner", turns: 1, ipAddress: "127.0.0.1", duelIndex: null, isFirst: null },
+					],
+				},
+				{
+					id: "user-2",
+					name: "Player2",
+					team: Team.OPPONENT,
+					winner: false,
+					score: 0,
+					games: [
+						{ result: "loser", turns: 1, ipAddress: "127.0.0.1", duelIndex: null, isFirst: null },
+						{ result: "loser", turns: 1, ipAddress: "127.0.0.1", duelIndex: null, isFirst: null },
+					],
+				},
+			],
+		});
+
+		await service.persist(event);
+
+		const duelCreations = mockEntityManager.create.mock.calls.filter(
+			(call) => call[0] === DuelResumeEntity,
+		);
+		expect(duelCreations).toHaveLength(4);
+		for (const call of duelCreations) {
+			expect(call[1].duelIndex).toBeNull();
+			expect(call[1].isFirst).toBeNull();
+		}
+	});
+
+	it("rolls back transaction when database persistence fails", async () => {
+		const user1 = await UserProfile.create({
+			id: "user-1",
+			username: "Player1",
+			password: "pin",
+			email: null,
+			avatar: null,
+		});
+		const user2 = await UserProfile.create({
+			id: "user-2",
+			username: "Player2",
+			password: "pin",
+			email: null,
+			avatar: null,
+		});
+
+		userProfileRepository.findByUsername.mockResolvedValueOnce(user1).mockResolvedValueOnce(user2);
+		mockEntityManager.save.mockRejectedValue(new Error("Database connection lost"));
+
+		const event = new GameOverDomainEvent({
+			bestOf: 3,
+			date: new Date("2026-09-01T20:00:00Z"),
+			formatId: "1109",
+			banListHash: 1109,
+			banListName: "OCG 1109",
+			ranked: true,
+			players: [
+				{
+					id: "user-1",
+					name: "Player1",
+					team: Team.PLAYER,
+					winner: true,
+					score: 2,
+					games: [{ result: "winner", turns: 5, ipAddress: "127.0.0.1" }],
+				},
+				{
+					id: "user-2",
+					name: "Player2",
+					team: Team.OPPONENT,
+					winner: false,
+					score: 0,
+					games: [{ result: "loser", turns: 5, ipAddress: "127.0.0.1" }],
+				},
+			],
+		});
+
+		const errorSpy = jest.spyOn(logger, "error");
+		await service.persist(event);
+		expect(errorSpy).toHaveBeenCalledWith(
+			expect.stringContaining("Second persistence attempt failed"),
+		);
 	});
 });
