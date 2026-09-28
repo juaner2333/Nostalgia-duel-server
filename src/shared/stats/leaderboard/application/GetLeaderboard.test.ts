@@ -1,6 +1,5 @@
 import { GetLeaderboard } from "./GetLeaderboard";
 import { LeaderboardRepository } from "../domain/LeaderboardRepository";
-import { NostalgiaFormat } from "@ygopro/room/domain/NostalgiaFormat";
 
 describe("GetLeaderboard UseCase", () => {
 	let repository: jest.Mocked<LeaderboardRepository>;
@@ -11,6 +10,7 @@ describe("GetLeaderboard UseCase", () => {
 			getSeasonLeaderboard: jest.fn(),
 			getOverallLeaderboard: jest.fn(),
 			getPlayerMonthlyStats: jest.fn(),
+			getPlayerSeasonStats: jest.fn(),
 		};
 		useCase = new GetLeaderboard(repository);
 	});
@@ -21,13 +21,25 @@ describe("GetLeaderboard UseCase", () => {
 		);
 	});
 
-	it("rejects season scope without valid YYYY-MM season parameter", async () => {
+	it("rejects season scope with invalid half-year or legacy monthly season parameter", async () => {
 		await expect(
 			useCase.run({ format: "1109", scope: "season", season: "invalid" }),
-		).rejects.toThrow("Invalid season");
+		).rejects.toThrow("Invalid season: format must be YYYYH1 or YYYYH2");
+
+		await expect(
+			useCase.run({ format: "1109", scope: "season", season: "2026-06" }),
+		).rejects.toThrow("Invalid season: format must be YYYYH1 or YYYYH2");
+
+		await expect(
+			useCase.run({ format: "1109", scope: "season", season: "2026-09" }),
+		).rejects.toThrow("Invalid season: format must be YYYYH1 or YYYYH2");
+
+		await expect(useCase.run({ format: "1109", scope: "season", season: "" })).rejects.toThrow(
+			"Invalid season: format must be YYYYH1 or YYYYH2",
+		);
 	});
 
-	it("returns sorted season leaderboard for 1109", async () => {
+	it("returns sorted season leaderboard for 1109 in 2026H1", async () => {
 		repository.getSeasonLeaderboard.mockResolvedValue([
 			{
 				rank: 1,
@@ -52,14 +64,44 @@ describe("GetLeaderboard UseCase", () => {
 		const result = await useCase.run({
 			format: "1109",
 			scope: "season",
-			season: "2026-09",
+			season: "2026H1",
 		});
 
 		expect(result.format).toBe("1109");
 		expect(result.scope).toBe("season");
-		expect(result.season).toBe("2026-09");
+		expect(result.season).toBe("2026H1");
 		expect(result.leaderboard).toHaveLength(2);
 		expect(result.leaderboard[0].rank).toBe(1);
+		expect(repository.getSeasonLeaderboard).toHaveBeenCalledWith(
+			"1109",
+			expect.objectContaining({
+				label: "2026H1",
+				startMonth: 202601,
+				endMonth: 202606,
+			}),
+			expect.any(Object),
+		);
+	});
+
+	it("queries historical half-year season (e.g. 2025H2)", async () => {
+		repository.getSeasonLeaderboard.mockResolvedValue([]);
+
+		const result = await useCase.run({
+			format: "1103",
+			scope: "season",
+			season: "2025H2",
+		});
+
+		expect(result.season).toBe("2025H2");
+		expect(repository.getSeasonLeaderboard).toHaveBeenCalledWith(
+			"1103",
+			expect.objectContaining({
+				label: "2025H2",
+				startMonth: 202507,
+				endMonth: 202512,
+			}),
+			expect.any(Object),
+		);
 	});
 
 	it("returns overall leaderboard across all seasons", async () => {
@@ -91,7 +133,7 @@ describe("GetLeaderboard UseCase", () => {
 
 	it("rejects overall scope when season parameter is provided", async () => {
 		await expect(
-			useCase.run({ format: "1103", scope: "overall", season: "2026-09" }),
+			useCase.run({ format: "1103", scope: "overall", season: "2026H1" }),
 		).rejects.toThrow("The 'season' parameter is not allowed when scope is 'overall'");
 	});
 
@@ -114,7 +156,7 @@ describe("GetLeaderboard UseCase", () => {
 		const result = await useCase.run({
 			format: "1103",
 			scope: "season",
-			season: "2026-09",
+			season: "2026H1",
 			search: "Alice",
 			page: 1,
 			pageSize: 50,
@@ -124,10 +166,14 @@ describe("GetLeaderboard UseCase", () => {
 		expect(result.page).toBe(1);
 		expect(result.pageSize).toBe(50);
 		expect(result.leaderboard[0].username).toBe("AliceHero");
-		expect(repository.getSeasonLeaderboard).toHaveBeenCalledWith("1103", 202609, {
-			search: "Alice",
-			page: 1,
-			pageSize: 50,
-		});
+		expect(repository.getSeasonLeaderboard).toHaveBeenCalledWith(
+			"1103",
+			expect.objectContaining({ label: "2026H1" }),
+			{
+				search: "Alice",
+				page: 1,
+				pageSize: 50,
+			},
+		);
 	});
 });

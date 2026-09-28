@@ -32,10 +32,16 @@
    - 点击“下载 .yrp”直接下载录像文件（指向 `GET /api/replays/:format/:replayId`），下载文件名遵循 `<结束时间> <玩家1> VS <玩家2>.yrp` 规范。
 
 3. **天梯排行 Tab (`ladder`)**：
-   - 默认根据客户端 `Asia/Shanghai` 时区计算当前月赛季并加载月榜（`scope=season&season=YYYY-MM`）；可切换查看历史月榜或总榜（`scope=overall`）。
+   - 默认根据客户端 `Asia/Shanghai` 时区计算当前半年赛季并加载半年榜（`scope=season&season=YYYYH1|YYYYH2`）；可切换查看历史半年榜或跨期总榜（`scope=overall`）。
+   - 切换半年或总榜时自动回到第 1 页；保留所选环境与搜索条件。
    - 分页每页固定 50 条；支持按玩家昵称搜索，搜索结果展示真实昵称并保留全局排位名次。
    - **隐私打码保护**：在无搜索关键词时，名次位于后 30%（即 `rank / total >= 0.7`）的玩家昵称在前端展示层打码为 `******`。
    - 前三名高亮展示；总场次列等于胜场加败场。
+   - **更新频率差异说明**：
+     - **当前半年榜 (`YYYYH1`/`YYYYH2`) 与跨期总榜 (`overall`)**：每次排位 Match 结算后实时累加月度事实并更新。
+     - **历史半年榜**：历史已完结半年赛季的归档结果，不随当前比赛变动。
+     - **使用率页面 (`usage`)**：每日凌晨由批处理统计前一日已结束对局，更新频率与实时天梯不同。
+
 
 ---
 
@@ -102,8 +108,9 @@
 
 - **查询参数**：
   - `scope`: `"season" | "overall"`（必填）
-  - `season`: `"YYYY-MM"`（`scope=season` 时必填，`scope=overall` 时禁止携带）
+  - `season`: `"YYYYH1" | "YYYYH2"`（`scope=season` 时必填，`scope=overall` 时禁止携带；旧 `YYYY-MM` 参数返回 400）
   - `search`: string（可选，玩家昵称子串匹配）
   - `page`: number（可选，正整数）
   - `pageSize`: number（可选，正整数）
-- **响应**：在保持既有 `rank`, `userId`, `username`, `points`, `wins`, `losses`, `winRate` 契约不变的基础上，增量返回 `page`, `pageSize`, `total` 字段。
+- **响应**：在保持既有 `rank`, `userId`, `username`, `points`, `wins`, `losses`, `winRate` 契约不变的基础上，返回规范化的 `season`（如 `2026H1`）及 `page`, `pageSize`, `total` 字段。
+

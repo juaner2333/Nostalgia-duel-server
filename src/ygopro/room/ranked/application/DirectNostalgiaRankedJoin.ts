@@ -15,7 +15,7 @@ import { ISocket } from "@shared/socket/domain/ISocket";
 import { FinalizeYGOProRoom } from "../../application/FinalizeYGOProRoom";
 
 import { ChatColor, YGOProStocChat } from "ygopro-msg-encode";
-import { calculateBeijingSeason } from "src/utils/calculateBeijingSeason";
+import { calculateBeijingHalfYear } from "src/utils/calculateBeijingSeason";
 import { LeaderboardRepository } from "@shared/stats/leaderboard/domain/LeaderboardRepository";
 import { LeaderboardPostgresRepository } from "@shared/stats/leaderboard/infrastructure/postgres/LeaderboardPostgresRepository";
 
@@ -282,11 +282,11 @@ export class DirectNostalgiaRankedJoin {
 
 	private async sendRankedNotice(socket: ISocket, userId: string, formatId: string): Promise<void> {
 		try {
-			const beijingSeason = calculateBeijingSeason(new Date());
-			const stats = await this.leaderboardRepository.getPlayerMonthlyStats(
+			const halfYear = calculateBeijingHalfYear(new Date());
+			const stats = await this.leaderboardRepository.getPlayerSeasonStats(
 				userId,
 				formatId,
-				beijingSeason,
+				halfYear.label,
 			);
 			const winRatePct = (stats.winRate * 100).toFixed(1);
 			const rankStr = stats.rank !== null ? `#${stats.rank}` : "未上榜";

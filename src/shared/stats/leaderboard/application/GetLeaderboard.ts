@@ -5,6 +5,8 @@ import {
 	SupportedLeaderboardFormat,
 } from "../domain/Leaderboard";
 
+import { parseHalfYearSeason } from "src/utils/calculateBeijingSeason";
+
 export type GetLeaderboardRequest = {
 	format: string;
 	scope: "season" | "overall";
@@ -48,53 +50,19 @@ export class GetLeaderboard {
 
 		if (request.scope === "season") {
 			if (!request.season) {
-				throw new Error("Invalid season: format must be YYYY-MM");
+				throw new Error("Invalid season: format must be YYYYH1 or YYYYH2 (e.g. 2026H1)");
 			}
 
-			const str = String(request.season).trim();
-			let normalizedYear = "";
-			let monthNumber = 0;
+			const halfYear = parseHalfYearSeason(request.season);
 
-			const m1 =
-				str.match(/^(\d{4})[^\d]?(\d{1,2})[^\d]?$/) || str.match(/^(\d{4})[^\d]+(\d{1,2})/);
-			if (m1) {
-				normalizedYear = m1[1];
-				monthNumber = parseInt(m1[2], 10);
-			} else {
-				const m2 = str.match(/^(\d{2})[^\d]+(\d{1,2})/);
-				if (m2) {
-					const y2 = parseInt(m2[1], 10);
-					normalizedYear = y2 < 50 ? String(2000 + y2) : String(1900 + y2);
-					monthNumber = parseInt(m2[2], 10);
-				} else {
-					const m3 = str.match(/^(\d{4})(\d{2})$/);
-					if (m3) {
-						normalizedYear = m3[1];
-						monthNumber = parseInt(m3[2], 10);
-					}
-				}
-			}
-
-			if (!normalizedYear || monthNumber < 1 || monthNumber > 12) {
-				throw new Error("Invalid season: format must be YYYY-MM (e.g. 2026-02)");
-			}
-
-			const normalizedMonth = monthNumber < 10 ? `0${monthNumber}` : String(monthNumber);
-			const normalizedSeason = `${normalizedYear}-${normalizedMonth}`;
-			const numericSeason = parseInt(`${normalizedYear}${normalizedMonth}`, 10);
-
-			const result = await this.repository.getSeasonLeaderboard(
-				request.format,
-				numericSeason,
-				options,
-			);
+			const result = await this.repository.getSeasonLeaderboard(request.format, halfYear, options);
 			const entries = Array.isArray(result) ? result : result.entries;
 			const total = Array.isArray(result) ? result.length : result.total;
 
 			return {
 				format: request.format,
 				scope: "season",
-				season: normalizedSeason,
+				season: halfYear.label,
 				page: request.page,
 				pageSize: request.pageSize,
 				total,

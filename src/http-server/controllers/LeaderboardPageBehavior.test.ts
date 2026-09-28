@@ -105,14 +105,17 @@ describe("LeaderboardPage client-side scripts and behavior specification", () =>
 	});
 
 	describe("Tab 3: 天梯排行 (Ladder tab)", () => {
-		it("calculates initial month in Asia/Shanghai timezone", () => {
+		it("calculates initial half-year season in Asia/Shanghai timezone", () => {
 			expect(html1103).toContain('timeZone: "Asia/Shanghai"');
-			expect(html1103).toContain("getBeijingMonth()");
+			expect(html1103).toContain("getBeijingHalfYear()");
 		});
 
-		it("switches between monthly season and overall total ladder", () => {
+		it("switches between half-year season and overall total ladder with year/half selectors", () => {
 			expect(html1103).toContain('id="btn-scope-season"');
 			expect(html1103).toContain('id="btn-scope-overall"');
+			expect(html1103).toContain('id="ladder-season-year"');
+			expect(html1103).toContain('id="ladder-season-half"');
+			expect(html1103).toContain('id="btn-query-season"');
 			expect(html1103).toContain('ladderState.scope = "season"');
 			expect(html1103).toContain('ladderState.scope = "overall"');
 		});
@@ -143,11 +146,7 @@ describe("LeaderboardPage client-side scripts and behavior specification", () =>
 		});
 
 		it("serves season-parsing regexes with intact backslash digit escapes", () => {
-			expect(html1103).toContain("/^(\\d{4})[^\\d]?(\\d{1,2})[^\\d]?$/");
-			expect(html1103).toContain("/^(\\d{4})[^\\d]+(\\d{1,2})/");
-			expect(html1103).toContain("/^(\\d{2})[^\\d]+(\\d{1,2})/");
-			expect(html1103).toContain("/^(\\d{4})(\\d{2})$/");
-			expect(html1103).toContain("/^\\d{4}$/.test(y) && /^\\d{2}$/.test(m)");
+			expect(html1103).toContain("/^(\\d{4})H([12])$/");
 		});
 	});
 

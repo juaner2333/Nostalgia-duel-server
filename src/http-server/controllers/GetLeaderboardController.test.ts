@@ -30,7 +30,7 @@ describe("GetLeaderboardController", () => {
 		config.ranking.enabled = false;
 		req = {
 			params: { format: "1109" },
-			query: { scope: "season", season: "2026-09" },
+			query: { scope: "season", season: "2026H1" },
 		};
 
 		await controller.run(req as Request, res as Response);
@@ -43,16 +43,16 @@ describe("GetLeaderboardController", () => {
 		);
 	});
 
-	it("returns 200 with leaderboard data for valid query", async () => {
+	it("returns 200 with leaderboard data for valid 2026H1 query", async () => {
 		req = {
 			params: { format: "1109" },
-			query: { scope: "season", season: "2026-09" },
+			query: { scope: "season", season: "2026H1" },
 		};
 
 		getLeaderboard.run.mockResolvedValue({
 			format: "1109",
 			scope: "season",
-			season: "2026-09",
+			season: "2026H1",
 			leaderboard: [],
 		});
 
@@ -62,8 +62,26 @@ describe("GetLeaderboardController", () => {
 		expect(res.json).toHaveBeenCalledWith({
 			format: "1109",
 			scope: "season",
-			season: "2026-09",
+			season: "2026H1",
 			leaderboard: [],
+		});
+	});
+
+	it("returns 400 when old monthly format 2026-06 is requested", async () => {
+		req = {
+			params: { format: "1109" },
+			query: { scope: "season", season: "2026-06" },
+		};
+
+		getLeaderboard.run.mockRejectedValue(
+			new Error("Invalid season: format must be YYYYH1 or YYYYH2 (e.g. 2026H1)"),
+		);
+
+		await controller.run(req as Request, res as Response);
+
+		expect(res.status).toHaveBeenCalledWith(400);
+		expect(res.json).toHaveBeenCalledWith({
+			error: "Invalid season: format must be YYYYH1 or YYYYH2 (e.g. 2026H1)",
 		});
 	});
 
@@ -102,7 +120,7 @@ describe("GetLeaderboardController", () => {
 	it("returns 400 when scope is overall and season is provided", async () => {
 		req = {
 			params: { format: "1109" },
-			query: { scope: "overall", season: "2026-09" },
+			query: { scope: "overall", season: "2026H1" },
 		};
 
 		await controller.run(req as Request, res as Response);
@@ -120,7 +138,7 @@ describe("GetLeaderboardController", () => {
 			params: { format: "1103" },
 			query: {
 				scope: "season",
-				season: "2026-09",
+				season: "2026H1",
 				search: "Alice",
 				page: "2",
 				pageSize: "50",
@@ -130,7 +148,7 @@ describe("GetLeaderboardController", () => {
 		getLeaderboard.run.mockResolvedValue({
 			format: "1103",
 			scope: "season",
-			season: "2026-09",
+			season: "2026H1",
 			page: 2,
 			pageSize: 50,
 			total: 75,
@@ -142,7 +160,7 @@ describe("GetLeaderboardController", () => {
 		expect(getLeaderboard.run).toHaveBeenCalledWith({
 			format: "1103",
 			scope: "season",
-			season: "2026-09",
+			season: "2026H1",
 			search: "Alice",
 			page: 2,
 			pageSize: 50,
@@ -162,7 +180,7 @@ describe("GetLeaderboardController", () => {
 			params: { format: "1103" },
 			query: {
 				scope: "season",
-				season: "2026-09",
+				season: "2026H1",
 				page: "invalid",
 			},
 		};

@@ -458,11 +458,15 @@ export function renderLeaderboardPage(formatId: string): string {
 		<section id="tab-ladder" class="tab-content">
 			<div class="toolbar">
 				<div class="controls-group">
-					<button id="btn-scope-season" class="btn btn-primary">月榜</button>
+					<button id="btn-scope-season" class="btn btn-primary">半年榜</button>
 					<button id="btn-scope-overall" class="btn">总榜</button>
-					<input type="month" id="ladder-season-input" />
-					<button id="btn-query-month" class="btn">查询月份</button>
-					<span id="ladder-active-label" class="badge">2026-09 赛季</span>
+					<select id="ladder-season-year"></select>
+					<select id="ladder-season-half">
+						<option value="H1">上半年 (01-06月)</option>
+						<option value="H2">下半年 (07-12月)</option>
+					</select>
+					<button id="btn-query-season" class="btn">查询半年</button>
+					<span id="ladder-active-label" class="badge">2026H2 赛季</span>
 				</div>
 				<div class="controls-group">
 					<input type="text" id="ladder-search-input" placeholder="搜索玩家昵称" />
@@ -548,7 +552,7 @@ export function renderLeaderboardPage(formatId: string): string {
 				document.body.removeChild(ta);
 			}
 
-			function getBeijingMonth() {
+			function getBeijingHalfYear() {
 				try {
 					var parts = new Intl.DateTimeFormat("en-US", {
 						timeZone: "Asia/Shanghai",
@@ -560,46 +564,28 @@ export function renderLeaderboardPage(formatId: string): string {
 						if (parts[i].type === "year") y = parts[i].value;
 						if (parts[i].type === "month") m = parts[i].value;
 					}
-					if (m && m.length < 2) m = "0" + m;
-					if (y && m && /^\\d{4}$/.test(y) && /^\\d{2}$/.test(m)) return y + "-" + m;
+					var yearNum = parseInt(y, 10);
+					var monthNum = parseInt(m, 10);
+					if (yearNum && monthNum) {
+						var half = monthNum <= 6 ? "H1" : "H2";
+						return yearNum + half;
+					}
 				} catch (e) {}
 				var d = new Date();
 				var utc = d.getTime() + (d.getTimezoneOffset() * 60000);
 				var bj = new Date(utc + (3600000 * 8));
 				var year = bj.getFullYear();
 				var monthNum = bj.getMonth() + 1;
-				var month = monthNum < 10 ? ("0" + monthNum) : String(monthNum);
-				return year + "-" + month;
+				var half = monthNum <= 6 ? "H1" : "H2";
+				return year + half;
 			}
 
 			function parseSeasonInput(raw) {
 				if (!raw) return null;
-				var str = String(raw).trim();
-				var m = str.match(/^(\\d{4})[^\\d]?(\\d{1,2})[^\\d]?$/) ||
-				        str.match(/^(\\d{4})[^\\d]+(\\d{1,2})/);
+				var str = String(raw).trim().toUpperCase();
+				var m = str.match(/^(\\d{4})H([12])$/);
 				if (m) {
-					var year = m[1];
-					var month = parseInt(m[2], 10);
-					if (month >= 1 && month <= 12) {
-						return year + "-" + (month < 10 ? "0" + month : String(month));
-					}
-				}
-				var m2 = str.match(/^(\\d{2})[^\\d]+(\\d{1,2})/);
-				if (m2) {
-					var yearNum = parseInt(m2[1], 10);
-					var y2 = yearNum < 50 ? String(2000 + yearNum) : String(1900 + yearNum);
-					var month2 = parseInt(m2[2], 10);
-					if (month2 >= 1 && month2 <= 12) {
-						return y2 + "-" + (month2 < 10 ? "0" + month2 : String(month2));
-					}
-				}
-				var m3 = str.match(/^(\\d{4})(\\d{2})$/);
-				if (m3) {
-					var y3 = m3[1];
-					var month3 = parseInt(m3[2], 10);
-					if (month3 >= 1 && month3 <= 12) {
-						return y3 + "-" + (month3 < 10 ? "0" + month3 : String(month3));
-					}
+					return m[1] + "H" + m[2];
 				}
 				return null;
 			}
@@ -1019,19 +1005,57 @@ export function renderLeaderboardPage(formatId: string): string {
 				requestId: 0,
 				loaded: false,
 				scope: "season",
-				season: getBeijingMonth(),
+				season: getBeijingHalfYear(),
 				search: "",
 				page: 1,
 				pageSize: 50,
 				total: 0
 			};
 
-			document.getElementById("ladder-season-input").value = ladderState.season;
+			function initLadderSeasonSelectors() {
+				var currentSeason = getBeijingHalfYear();
+				var curYear = parseInt(currentSeason.substring(0, 4), 10);
+				var yearSelect = document.getElementById("ladder-season-year");
+				if (yearSelect && yearSelect.options.length === 0) {
+					for (var y = curYear + 1; y >= 2024; y--) {
+						var opt = document.createElement("option");
+						opt.value = String(y);
+						opt.textContent = y + " 年";
+						yearSelect.appendChild(opt);
+					}
+				}
+				syncLadderSelectors(ladderState.season);
+			}
+
+			function syncLadderSelectors(seasonStr) {
+				var yearSelect = document.getElementById("ladder-season-year");
+				var halfSelect = document.getElementById("ladder-season-half");
+				if (!seasonStr || !yearSelect || !halfSelect) return;
+				var y = seasonStr.substring(0, 4);
+				var h = seasonStr.substring(4);
+				yearSelect.value = y;
+				halfSelect.value = h;
+			}
+
+			function getSelectedSeasonFromSelectors() {
+				var yearSelect = document.getElementById("ladder-season-year");
+				var halfSelect = document.getElementById("ladder-season-half");
+				var y = yearSelect ? yearSelect.value : "";
+				var h = halfSelect ? halfSelect.value : "";
+				return (y && h) ? (y + h) : getBeijingHalfYear();
+			}
+
+			initLadderSeasonSelectors();
 
 			function updateLadderActiveLabel() {
 				var label = document.getElementById("ladder-active-label");
 				if (label) {
-					label.textContent = ladderState.scope === "season" ? (ladderState.season + " 赛季") : "全赛季总榜";
+					if (ladderState.scope === "season") {
+						var isH1 = ladderState.season.slice(-2) === "H1";
+						label.textContent = ladderState.season + " 赛季 (" + (isH1 ? "上半年: 01-06月" : "下半年: 07-12月") + ")";
+					} else {
+						label.textContent = "全赛季总榜";
+					}
 				}
 			}
 
@@ -1040,11 +1064,10 @@ export function renderLeaderboardPage(formatId: string): string {
 				if (parsed) {
 					ladderState.season = parsed;
 				} else if (!ladderState.season) {
-					ladderState.season = getBeijingMonth();
+					ladderState.season = getBeijingHalfYear();
 				}
+				syncLadderSelectors(ladderState.season);
 				ladderState.page = 1;
-				var inputElem = document.getElementById("ladder-season-input");
-				if (inputElem) inputElem.value = ladderState.season;
 				loadLadder();
 			}
 
@@ -1062,12 +1085,9 @@ export function renderLeaderboardPage(formatId: string): string {
 
 				if (ladderState.scope === "season") {
 					if (!ladderState.season || !parseSeasonInput(ladderState.season)) {
-						ladderState.season = getBeijingMonth();
+						ladderState.season = getBeijingHalfYear();
 					}
-					var inputElem = document.getElementById("ladder-season-input");
-					if (inputElem && inputElem.value !== ladderState.season) {
-						inputElem.value = ladderState.season;
-					}
+					syncLadderSelectors(ladderState.season);
 				}
 				updateLadderActiveLabel();
 
@@ -1198,17 +1218,11 @@ export function renderLeaderboardPage(formatId: string): string {
 				ladderState.scope = "season";
 				document.getElementById("btn-scope-season").classList.add("btn-primary");
 				document.getElementById("btn-scope-overall").classList.remove("btn-primary");
-				document.getElementById("ladder-season-input").style.display = "inline-block";
-				document.getElementById("btn-query-month").style.display = "inline-block";
-				var inputElem = document.getElementById("ladder-season-input");
-				var val = inputElem ? inputElem.value.trim() : "";
-				var parsed = parseSeasonInput(val);
-				if (parsed) {
-					ladderState.season = parsed;
-				} else if (!ladderState.season) {
-					ladderState.season = getBeijingMonth();
-				}
-				if (inputElem) inputElem.value = ladderState.season;
+				document.getElementById("ladder-season-year").style.display = "inline-block";
+				document.getElementById("ladder-season-half").style.display = "inline-block";
+				document.getElementById("btn-query-season").style.display = "inline-block";
+				ladderState.season = getSelectedSeasonFromSelectors();
+				syncLadderSelectors(ladderState.season);
 				ladderState.page = 1;
 				loadLadder();
 			});
@@ -1217,27 +1231,28 @@ export function renderLeaderboardPage(formatId: string): string {
 				ladderState.scope = "overall";
 				document.getElementById("btn-scope-overall").classList.add("btn-primary");
 				document.getElementById("btn-scope-season").classList.remove("btn-primary");
-				document.getElementById("ladder-season-input").style.display = "none";
-				document.getElementById("btn-query-month").style.display = "none";
+				document.getElementById("ladder-season-year").style.display = "none";
+				document.getElementById("ladder-season-half").style.display = "none";
+				document.getElementById("btn-query-season").style.display = "none";
 				ladderState.page = 1;
 				loadLadder();
 			});
 
-			document.getElementById("btn-query-month").addEventListener("click", function() {
-				var inputElem = document.getElementById("ladder-season-input");
-				setSeasonAndQuery(inputElem ? inputElem.value : "");
+			document.getElementById("btn-query-season").addEventListener("click", function() {
+				var selected = getSelectedSeasonFromSelectors();
+				setSeasonAndQuery(selected);
 			});
 
-			document.getElementById("ladder-season-input").addEventListener("change", function() {
-				setSeasonAndQuery(this.value);
+			document.getElementById("ladder-season-year").addEventListener("change", function() {
+				var selected = getSelectedSeasonFromSelectors();
+				setSeasonAndQuery(selected);
 			});
 
-			document.getElementById("ladder-season-input").addEventListener("input", function() {
-				var parsed = parseSeasonInput(this.value);
-				if (parsed) {
-					ladderState.season = parsed;
-				}
+			document.getElementById("ladder-season-half").addEventListener("change", function() {
+				var selected = getSelectedSeasonFromSelectors();
+				setSeasonAndQuery(selected);
 			});
+
 
 			document.getElementById("btn-search-ladder").addEventListener("click", function() {
 				ladderState.search = document.getElementById("ladder-search-input").value.trim();

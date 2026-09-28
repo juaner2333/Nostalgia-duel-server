@@ -42,6 +42,7 @@ import YGOProRoomList from "../../infrastructure/YGOProRoomList";
 import { DuelState } from "@shared/room/domain/YgoRoom";
 import { RoomLeague } from "@shared/room/admission/domain/RoomLeague";
 import { ISocket } from "@shared/socket/domain/ISocket";
+import { YGOProStocChat } from "ygopro-msg-encode";
 
 const makeMockSocket = (id: string): ISocket => {
 	const s: ISocket = {
@@ -312,10 +313,13 @@ describe("DirectNostalgiaRankedJoin", () => {
 		expect(room3.formatId).toBe("1103");
 	});
 
-	it("sends private ranked in-game notice chat message to player on join", async () => {
+	it("sends private ranked in-game notice chat message with current half-year stats on May 1 without resetting", async () => {
+		jest.useFakeTimers();
+		jest.setSystemTime(new Date("2026-05-01T10:00:00+08:00"));
+
 		const user = await UserProfile.create({
-			id: "user-notice",
-			username: "NoticeUser",
+			id: "user-notice-may",
+			username: "NoticeMayUser",
 			password: "1234",
 			email: null,
 			avatar: null,
@@ -325,13 +329,134 @@ describe("DirectNostalgiaRankedJoin", () => {
 		const mockLeaderboardRepo = {
 			getSeasonLeaderboard: jest.fn(),
 			getOverallLeaderboard: jest.fn(),
-			getPlayerMonthlyStats: jest.fn().mockResolvedValue({
+			getPlayerMonthlyStats: jest.fn(),
+			getPlayerSeasonStats: jest.fn().mockResolvedValue({
 				format: "1109",
-				season: "2026-09",
-				points: 10,
-				wins: 5,
+				season: "2026H1",
+				points: 20,
+				wins: 2,
 				losses: 1,
-				winRate: 0.8333,
+				winRate: 0.6667,
+				rank: 3,
+			}),
+		};
+
+		const testUseCase = new DirectNostalgiaRankedJoin(
+			authUseCase,
+			registry,
+			mockResources,
+			mockLeaderboardRepo,
+		);
+
+		const req = makeRequest("TT", "NoticeMayUser", "1234");
+		await testUseCase.run(req);
+
+		// Allow microtasks to complete
+		for (let i = 0; i < 5; i++) {
+			await Promise.resolve();
+		}
+
+		expect(mockLeaderboardRepo.getPlayerSeasonStats).toHaveBeenCalledWith(
+			"user-notice-may",
+			"1109",
+			"2026H1",
+		);
+		const chatCall = (req.socket.send as jest.Mock).mock.calls.find(([buf]: [Buffer]) => {
+			try {
+				return new YGOProStocChat().fromFullPayload(buf).msg.includes("[排位]");
+			} catch {
+				return false;
+			}
+		});
+		expect(chatCall).toBeDefined();
+		const chat = new YGOProStocChat().fromFullPayload(chatCall[0]);
+		expect(chat.msg).toContain("2026H1 赛季战绩: 20 分 | 2胜 1负 (66.7%) | 排名: #3");
+
+		jest.useRealTimers();
+	});
+
+	it("sends zero stats and unranked notice on July 1 new season", async () => {
+		jest.useFakeTimers();
+		jest.setSystemTime(new Date("2026-07-01T00:00:00+08:00"));
+
+		const user = await UserProfile.create({
+			id: "user-notice-july",
+			username: "NoticeJulyUser",
+			password: "1234",
+			email: null,
+			avatar: null,
+		});
+		userProfileRepository.findByUsername.mockResolvedValue(user);
+
+		const mockLeaderboardRepo = {
+			getSeasonLeaderboard: jest.fn(),
+			getOverallLeaderboard: jest.fn(),
+			getPlayerMonthlyStats: jest.fn(),
+			getPlayerSeasonStats: jest.fn().mockResolvedValue({
+				format: "1109",
+				season: "2026H2",
+				points: 0,
+				wins: 0,
+				losses: 0,
+				winRate: 0,
+				rank: null,
+			}),
+		};
+
+		const testUseCase = new DirectNostalgiaRankedJoin(
+			authUseCase,
+			registry,
+			mockResources,
+			mockLeaderboardRepo,
+		);
+
+		const req = makeRequest("TT", "NoticeJulyUser", "1234");
+		await testUseCase.run(req);
+
+		for (let i = 0; i < 5; i++) {
+			await Promise.resolve();
+		}
+
+		expect(mockLeaderboardRepo.getPlayerSeasonStats).toHaveBeenCalledWith(
+			"user-notice-july",
+			"1109",
+			"2026H2",
+		);
+		const chatCall = (req.socket.send as jest.Mock).mock.calls.find(([buf]: [Buffer]) => {
+			try {
+				return new YGOProStocChat().fromFullPayload(buf).msg.includes("[排位]");
+			} catch {
+				return false;
+			}
+		});
+		expect(chatCall).toBeDefined();
+		const chat = new YGOProStocChat().fromFullPayload(chatCall[0]);
+		expect(chat.msg).toContain("2026H2 赛季战绩: 0 分 | 0胜 0负 (0.0%) | 排名: 未上榜");
+
+		jest.useRealTimers();
+	});
+
+	it("sends notice exactly once on reconnect and does not send notice if admission is rejected", async () => {
+		const user = await UserProfile.create({
+			id: "user-notice-reconn",
+			username: "ReconnUser",
+			password: "1234",
+			email: null,
+			avatar: null,
+		});
+		userProfileRepository.findByUsername.mockResolvedValue(user);
+
+		const mockLeaderboardRepo = {
+			getSeasonLeaderboard: jest.fn(),
+			getOverallLeaderboard: jest.fn(),
+			getPlayerMonthlyStats: jest.fn(),
+			getPlayerSeasonStats: jest.fn().mockResolvedValue({
+				format: "1109",
+				season: "2026H1",
+				points: 10,
+				wins: 1,
+				losses: 0,
+				winRate: 1.0,
 				rank: 1,
 			}),
 		};
@@ -343,18 +468,35 @@ describe("DirectNostalgiaRankedJoin", () => {
 			mockLeaderboardRepo,
 		);
 
-		const req = makeRequest("TT", "NoticeUser", "1234");
-		await testUseCase.run(req);
+		const req1 = makeRequest("TT", "ReconnUser", "1234");
+		await testUseCase.run(req1);
+		for (let i = 0; i < 5; i++) {
+			await Promise.resolve();
+		}
 
-		// Allow microtasks to complete
-		await new Promise((resolve) => setImmediate(resolve));
+		const chatCalls1 = (req1.socket.send as jest.Mock).mock.calls.filter(([buf]: [Buffer]) => {
+			try {
+				return new YGOProStocChat().fromFullPayload(buf).msg.includes("[排位]");
+			} catch {
+				return false;
+			}
+		});
+		expect(chatCalls1).toHaveLength(1);
 
-		expect(mockLeaderboardRepo.getPlayerMonthlyStats).toHaveBeenCalledWith(
-			"user-notice",
-			"1109",
-			expect.any(Number),
+		// If a closed socket joins, admission is rejected and no notice sent
+		const closedReq = makeRequest("TT", "ReconnUser", "1234");
+		closedReq.socket.closed = true;
+		await expect(testUseCase.run(closedReq)).rejects.toThrow();
+		const closedChatCalls = (closedReq.socket.send as jest.Mock).mock.calls.filter(
+			([buf]: [Buffer]) => {
+				try {
+					return new YGOProStocChat().fromFullPayload(buf).msg.includes("[排位]");
+				} catch {
+					return false;
+				}
+			},
 		);
-		expect(req.socket.send).toHaveBeenCalled();
+		expect(closedChatCalls).toHaveLength(0);
 	});
 
 	describe("ranked format and authentication rejection handling", () => {

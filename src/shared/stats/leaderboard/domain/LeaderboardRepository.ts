@@ -11,19 +11,30 @@ export interface LeaderboardQueryResult {
 	total: number;
 }
 
+export type HalfYearSeasonRange = {
+	startMonth: number;
+	endMonth: number;
+	label?: string;
+};
+
 export interface LeaderboardRepository {
 	getSeasonLeaderboard(
 		formatId: string,
-		season: number,
+		season: string | HalfYearSeasonRange | number,
 		options?: LeaderboardQueryOptions,
 	): Promise<LeaderboardQueryResult | LeaderboardEntry[]>;
 	getOverallLeaderboard(
 		formatId: string,
 		options?: LeaderboardQueryOptions,
 	): Promise<LeaderboardQueryResult | LeaderboardEntry[]>;
+	getPlayerSeasonStats(
+		userId: string,
+		formatId: string,
+		season: string,
+	): Promise<PlayerPersonalStats>;
 	getPlayerMonthlyStats(
 		userId: string,
 		formatId: string,
-		season: number,
+		season: number | string,
 	): Promise<PlayerPersonalStats>;
 }
