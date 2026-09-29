@@ -26,7 +26,7 @@ CREATE INDEX idx_matches_matchup_active_game
 
 -- One row is one physical Match: first_deck_code played first in G1.
 -- A vs B and B vs A are different seat conditions. A mirror is one row.
--- Only the selected Top-15 categories may appear. No reverse player-view row,
+-- Only the selected Top-16 categories may appear. No reverse player-view row,
 -- ALL row, percentage, separate usage row, or Game-level result is stored.
 CREATE TABLE stats_deck_matchups (
     format_id varchar(16) NOT NULL,
@@ -58,15 +58,15 @@ CREATE INDEX idx_stats_deck_matchups_second
     ON stats_deck_matchups (format_id, window_start, second_deck_code, first_deck_code);
 
 COMMENT ON TABLE stats_deck_matchups IS
-    '仅 1109 半年度前 15 类之间的 G1 先攻卡组到后攻卡组的物理 Match 计数';
+    '仅 1109 半年度前 16 类之间的 G1 先攻卡组到后攻卡组的物理 Match 计数';
 
 COMMIT;
 
--- The existing 1109 usage rebuild must select Top 15 from usage_deck_rows
+-- The existing 1109 usage rebuild must select Top 16 from usage_deck_rows
 -- (deck_count DESC, deck_type_code ASC, excluding OTHERS) and publish usage
 -- rows, the existing usage run and matchup rows in one transaction.
 -- Before publishing, verify COALESCE(SUM(match_count), 0) equals the selected
--- physical Match count and that both endpoints belong to the selected Top 15.
+-- physical Match count and that both endpoints belong to the selected Top 16.
 -- Before exposing the matrix API, rebuild every existing 1109 usage run once:
 -- without a separate marker, zero matchup rows otherwise cannot distinguish
 -- an old usage-only run from a successfully rebuilt zero-match period.
