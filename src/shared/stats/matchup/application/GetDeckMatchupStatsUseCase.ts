@@ -74,7 +74,7 @@ export class GetDeckMatchupStatsUseCase {
 			throw new StatsNotReadyError(window.period);
 		}
 
-		// 1. Get Top 15 decks from usage_deck_rows
+		// 1. Get Top 16 decks from usage_deck_rows
 		const usageRows = await this.repository.queryTopDecksUsage(query.format, window.windowStart);
 		const topDeckCodes = TopDeckSelector.selectTopDecks(query.format, usageRows);
 
@@ -107,8 +107,8 @@ export class GetDeckMatchupStatsUseCase {
 		const stats: Record<string, DeckMatchupStatsItem> = {};
 
 		for (const x of topDeckCodes) {
-			// Row total accumulator for X::TOP15
-			const top15Total: DeckMatchupStatsItem = {
+			// Row total accumulator for X::TOP16
+			const top16Total: DeckMatchupStatsItem = {
 				matches: 0,
 				matchWins: 0,
 				firstMatches: 0,
@@ -158,16 +158,16 @@ export class GetDeckMatchupStatsUseCase {
 
 				stats[`${x}::${y}`] = item;
 
-				top15Total.matches += item.matches;
-				top15Total.matchWins += item.matchWins;
-				top15Total.firstMatches += item.firstMatches;
-				top15Total.firstWins += item.firstWins;
-				top15Total.secondMatches += item.secondMatches;
-				top15Total.secondWins += item.secondWins;
+				top16Total.matches += item.matches;
+				top16Total.matchWins += item.matchWins;
+				top16Total.firstMatches += item.firstMatches;
+				top16Total.firstWins += item.firstWins;
+				top16Total.secondMatches += item.secondMatches;
+				top16Total.secondWins += item.secondWins;
 			}
 
 			// Add row total
-			stats[`${x}::TOP15`] = top15Total;
+			stats[`${x}::TOP16`] = top16Total;
 		}
 
 		return {

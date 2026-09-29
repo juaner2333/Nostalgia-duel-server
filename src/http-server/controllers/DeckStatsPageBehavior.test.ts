@@ -112,8 +112,8 @@ describe("DeckStatsPageBehavior", () => {
 			expect(html1109).toContain('id="matrix-thead"');
 		});
 
-		it("specifies Top 15 inner total header without implying all decks", () => {
-			expect(html1109).toContain("前 15 内合计");
+		it("specifies Top 16 inner total header without implying all decks", () => {
+			expect(html1109).toContain("前 16 内合计");
 		});
 
 		it("displays '数据不足' instead of '0%' when matches count is zero", () => {

@@ -215,12 +215,12 @@ describe("DeckMatchupCalculator (Tasks 4.2 & 4.3)", () => {
 		expect(result.skipped.unprovenG1Seat).toBe(1);
 	});
 
-	it("skips match when one or both decks are not in Top 15 (e.g. OTHERS or rank 16)", () => {
+	it("skips match when one or both decks are not in the selected Top decks (e.g. OTHERS)", () => {
 		const perspectives = [
 			makePerspective({
 				gameId: "g1",
 				userId: "u1",
-				deckTypeCode: "HERO_BEAT", // Top 15
+				deckTypeCode: "HERO_BEAT", // In top decks
 				winner: true,
 				playerScore: 2,
 				opponentScore: 0,
@@ -229,7 +229,7 @@ describe("DeckMatchupCalculator (Tasks 4.2 & 4.3)", () => {
 			makePerspective({
 				gameId: "g1",
 				userId: "u2",
-				deckTypeCode: "OTHERS", // Not Top 15!
+				deckTypeCode: "OTHERS", // Not in top decks!
 				winner: false,
 				playerScore: 0,
 				opponentScore: 2,

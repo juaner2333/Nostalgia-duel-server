@@ -79,7 +79,7 @@ export class RebuildUsageStatisticsUseCase {
 
 		try {
 			// 1. Read usage snapshots and (for 1109) physical match perspectives from the
-			// same REPEATABLE READ snapshot so the Top 15 and the matchup matrix always
+			// same REPEATABLE READ snapshot so the Top 16 and the matchup matrix always
 			// describe the same point in time
 			const facts = await this.repository.readFormatWindowFacts(
 				formatId,

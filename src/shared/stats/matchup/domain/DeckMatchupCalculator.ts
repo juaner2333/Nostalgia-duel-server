@@ -105,7 +105,7 @@ export class DeckMatchupCalculator {
 				continue;
 			}
 
-			// 5. Deck classifications must be present and in Top 15
+			// 5. Deck classifications must be present and in the selected Top decks
 			const deck1 = m1.deckTypeCode;
 			const deck2 = m2.deckTypeCode;
 			if (!deck1 || !deck2 || !topDeckCodesSet.has(deck1) || !topDeckCodesSet.has(deck2)) {

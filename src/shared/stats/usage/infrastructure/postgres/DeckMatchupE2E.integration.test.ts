@@ -145,18 +145,18 @@ describe("DeckMatchupE2EIntegration", () => {
 		);
 	}
 
-	it("rebuilds 1109 deck statistics end-to-end, validates Top 15 consistency, checksum, and API retrieval", async () => {
+	it("rebuilds 1109 deck statistics end-to-end, validates Top 16 consistency, checksum, and API retrieval", async () => {
 		if (!isDbAvailable || !ds) return;
 
 		const period = "2026H2"; // 2026-07-01 to 2027-01-01
 
-		// 16 named deck types; D16 has the fewest decks and must stay outside Top 15
-		const testDecks = Array.from({ length: 16 }, (_, i) => `D${String(i + 1).padStart(2, "0")}`);
+		// 18 named deck types; D18 has the fewest decks and must stay outside Top 16
+		const testDecks = Array.from({ length: 18 }, (_, i) => `D${String(i + 1).padStart(2, "0")}`);
 
 		// Seed one deck snapshot per single-perspective match so usage counts rank the decks
 		let gCounter = 100;
 		for (let i = 0; i < testDecks.length; i++) {
-			const count = 20 - i; // D01=20, ..., D16=5
+			const count = 20 - i; // D01=20, ..., D18=3
 			for (let c = 0; c < count; c++) {
 				gCounter++;
 				const gameId = `a0000000-0000-4000-8000-${String(gCounter).padStart(12, "0")}`;
@@ -241,7 +241,7 @@ describe("DeckMatchupE2EIntegration", () => {
 			false,
 		);
 
-		// Physical Match 3: D01 vs D16 (D16 is 16th and therefore NOT in Top 15)
+		// Physical Match 3: D01 vs D18 (D18 is 18th and therefore NOT in Top 16)
 		const gId3 = "b0000000-0000-4000-8000-000000000003";
 		await seedMatch("m_spec_3_a", "hero_pk", gId3, "D01", {
 			playerName: "hero",
@@ -250,7 +250,7 @@ describe("DeckMatchupE2EIntegration", () => {
 			opponentScore: 0,
 			winner: true,
 		});
-		await seedMatch("m_spec_3_b", "karakuri_pk", gId3, "D16", {
+		await seedMatch("m_spec_3_b", "karakuri_pk", gId3, "D18", {
 			playerName: "karakuri",
 			opponentName: "hero",
 			playerScore: 0,
@@ -284,7 +284,7 @@ describe("DeckMatchupE2EIntegration", () => {
 		expect(rebuildResult.formatId).toBe("1109");
 		expect(rebuildResult.windowStart).toBe(window.windowStart);
 		// Admitted physical matches are exactly 2: D01 vs D02 and the D01 mirror.
-		// Match 3 is excluded because D16 is 16th (not in Top 15).
+		// Match 3 is excluded because D18 is 18th (not in Top 16).
 		expect(rebuildResult.admittedPhysicalMatches).toBe(2);
 
 		// Verify database table stats_deck_matchups and checksum
@@ -304,12 +304,13 @@ describe("DeckMatchupE2EIntegration", () => {
 		expect(statsRes.format).toBe("1109");
 		expect(statsRes.period).toBe(period);
 		expect(statsRes.totalPhysicalMatches).toBe(2);
-		expect(statsRes.decks).toHaveLength(15);
+		expect(statsRes.decks).toHaveLength(16);
 
-		// Verify Top 15 does NOT contain OTHERS or D16
+		// Verify Top 16 does NOT contain OTHERS or D18, but keeps the 16th deck D16
 		const deckCodes = statsRes.decks.map((d) => d.code);
 		expect(deckCodes).not.toContain("OTHERS");
-		expect(deckCodes).not.toContain("D16");
+		expect(deckCodes).not.toContain("D18");
+		expect(deckCodes).toContain("D16");
 		expect(deckCodes).toContain("D01");
 		expect(deckCodes).toContain("D02");
 

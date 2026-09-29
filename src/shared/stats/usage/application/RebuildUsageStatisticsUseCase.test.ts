@@ -215,7 +215,7 @@ describe("RebuildUsageStatisticsUseCase", () => {
 		expect(publishSpy).not.toHaveBeenCalled();
 	});
 
-	it("rebuilds 1109 window, selects Top 15, calculates matchups, and publishes atomic matchup rows", async () => {
+	it("rebuilds 1109 window, selects Top 16, calculates matchups, and publishes atomic matchup rows", async () => {
 		const repo = new MockUsageRepository();
 		repo.snapshots = [
 			{

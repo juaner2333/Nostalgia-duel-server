@@ -87,7 +87,7 @@ describe("GetDeckMatchupStatsUseCase (Task 5.1)", () => {
 		repo.deckRows.set("1109:2026-07-01", [
 			{ deckTypeCode: "HERO_BEAT", deckCount: 60 },
 			{ deckTypeCode: "SIX_SAMURAI", deckCount: 40 },
-			{ deckTypeCode: "OTHERS", deckCount: 10 }, // Must be excluded from top 15
+			{ deckTypeCode: "OTHERS", deckCount: 10 }, // Must be excluded from top 16
 		]);
 
 		repo.matchupRows.set("1109:2026-07-01", [
@@ -173,11 +173,11 @@ describe("GetDeckMatchupStatsUseCase (Task 5.1)", () => {
 			secondWins: 0,
 		});
 
-		// 5. TOP15 Row Total for HERO_BEAT
+		// 5. TOP16 Row Total for HERO_BEAT
 		// Against SIX: 70 matches, 38 wins (first 50/30, second 20/8)
 		// Against HERO: 20 matches, 10 wins (first 10/6, second 10/4)
-		const heroTop15 = res.stats["HERO_BEAT::TOP15"];
-		expect(heroTop15).toEqual({
+		const heroTop16 = res.stats["HERO_BEAT::TOP16"];
+		expect(heroTop16).toEqual({
 			matches: 90,
 			matchWins: 48,
 			firstMatches: 60,
@@ -186,11 +186,11 @@ describe("GetDeckMatchupStatsUseCase (Task 5.1)", () => {
 			secondWins: 12,
 		});
 
-		// 6. TOP15 Row Total for SIX_SAMURAI
+		// 6. TOP16 Row Total for SIX_SAMURAI
 		// Against HERO: 70 matches, 32 wins (first 20/12, second 50/20)
 		// Against SIX: 0 matches, 0 wins
-		const sixTop15 = res.stats["SIX_SAMURAI::TOP15"];
-		expect(sixTop15).toEqual({
+		const sixTop16 = res.stats["SIX_SAMURAI::TOP16"];
+		expect(sixTop16).toEqual({
 			matches: 70,
 			matchWins: 32,
 			firstMatches: 20,

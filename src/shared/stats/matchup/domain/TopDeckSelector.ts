@@ -4,7 +4,7 @@ export interface DeckUsageCount {
 }
 
 export class TopDeckSelector {
-	public static readonly MAX_TOP_DECKS = 15;
+	public static readonly MAX_TOP_DECKS = 16;
 	public static readonly EXCLUDED_CODES = new Set(["OTHERS"]);
 
 	public static selectTopDecks(

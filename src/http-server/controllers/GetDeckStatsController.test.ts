@@ -121,7 +121,7 @@ describe("GetDeckStatsController (Task 5.2)", () => {
 					secondMatches: 10,
 					secondWins: 5,
 				},
-				"D01::TOP15": {
+				"D01::TOP16": {
 					matches: 20,
 					matchWins: 10,
 					firstMatches: 10,

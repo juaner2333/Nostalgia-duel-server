@@ -388,7 +388,7 @@ export function renderDeckStatsPage(formatId: string): string {
 				</thead>
 				<tbody id="matrix-tbody">
 					<tr>
-						<td class="info-box" colspan="17">正在加载卡组胜率矩阵...</td>
+						<td class="info-box" colspan="18">正在加载卡组胜率矩阵...</td>
 					</tr>
 				</tbody>
 			</table>
@@ -499,7 +499,7 @@ export function renderDeckStatsPage(formatId: string): string {
 			for (var i = 0; i < decks.length; i++) {
 				headerHtml += '<th title="' + escapeHtml(decks[i].nameZh) + '">' + escapeHtml(decks[i].nameZh) + '</th>';
 			}
-			headerHtml += '<th class="total-col-header" title="仅汇总本方对入选前 15 名类别的对局">前 15 内合计</th></tr>';
+			headerHtml += '<th class="total-col-header" title="仅汇总本方对入选前 16 名类别的对局">前 16 内合计</th></tr>';
 			thead.innerHTML = headerHtml;
 
 			// Render rows
@@ -555,7 +555,7 @@ export function renderDeckStatsPage(formatId: string): string {
 		function loadDeckStats() {
 			var reqId = ++state.requestId;
 			var tbody = document.getElementById("matrix-tbody");
-			tbody.innerHTML = '<tr><td colspan="17" class="info-box">正在加载卡组胜率矩阵...</td></tr>';
+			tbody.innerHTML = '<tr><td colspan="18" class="info-box">正在加载卡组胜率矩阵...</td></tr>';
 
 			var url = "/api/ladder/" + FORMAT + "/deck-stats" + (state.period ? "?period=" + encodeURIComponent(state.period) : "");
 			fetch(url)
@@ -582,7 +582,7 @@ export function renderDeckStatsPage(formatId: string): string {
 				})
 				.catch(function(err) {
 					if (reqId !== state.requestId) return;
-					tbody.innerHTML = '<tr><td colspan="17" class="info-box error">加载失败: ' + escapeHtml(err.message) + '</td></tr>';
+					tbody.innerHTML = '<tr><td colspan="18" class="info-box error">加载失败: ' + escapeHtml(err.message) + '</td></tr>';
 				});
 		}
 
