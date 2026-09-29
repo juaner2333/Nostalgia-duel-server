@@ -72,10 +72,10 @@ describe("ReplayDeckAccess Isolated PostgreSQL Integration", () => {
 			const rows1109 = await queryRunner.query(
 				`SELECT * FROM "deck_types" WHERE "format_id" = '1109' ORDER BY "sort_order"`,
 			);
-			expect(rows1109).toHaveLength(26);
+			expect(rows1109).toHaveLength(31);
 			expect(rows1109[0].code).toBe("D01");
-			expect(rows1109[24].code).toBe("D25");
-			expect(rows1109[25].code).toBe("OTHERS");
+			expect(rows1109[29].code).toBe("D30");
+			expect(rows1109[30].code).toBe("OTHERS");
 
 			// Insert dummy users and match for constraint testing
 			await queryRunner.query(`

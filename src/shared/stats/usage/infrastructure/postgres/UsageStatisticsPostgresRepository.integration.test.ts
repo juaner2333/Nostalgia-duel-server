@@ -3,6 +3,7 @@ import { InitialRankedSchema1741000000000 } from "../../../../../evolution-types
 import { AddReplayDeckAccess1741000001000 } from "../../../../../evolution-types/src/migrations/1741000001000-AddReplayDeckAccess";
 import { AddHalfYearUsageStatistics1741000002000 } from "../../../../../evolution-types/src/migrations/1741000002000-AddHalfYearUsageStatistics";
 import { AddHalfYearDeckMatchups1741000003000 } from "../../../../../evolution-types/src/migrations/1741000003000-AddHalfYearDeckMatchups";
+import { AddMatchupsEvaluated1790619192715 } from "../../../../../evolution-types/src/migrations/1790619192715-AddMatchupsEvaluated";
 import { UsageStatisticsPostgresRepository } from "./UsageStatisticsPostgresRepository";
 
 describe("UsageStatisticsPostgresRepository Integration", () => {
@@ -75,7 +76,7 @@ describe("UsageStatisticsPostgresRepository Integration", () => {
 		await repo2.releaseAdvisoryLock("1109");
 	});
 
-	it("streams valid snapshots with cursor pagination and excludes deleted/annulled", async () => {
+	it("reads valid snapshots with cursor pagination and excludes deleted/annulled", async () => {
 		if (!isDbAvailable || !ds) return;
 		const queryRunner = ds.createQueryRunner();
 
@@ -87,6 +88,7 @@ describe("UsageStatisticsPostgresRepository Integration", () => {
 			await new AddReplayDeckAccess1741000001000().up(queryRunner);
 			await new AddHalfYearUsageStatistics1741000002000().up(queryRunner);
 			await new AddHalfYearDeckMatchups1741000003000().up(queryRunner);
+			await new AddMatchupsEvaluated1790619192715().up(queryRunner);
 
 			await queryRunner.query(`
 				INSERT INTO "users" ("id", "username", "password", "email") VALUES
@@ -135,13 +137,14 @@ describe("UsageStatisticsPostgresRepository Integration", () => {
 			}
 
 			const repo = new UsageStatisticsPostgresRepository(ds);
-			const streamed: any[] = [];
-			for await (const s of repo.streamValidSnapshots("1109", "2026-07-01", "2026-07-10", 2)) {
-				streamed.push(s);
-			}
+			const facts = await repo.readFormatWindowFacts("1109", "2026-07-01", "2026-07-10", {
+				includePhysicalMatchPerspectives: false,
+				snapshotBatchSize: 2,
+			});
 
-			expect(streamed).toHaveLength(2);
-			expect(streamed.map((s) => s.matchId)).toEqual(["m-stream-1", "m-stream-4"]);
+			expect(facts.snapshots).toHaveLength(2);
+			expect(facts.snapshots.map((s) => s.matchId)).toEqual(["m-stream-1", "m-stream-4"]);
+			expect(facts.perspectives).toHaveLength(0);
 		} finally {
 			await queryRunner.release();
 		}
@@ -203,7 +206,7 @@ describe("UsageStatisticsPostgresRepository Integration", () => {
 		expect(rerun?.dataEndExclusive).toBe("2026-09-28");
 	});
 
-	it("queries physical match perspectives with deck classifications and G1 seats", async () => {
+	it("reads physical match perspectives and snapshots from one consistent read", async () => {
 		if (!isDbAvailable || !ds) return;
 		const queryRunner = ds.createQueryRunner();
 		try {
@@ -225,12 +228,15 @@ describe("UsageStatisticsPostgresRepository Integration", () => {
 					('m-p-2', 'u-matchup-2', '${gameId}', '1109', 3, 'P2', 'P1', '2026-07-03 10:00:00', '1109', 'hash', 1, 2, false, 202601, 1000, false);
 			`);
 
-			await queryRunner.query(`
+			await queryRunner.query(
+				`
 				INSERT INTO "match_decks" ("match_id", "format_id", "deck_type_code", "classifier_version", "snapshot_source", "main_cards", "extra_cards")
 				VALUES 
-					('m-p-1', '1109', 'D01', 'v1', 'online', '{10000}', '{}'),
-					('m-p-2', '1109', 'D02', 'v1', 'online', '{20000}', '{}');
-			`);
+					('m-p-1', '1109', 'D01', 'v1', 'online', $1, '{}'),
+					('m-p-2', '1109', 'D02', 'v1', 'online', $2, '{}');
+			`,
+				[Array(40).fill(10000), Array(40).fill(20000)],
+			);
 
 			await queryRunner.query(`
 				INSERT INTO "duels" (
@@ -242,13 +248,18 @@ describe("UsageStatisticsPostgresRepository Integration", () => {
 			`);
 
 			const repo = new UsageStatisticsPostgresRepository(ds);
-			const perspectives = await repo.queryPhysicalMatchPerspectives(
-				"1109",
-				"2026-07-01",
-				"2026-07-10",
-			);
+			const facts = await repo.readFormatWindowFacts("1109", "2026-07-01", "2026-07-10", {
+				includePhysicalMatchPerspectives: true,
+			});
 
-			const gamePerspectives = perspectives.filter((p) => p.gameId === gameId);
+			// Snapshots and physical match perspectives share one REPEATABLE READ transaction
+			const snapshotIds = facts.snapshots
+				.filter((s) => s.matchId === "m-p-1" || s.matchId === "m-p-2")
+				.map((s) => s.matchId)
+				.sort();
+			expect(snapshotIds).toEqual(["m-p-1", "m-p-2"]);
+
+			const gamePerspectives = facts.perspectives.filter((p) => p.gameId === gameId);
 			expect(gamePerspectives).toHaveLength(2);
 			const p1 = gamePerspectives.find((p) => p.userId === "u-matchup-1");
 			const p2 = gamePerspectives.find((p) => p.userId === "u-matchup-2");
@@ -263,12 +274,15 @@ describe("UsageStatisticsPostgresRepository Integration", () => {
 		}
 	});
 
-	it("publishes matchup rows atomically and checks hasMatchupData", async () => {
+	it("marks 1109 batches as matchups-evaluated and publishes matchup rows atomically", async () => {
 		if (!isDbAvailable || !ds) return;
 		const repo = new UsageStatisticsPostgresRepository(ds);
 
 		const windowStart = "2026-07-01";
-		expect(await repo.hasMatchupData("1109", windowStart)).toBe(false);
+		// The run published by the earlier test predates matchup evaluation and must
+		// default to not evaluated so the transition triggers exactly one catch-up
+		const legacyRun = await repo.findRun("1109", windowStart);
+		expect(legacyRun?.matchupsEvaluated).toBe(false);
 
 		const runData = {
 			formatId: "1109",
@@ -278,6 +292,7 @@ describe("UsageStatisticsPostgresRepository Integration", () => {
 			totalDecks: 10,
 			sideKnownDecks: 10,
 			publishedAt: new Date(),
+			matchupsEvaluated: true,
 		};
 		const deckRows = [
 			{ formatId: "1109", windowStart, deckTypeCode: "D01", deckCount: 5 },
@@ -295,6 +310,19 @@ describe("UsageStatisticsPostgresRepository Integration", () => {
 				copies3: 0,
 			},
 		];
+
+		// A legitimately zero-sample 1109 window publishes no matchup rows but is
+		// still recorded as evaluated so the catch-up job never rebuilds it again
+		await repo.publishPeriodStatistics(runData, deckRows, cardRows, []);
+		const zeroSampleRun = await repo.findRun("1109", windowStart);
+		expect(zeroSampleRun?.matchupsEvaluated).toBe(true);
+		const emptyRows: any[] = await ds.query(
+			`SELECT * FROM "stats_deck_matchups" WHERE format_id = '1109' AND window_start = $1::date;`,
+			[windowStart],
+		);
+		expect(emptyRows).toHaveLength(0);
+
+		// Re-publish with matchup rows
 		const matchupRows = [
 			{
 				formatId: "1109",
@@ -305,13 +333,8 @@ describe("UsageStatisticsPostgresRepository Integration", () => {
 				firstWins: 2,
 			},
 		];
-
-		// Publish with matchups
 		await repo.publishPeriodStatistics(runData, deckRows, cardRows, matchupRows);
 
-		expect(await repo.hasMatchupData("1109", windowStart)).toBe(true);
-
-		// Verify rows in DB
 		const rows: any[] = await ds.query(
 			`SELECT * FROM "stats_deck_matchups" WHERE format_id = '1109' AND window_start = $1::date;`,
 			[windowStart],
@@ -322,7 +345,22 @@ describe("UsageStatisticsPostgresRepository Integration", () => {
 		expect(Number(rows[0].match_count)).toBe(3);
 		expect(Number(rows[0].first_wins)).toBe(2);
 
-		// Format 1103 isolation: 1103 hasMatchupData is always true and does not touch stats_deck_matchups
-		expect(await repo.hasMatchupData("1103", windowStart)).toBe(true);
+		const publishedRun = await repo.findRun("1109", windowStart);
+		expect(publishedRun?.matchupsEvaluated).toBe(true);
+
+		// Format 1103 isolation: 1103 batches never carry matchup evaluation
+		const runData1103 = {
+			formatId: "1103",
+			windowStart,
+			windowEndExclusive: "2027-01-01",
+			dataEndExclusive: "2026-09-27",
+			totalDecks: 4,
+			sideKnownDecks: 4,
+			publishedAt: new Date(),
+		};
+		const deckRows1103 = [{ formatId: "1103", windowStart, deckTypeCode: "OTHERS", deckCount: 4 }];
+		await repo.publishPeriodStatistics(runData1103, deckRows1103, []);
+		const run1103 = await repo.findRun("1103", windowStart);
+		expect(run1103?.matchupsEvaluated).toBe(false);
 	});
 });

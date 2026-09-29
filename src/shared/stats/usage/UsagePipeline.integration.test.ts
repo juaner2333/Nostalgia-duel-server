@@ -2,6 +2,8 @@ import { DataSource, QueryRunner } from "typeorm";
 import { InitialRankedSchema1741000000000 } from "../../../evolution-types/src/migrations/1741000000000-InitialRankedSchema";
 import { AddReplayDeckAccess1741000001000 } from "../../../evolution-types/src/migrations/1741000001000-AddReplayDeckAccess";
 import { AddHalfYearUsageStatistics1741000002000 } from "../../../evolution-types/src/migrations/1741000002000-AddHalfYearUsageStatistics";
+import { AddHalfYearDeckMatchups1741000003000 } from "../../../evolution-types/src/migrations/1741000003000-AddHalfYearDeckMatchups";
+import { AddMatchupsEvaluated1790619192715 } from "../../../evolution-types/src/migrations/1790619192715-AddMatchupsEvaluated";
 import { UsageStatisticsPostgresRepository } from "./infrastructure/postgres/UsageStatisticsPostgresRepository";
 import { CdbCardMetadataProvider } from "./infrastructure/cdb/CdbCardMetadataProvider";
 import { RebuildUsageStatisticsUseCase } from "./application/RebuildUsageStatisticsUseCase";
@@ -45,6 +47,8 @@ describe("Usage Pipeline Integration (End-to-End)", () => {
 		await new InitialRankedSchema1741000000000().up(runner);
 		await new AddReplayDeckAccess1741000001000().up(runner);
 		await new AddHalfYearUsageStatistics1741000002000().up(runner);
+		await new AddHalfYearDeckMatchups1741000003000().up(runner);
+		await new AddMatchupsEvaluated1790619192715().up(runner);
 		await runner.release();
 	});
 
@@ -52,6 +56,8 @@ describe("Usage Pipeline Integration (End-to-End)", () => {
 		if (ds?.isInitialized) {
 			const runner = ds.createQueryRunner();
 			try {
+				await new AddMatchupsEvaluated1790619192715().down(runner);
+				await new AddHalfYearDeckMatchups1741000003000().down(runner);
 				await new AddHalfYearUsageStatistics1741000002000().down(runner);
 				await new AddReplayDeckAccess1741000001000().down(runner);
 				await new InitialRankedSchema1741000000000().down(runner);
@@ -291,8 +297,8 @@ describe("Usage Pipeline Integration (End-to-End)", () => {
 		pageController.run({ params: { format: "1109" } } as any, mockPageRes);
 		expect(mockPageRes.send).toHaveBeenCalled();
 		const html = mockPageRes.send.mock.calls[0][0];
-		expect(html).toContain("1109 卡组与卡片使用率");
-		expect(html).toContain("返回决斗专区");
+		expect(html).toContain("<title>Nostalgia Duel Server · 1109 使用率</title>");
+		expect(html).toContain("历史卡组与卡片使用率看板");
 
 		// 8. Re-run idempotence check: re-running does not duplicate rows
 		await rebuildUseCase.rebuildFormatWindow("1109", window);

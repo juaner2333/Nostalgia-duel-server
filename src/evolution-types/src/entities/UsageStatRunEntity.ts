@@ -85,4 +85,13 @@ export class UsageStatRunEntity {
 		},
 	})
 	sideKnownDecks: number;
+
+	@Column({
+		name: "matchups_evaluated",
+		type: "boolean",
+		default: false,
+		comment:
+			"1109 批次是否已按对阵矩阵逻辑完整评估；零对阵行但已评估的批次不再触发换期补建，1103 恒为 false",
+	})
+	matchupsEvaluated: boolean;
 }

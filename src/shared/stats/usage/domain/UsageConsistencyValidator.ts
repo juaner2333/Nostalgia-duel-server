@@ -11,6 +11,8 @@ export interface UsageStatRunData {
 	readonly totalDecks: number;
 	readonly sideKnownDecks: number;
 	readonly publishedAt: Date;
+	/** 1109 批次是否已按对阵矩阵逻辑评估；零对阵行但已评估的批次不再触发换期补建 */
+	readonly matchupsEvaluated?: boolean;
 }
 
 export interface UsageDeckRowData {

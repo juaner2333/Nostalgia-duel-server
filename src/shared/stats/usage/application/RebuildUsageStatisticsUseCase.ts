@@ -14,21 +14,20 @@ import {
 	RawPhysicalMatchPerspective,
 } from "@shared/stats/matchup/domain/DeckMatchupCalculator";
 
+export interface FormatWindowFacts {
+	readonly snapshots: readonly PlayerMatchDeckSnapshot[];
+	readonly perspectives: readonly RawPhysicalMatchPerspective[];
+}
+
 export interface UsageStatisticsRepository {
 	tryAcquireAdvisoryLock(formatId: string): Promise<boolean>;
 	releaseAdvisoryLock(formatId: string): Promise<void>;
-	streamValidSnapshots(
+	readFormatWindowFacts(
 		formatId: string,
 		startInclusive: string,
 		endExclusive: string,
-		batchSize?: number,
-	): AsyncIterable<PlayerMatchDeckSnapshot>;
-	queryPhysicalMatchPerspectives?(
-		formatId: string,
-		startInclusive: string,
-		endExclusive: string,
-	): Promise<RawPhysicalMatchPerspective[]>;
-	hasMatchupData?(formatId: string, windowStart: string): Promise<boolean>;
+		options: { includePhysicalMatchPerspectives: boolean; snapshotBatchSize?: number },
+	): Promise<FormatWindowFacts>;
 	findRun(formatId: string, windowStart: string): Promise<UsageStatRunData | null>;
 	listPublishedRuns(formatId: string): Promise<UsageStatRunData[]>;
 	publishPeriodStatistics(
@@ -79,21 +78,21 @@ export class RebuildUsageStatisticsUseCase {
 		}
 
 		try {
-			// 1. Collect all snapshots in the window [window.windowStart, window.dataEndExclusive)
-			const snapshots: PlayerMatchDeckSnapshot[] = [];
-			for await (const snapshot of this.repository.streamValidSnapshots(
+			// 1. Read usage snapshots and (for 1109) physical match perspectives from the
+			// same REPEATABLE READ snapshot so the Top 15 and the matchup matrix always
+			// describe the same point in time
+			const facts = await this.repository.readFormatWindowFacts(
 				formatId,
 				window.windowStart,
 				window.dataEndExclusive,
-			)) {
-				snapshots.push(snapshot);
-			}
+				{ includePhysicalMatchPerspectives: formatId === "1109" },
+			);
 
 			// 2. Deck usage calculation
 			const deckCalculator = new DeckUsageCalculator(formatId, (id) =>
 				this.metadataProvider.hasCard(id),
 			);
-			const deckResult = deckCalculator.calculate(snapshots);
+			const deckResult = deckCalculator.calculate(facts.snapshots);
 
 			const deckRows: UsageDeckRowData[] = [];
 			for (const [code, count] of deckResult.deckCounts.entries()) {
@@ -122,6 +121,7 @@ export class RebuildUsageStatisticsUseCase {
 				totalDecks: deckResult.totalDecks,
 				sideKnownDecks: deckResult.sideKnownDecks,
 				publishedAt: new Date(),
+				matchupsEvaluated: formatId === "1109",
 			};
 
 			// 5. Matchup calculation for 1109
@@ -129,18 +129,13 @@ export class RebuildUsageStatisticsUseCase {
 			let admittedPhysicalMatches = 0;
 			let topDeckCodes: string[] = [];
 
-			if (formatId === "1109" && this.repository.queryPhysicalMatchPerspectives) {
+			if (formatId === "1109") {
 				topDeckCodes = TopDeckSelector.selectTopDecks(formatId, deckResult.deckCounts);
-				const perspectives = await this.repository.queryPhysicalMatchPerspectives(
-					formatId,
-					window.windowStart,
-					window.dataEndExclusive,
-				);
 				const matchupResult = DeckMatchupCalculator.calculate(
 					formatId,
 					window.windowStart,
 					topDeckCodes,
-					perspectives,
+					facts.perspectives,
 				);
 				matchupRows = [...matchupResult.matchupRows];
 				admittedPhysicalMatches = matchupResult.admittedPhysicalMatches;
@@ -220,18 +215,16 @@ export class RebuildUsageStatisticsUseCase {
 		const results: RebuildResult[] = [];
 
 		for (const formatId of formats) {
-			// Catch up previous half-year if needed (including 1109 matchup matrix catch-up)
+			// Catch up previous half-year if it is unfinalized or its matchups were
+			// never evaluated (a finalized batch with zero matchup rows is complete)
 			const prevWindow = HalfYearWindow.previousOf(currentWindow.period);
 			const prevRun = await this.repository.findRun(formatId, prevWindow.windowStart);
-			const prevHasMatchups =
-				formatId === "1109" && this.repository.hasMatchupData
-					? await this.repository.hasMatchupData(formatId, prevWindow.windowStart)
-					: true;
+			const prevMatchupsEvaluated = formatId !== "1109" || prevRun?.matchupsEvaluated === true;
 
 			if (
 				!prevRun ||
 				prevRun.dataEndExclusive < prevWindow.windowEndExclusive ||
-				!prevHasMatchups
+				!prevMatchupsEvaluated
 			) {
 				const prevResult = await this.rebuildFormatWindow(formatId, prevWindow);
 				results.push(prevResult);

@@ -1,4 +1,5 @@
 import {
+	FormatWindowFacts,
 	RebuildUsageStatisticsUseCase,
 	UsageStatisticsRepository,
 } from "./RebuildUsageStatisticsUseCase";
@@ -31,17 +32,18 @@ describe("RebuildUsageStatisticsUseCase", () => {
 			this.lockedFormats.delete(formatId);
 		}
 
-		async *streamValidSnapshots(
+		async readFormatWindowFacts(
 			formatId: string,
 			_start: string,
 			_end: string,
-			_batchSize = 500,
-		): AsyncIterable<PlayerMatchDeckSnapshot> {
-			for (const s of this.snapshots) {
-				if (s.formatId === formatId) {
-					yield s;
-				}
-			}
+			options: { includePhysicalMatchPerspectives: boolean; snapshotBatchSize?: number },
+		): Promise<FormatWindowFacts> {
+			return {
+				snapshots: this.snapshots.filter((s) => s.formatId === formatId),
+				perspectives: options.includePhysicalMatchPerspectives
+					? this.perspectives.filter((p) => p.formatId === formatId)
+					: [],
+			};
 		}
 
 		async findRun(formatId: string, windowStart: string): Promise<UsageStatRunData | null> {
@@ -54,22 +56,6 @@ describe("RebuildUsageStatisticsUseCase", () => {
 
 		public matchupRows = new Map<string, DeckMatchupRowData[]>();
 		public perspectives: RawPhysicalMatchPerspective[] = [];
-		public matchupExists = new Map<string, boolean>();
-
-		async queryPhysicalMatchPerspectives(
-			formatId: string,
-			_start: string,
-			_end: string,
-		): Promise<RawPhysicalMatchPerspective[]> {
-			return this.perspectives.filter((p) => p.formatId === formatId);
-		}
-
-		async hasMatchupData(formatId: string, windowStart: string): Promise<boolean> {
-			return (
-				this.matchupExists.get(`${formatId}:${windowStart}`) ??
-				(this.matchupRows.get(`${formatId}:${windowStart}`)?.length ?? 0) > 0
-			);
-		}
 
 		async publishPeriodStatistics(
 			run: UsageStatRunData,
@@ -122,6 +108,7 @@ describe("RebuildUsageStatisticsUseCase", () => {
 		expect(run).toBeDefined();
 		expect(run?.totalDecks).toBe(1);
 		expect(run?.dataEndExclusive).toBe("2026-09-27");
+		expect(run?.matchupsEvaluated).toBe(true);
 	});
 
 	it("replaces existing period cleanly without accumulating counts", async () => {
@@ -297,10 +284,10 @@ describe("RebuildUsageStatisticsUseCase", () => {
 		});
 	});
 
-	it("catches up previous 1109 half-year when usage was finalized but matchup table is missing", async () => {
+	it("catches up previous 1109 half-year when usage was finalized but matchups were never evaluated", async () => {
 		const repo = new MockUsageRepository();
 		const prevWindow = HalfYearWindow.previousOf("2026H2"); // 2026H1
-		// Finalized run for 2026H1
+		// Finalized run for 2026H1 published before the matchup feature (no evaluation flag)
 		repo.runs.set("1109:2026-01-01", {
 			formatId: "1109",
 			windowStart: "2026-01-01",
@@ -310,15 +297,37 @@ describe("RebuildUsageStatisticsUseCase", () => {
 			sideKnownDecks: 10,
 			publishedAt: new Date("2026-07-01T03:00:00Z"),
 		});
-		// But hasMatchupData is false for 2026H1!
-		repo.matchupExists.set("1109:2026-01-01", false);
 
 		const useCase = new RebuildUsageStatisticsUseCase(repo, mockCdbProvider);
 		const report = await useCase.rebuildDaily("2026-07-05");
 
 		expect(report.success).toBe(true);
-		// 1109 caught up 2026H1 because matchup was missing
+		// 1109 caught up 2026H1 because its matchups were never evaluated
 		const f1109Reports = report.formatReports.filter((r) => r.formatId === "1109");
 		expect(f1109Reports.some((r) => r.windowStart === "2026-01-01")).toBe(true);
+	});
+
+	it("does not rebuild a finalized previous half-year whose matchups were already evaluated", async () => {
+		const repo = new MockUsageRepository();
+		// Finalized 2026H1 batch legitimately evaluated with zero matchup rows
+		repo.runs.set("1109:2026-01-01", {
+			formatId: "1109",
+			windowStart: "2026-01-01",
+			windowEndExclusive: "2026-07-01",
+			dataEndExclusive: "2026-07-01",
+			totalDecks: 0,
+			sideKnownDecks: 0,
+			publishedAt: new Date("2026-07-01T03:00:00Z"),
+			matchupsEvaluated: true,
+		});
+
+		const useCase = new RebuildUsageStatisticsUseCase(repo, mockCdbProvider);
+		const report = await useCase.rebuildDaily("2026-07-05");
+
+		expect(report.success).toBe(true);
+		const f1109Reports = report.formatReports.filter((r) => r.formatId === "1109");
+		// Only the current 2026H2 window is rebuilt; 2026H1 stays published
+		expect(f1109Reports).toHaveLength(1);
+		expect(f1109Reports[0].windowStart).toBe("2026-07-01");
 	});
 });

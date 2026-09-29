@@ -1,5 +1,8 @@
 import { DataSource, QueryRunner } from "typeorm";
-import { UsageStatisticsRepository } from "../../application/RebuildUsageStatisticsUseCase";
+import {
+	FormatWindowFacts,
+	UsageStatisticsRepository,
+} from "../../application/RebuildUsageStatisticsUseCase";
 import {
 	UsageQueryRepository,
 	UsageSnapshotData,
@@ -55,12 +58,13 @@ export class UsageStatisticsPostgresRepository
 		}
 	}
 
-	public async *streamValidSnapshots(
+	public async readFormatWindowFacts(
 		formatId: string,
 		startInclusive: string,
 		endExclusive: string,
-		batchSize = 500,
-	): AsyncIterable<PlayerMatchDeckSnapshot> {
+		options: { includePhysicalMatchPerspectives: boolean; snapshotBatchSize?: number },
+	): Promise<FormatWindowFacts> {
+		const batchSize = Math.max(1, options.snapshotBatchSize ?? 500);
 		let cursorDate: string | null = null;
 		let cursorId: string | null = null;
 
@@ -69,6 +73,7 @@ export class UsageStatisticsPostgresRepository
 		await queryRunner.startTransaction("REPEATABLE READ");
 
 		try {
+			const snapshots: PlayerMatchDeckSnapshot[] = [];
 			while (true) {
 				const rows: {
 					match_id: string;
@@ -111,14 +116,14 @@ export class UsageStatisticsPostgresRepository
 				}
 
 				for (const row of rows) {
-					yield {
+					snapshots.push({
 						matchId: row.match_id,
 						formatId: row.format_id,
 						deckTypeCode: row.deck_type_code ?? "",
 						mainCards: row.main_cards ?? [],
 						extraCards: row.extra_cards ?? [],
 						sideCards: row.side_cards,
-					};
+					});
 				}
 
 				if (rows.length < batchSize) {
@@ -129,7 +134,65 @@ export class UsageStatisticsPostgresRepository
 				cursorDate = lastRow.date_str;
 				cursorId = lastRow.match_id;
 			}
+
+			let perspectives: RawPhysicalMatchPerspective[] = [];
+			if (options.includePhysicalMatchPerspectives) {
+				const rows: {
+					game_id: string;
+					match_id: string;
+					user_id: string;
+					format_id: string;
+					winner: boolean;
+					player_score: number;
+					opponent_score: number;
+					is_annulled: boolean;
+					is_deleted: boolean;
+					deck_type_code: string | null;
+					g1_is_first: boolean | null;
+				}[] = await queryRunner.query(
+					`
+					SELECT 
+						m.game_id,
+						m.id AS match_id,
+						m.user_id,
+						m.format_id,
+						m.winner,
+						m.player_score,
+						m.opponent_score,
+						m.anulled AS is_annulled,
+						(m.deleted_at IS NOT NULL) AS is_deleted,
+						md.deck_type_code,
+						g1.is_first AS g1_is_first
+					FROM matches m
+					LEFT JOIN match_decks md ON m.id = md.match_id AND m.format_id = md.format_id
+					LEFT JOIN duels g1 ON m.id = g1.match_id AND g1.duel_index = 1 AND g1.deleted_at IS NULL
+					WHERE m.format_id = $1
+					  AND m.date >= $2::timestamp
+					  AND m.date < $3::timestamp
+					  AND m.deleted_at IS NULL
+					  AND m.anulled = false
+					ORDER BY m.game_id ASC, m.id ASC;
+				`,
+					[formatId, startInclusive, endExclusive],
+				);
+
+				perspectives = (rows ?? []).map((r) => ({
+					gameId: r.game_id,
+					matchId: r.match_id,
+					userId: r.user_id,
+					formatId: r.format_id,
+					winner: r.winner,
+					playerScore: Number(r.player_score),
+					opponentScore: Number(r.opponent_score),
+					isAnnulled: r.is_annulled,
+					isDeleted: r.is_deleted,
+					deckTypeCode: r.deck_type_code,
+					g1IsFirst: r.g1_is_first,
+				}));
+			}
+
 			await queryRunner.commitTransaction();
+			return { snapshots, perspectives };
 		} catch (error) {
 			if (queryRunner.isTransactionActive) {
 				await queryRunner.rollbackTransaction();
@@ -149,6 +212,7 @@ export class UsageStatisticsPostgresRepository
 			published_at: Date;
 			total_decks: string | number;
 			side_known_decks: string | number;
+			matchups_evaluated: boolean;
 		}[] = await this.dataSource.query(
 			`
 			SELECT 
@@ -158,7 +222,8 @@ export class UsageStatisticsPostgresRepository
 				data_end_exclusive::text,
 				published_at,
 				total_decks,
-				side_known_decks
+				side_known_decks,
+				matchups_evaluated
 			FROM usage_stat_runs
 			WHERE format_id = $1 AND window_start = $2::date;
 		`,
@@ -178,6 +243,7 @@ export class UsageStatisticsPostgresRepository
 			publishedAt: r.published_at,
 			totalDecks: Number(r.total_decks),
 			sideKnownDecks: Number(r.side_known_decks),
+			matchupsEvaluated: r.matchups_evaluated === true,
 		};
 	}
 
@@ -190,6 +256,7 @@ export class UsageStatisticsPostgresRepository
 			published_at: Date;
 			total_decks: string | number;
 			side_known_decks: string | number;
+			matchups_evaluated: boolean;
 		}[] = await this.dataSource.query(
 			`
 			SELECT 
@@ -199,7 +266,8 @@ export class UsageStatisticsPostgresRepository
 				data_end_exclusive::text,
 				published_at,
 				total_decks,
-				side_known_decks
+				side_known_decks,
+				matchups_evaluated
 			FROM usage_stat_runs
 			WHERE format_id = $1
 			ORDER BY window_start DESC;
@@ -215,80 +283,8 @@ export class UsageStatisticsPostgresRepository
 			publishedAt: r.published_at,
 			totalDecks: Number(r.total_decks),
 			sideKnownDecks: Number(r.side_known_decks),
+			matchupsEvaluated: r.matchups_evaluated === true,
 		}));
-	}
-
-	public async queryPhysicalMatchPerspectives(
-		formatId: string,
-		startInclusive: string,
-		endExclusive: string,
-	): Promise<RawPhysicalMatchPerspective[]> {
-		const rows: {
-			game_id: string;
-			match_id: string;
-			user_id: string;
-			format_id: string;
-			winner: boolean;
-			player_score: number;
-			opponent_score: number;
-			is_annulled: boolean;
-			is_deleted: boolean;
-			deck_type_code: string | null;
-			g1_is_first: boolean | null;
-		}[] = await this.dataSource.query(
-			`
-			SELECT 
-				m.game_id,
-				m.id AS match_id,
-				m.user_id,
-				m.format_id,
-				m.winner,
-				m.player_score,
-				m.opponent_score,
-				m.anulled AS is_annulled,
-				(m.deleted_at IS NOT NULL) AS is_deleted,
-				md.deck_type_code,
-				g1.is_first AS g1_is_first
-			FROM matches m
-			LEFT JOIN match_decks md ON m.id = md.match_id AND m.format_id = md.format_id
-			LEFT JOIN duels g1 ON m.id = g1.match_id AND g1.duel_index = 1 AND g1.deleted_at IS NULL
-			WHERE m.format_id = $1
-			  AND m.date >= $2::timestamp
-			  AND m.date < $3::timestamp
-			  AND m.deleted_at IS NULL
-			  AND m.anulled = false
-			ORDER BY m.game_id ASC, m.id ASC;
-		`,
-			[formatId, startInclusive, endExclusive],
-		);
-
-		return (rows ?? []).map((r) => ({
-			gameId: r.game_id,
-			matchId: r.match_id,
-			userId: r.user_id,
-			formatId: r.format_id,
-			winner: r.winner,
-			playerScore: Number(r.player_score),
-			opponentScore: Number(r.opponent_score),
-			isAnnulled: r.is_annulled,
-			isDeleted: r.is_deleted,
-			deckTypeCode: r.deck_type_code,
-			g1IsFirst: r.g1_is_first,
-		}));
-	}
-
-	public async hasMatchupData(formatId: string, windowStart: string): Promise<boolean> {
-		if (formatId !== "1109") {
-			return true;
-		}
-		const rows: { exists: boolean }[] = await this.dataSource.query(
-			`SELECT EXISTS(
-				SELECT 1 FROM "stats_deck_matchups" 
-				WHERE format_id = $1 AND window_start = $2::date
-			) AS exists;`,
-			[formatId, windowStart],
-		);
-		return rows && rows[0]?.exists === true;
 	}
 
 	public async publishPeriodStatistics(
@@ -323,14 +319,15 @@ export class UsageStatisticsPostgresRepository
 				`
 				INSERT INTO "usage_stat_runs" (
 					"format_id", "window_start", "window_end_exclusive", "data_end_exclusive",
-					"published_at", "total_decks", "side_known_decks"
-				) VALUES ($1, $2::date, $3::date, $4::date, $5, $6, $7)
+					"published_at", "total_decks", "side_known_decks", "matchups_evaluated"
+				) VALUES ($1, $2::date, $3::date, $4::date, $5, $6, $7, $8)
 				ON CONFLICT ("format_id", "window_start") DO UPDATE SET
 					"window_end_exclusive" = EXCLUDED."window_end_exclusive",
 					"data_end_exclusive" = EXCLUDED."data_end_exclusive",
 					"published_at" = EXCLUDED."published_at",
 					"total_decks" = EXCLUDED."total_decks",
-					"side_known_decks" = EXCLUDED."side_known_decks";
+					"side_known_decks" = EXCLUDED."side_known_decks",
+					"matchups_evaluated" = EXCLUDED."matchups_evaluated";
 			`,
 				[
 					run.formatId,
@@ -340,6 +337,7 @@ export class UsageStatisticsPostgresRepository
 					run.publishedAt,
 					run.totalDecks,
 					run.sideKnownDecks,
+					run.matchupsEvaluated === true,
 				],
 			);
 

@@ -119,6 +119,10 @@ describe("DeckStatsPageBehavior", () => {
 		it("displays '数据不足' instead of '0%' when matches count is zero", () => {
 			expect(html1109).toContain("数据不足");
 		});
+
+		it("uses the API's :: separator for matrix cell lookups", () => {
+			expect(html1109).toContain('var key = deckA.code + "::" + deckB.code;');
+		});
 	});
 
 	describe("Client-side URL Synchronization, Anti-race, and XSS Protection", () => {

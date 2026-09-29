@@ -514,7 +514,7 @@ export function renderDeckStatsPage(formatId: string): string {
 
 				for (var c = 0; c < decks.length; c++) {
 					var deckB = decks[c];
-					var key = deckA.code + "_" + deckB.code;
+					var key = deckA.code + "::" + deckB.code;
 					var stat = data.stats[key] || {
 						matches: 0,
 						matchWins: 0,
