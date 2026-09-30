@@ -14,6 +14,8 @@ import { UsageStatRunEntity } from "./entities/UsageStatRunEntity";
 import { StatsDeckMatchupEntity } from "./entities/StatsDeckMatchupEntity";
 import { UserBanEntity } from "./entities/UserBanEntity";
 import { UserProfileEntity } from "./entities/UserProfileEntity";
+import { StatsDeckDetailMatchupEntity } from "./entities/StatsDeckDetailMatchupEntity";
+import { StatsDeckTopPlayerEntity } from "./entities/StatsDeckTopPlayerEntity";
 
 const options: DataSourceOptions = {
 	type: "postgres",
@@ -37,6 +39,8 @@ const options: DataSourceOptions = {
 		UsageDeckRowEntity,
 		UsageCardRowEntity,
 		StatsDeckMatchupEntity,
+		StatsDeckDetailMatchupEntity,
+		StatsDeckTopPlayerEntity,
 	],
 	subscribers: [],
 	migrations: [

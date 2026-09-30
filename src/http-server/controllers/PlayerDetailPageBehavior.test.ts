@@ -125,5 +125,12 @@ describe("PlayerDetailPage Behavior and Layout Specification (Tasks 4.2 - 4.6)",
 		it("safely uses textContent to prevent XSS attacks", () => {
 			expect(html1103).toContain("textContent = ");
 		});
+
+		it("5.3 links season decks, overall decks, and matches history to deck-detail with period", () => {
+			expect(html1109).toContain("/deck-detail?deckTypeCode=");
+			expect(html1109).toContain('d.deckTypeCode !== "OTHERS"');
+			expect(html1109).toContain('d.deckTypeCode !== "unknown"');
+			expect(html1109).toContain("curBeijingHalfYear");
+		});
 	});
 });

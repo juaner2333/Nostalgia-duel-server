@@ -4,6 +4,7 @@ import { AddReplayDeckAccess1741000001000 } from "../../../../../evolution-types
 import { AddHalfYearUsageStatistics1741000002000 } from "../../../../../evolution-types/src/migrations/1741000002000-AddHalfYearUsageStatistics";
 import { AddHalfYearDeckMatchups1741000003000 } from "../../../../../evolution-types/src/migrations/1741000003000-AddHalfYearDeckMatchups";
 import { AddMatchupsEvaluated1790619192715 } from "../../../../../evolution-types/src/migrations/1790619192715-AddMatchupsEvaluated";
+import { AddDeckDetailPrecomputedTables1790619192716 } from "../../../../../evolution-types/src/migrations/1790619192716-AddDeckDetailPrecomputedTables";
 import { UsageStatisticsPostgresRepository } from "./UsageStatisticsPostgresRepository";
 
 describe("UsageStatisticsPostgresRepository Integration", () => {
@@ -89,6 +90,7 @@ describe("UsageStatisticsPostgresRepository Integration", () => {
 			await new AddHalfYearUsageStatistics1741000002000().up(queryRunner);
 			await new AddHalfYearDeckMatchups1741000003000().up(queryRunner);
 			await new AddMatchupsEvaluated1790619192715().up(queryRunner);
+			await new AddDeckDetailPrecomputedTables1790619192716().up(queryRunner);
 
 			await queryRunner.query(`
 				INSERT INTO "users" ("id", "username", "password", "email") VALUES

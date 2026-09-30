@@ -144,5 +144,14 @@ describe("DeckStatsPageBehavior", () => {
 		it("includes HTML escaping logic for deck names and strings to prevent XSS", () => {
 			expect(html1109).toContain("escapeHtml");
 		});
+
+		it("5.2 links matrix row and column headers to deck-detail with period preserved and target='_blank' while total column has no link", () => {
+			expect(html1109).toContain("/deck-detail?deckTypeCode=");
+			expect(html1109).toContain('target="_blank"');
+			expect(html1109).toContain("encodeURIComponent(state.period)");
+			expect(html1109).toContain(
+				'<th class="total-col-header" title="仅汇总本方对入选前 16 名类别的对局">前 16 内合计</th>',
+			);
+		});
 	});
 });

@@ -574,9 +574,13 @@ export function renderUsageDashboardPage(formatId: string): string {
 					var rankCls = d.rank === 1 ? "rank-1" : (d.rank === 2 ? "rank-2" : (d.rank === 3 ? "rank-3" : ""));
 					var ratePct = d.usageRate !== null ? (d.usageRate * 100).toFixed(2) + "%" : "-";
 					var barPct = d.usageRate !== null ? Math.min(100, d.usageRate * 100).toFixed(1) + "%" : "0%";
+					var isNamedDeck = d.code && d.code !== "OTHERS";
+					var nameHtml = isNamedDeck
+						? '<a href="/leaderboards/' + FORMAT + '/deck-detail?deckTypeCode=' + encodeURIComponent(d.code) + '&period=' + encodeURIComponent(state.period) + '" class="card-link" target="_blank" rel="noopener noreferrer"><strong>' + escapeHtml(d.nameZh) + '</strong></a>'
+						: '<strong>' + escapeHtml(d.nameZh) + '</strong>';
 					rowsHtml += '<tr>' +
 						'<td class="rank-col ' + rankCls + '">' + d.rank + '</td>' +
-						'<td><strong>' + escapeHtml(d.nameZh) + '</strong></td>' +
+						'<td>' + nameHtml + '</td>' +
 						'<td>' + d.deckCount + '</td>' +
 						'<td><div class="rate-bar-cell"><div class="rate-bar-bg"><div class="rate-bar-fill" style="width:' + barPct + '"></div></div><span>' + ratePct + '</span></div></td>' +
 					'</tr>';

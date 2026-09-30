@@ -584,7 +584,7 @@ export function renderPlayerDetailPage(formatId: string): string {
 				history.replaceState(null, "", newUrl);
 			}
 
-			function renderDeckTable(tbodyId, decks) {
+			function renderDeckTable(tbodyId, decks, isOverall) {
 				var tbody = document.getElementById(tbodyId);
 				tbody.innerHTML = "";
 				if (!decks || decks.length === 0) {
@@ -598,12 +598,28 @@ export function renderPlayerDetailPage(formatId: string): string {
 					return;
 				}
 
+				var curBeijingHalfYear = getBeijingHalfYear().label;
+
 				for (var i = 0; i < decks.length; i++) {
 					var d = decks[i];
 					var tr = document.createElement("tr");
 
 					var tdName = document.createElement("td");
-					tdName.textContent = d.deckTypeName || d.deckTypeCode;
+					var isNamed = d.deckTypeCode && d.deckTypeCode !== "OTHERS" && d.deckTypeCode !== "unknown";
+
+					if (isNamed) {
+						var targetPeriod = isOverall ? curBeijingHalfYear : (state.season || curBeijingHalfYear);
+						var aDeck = document.createElement("a");
+						aDeck.href = "/leaderboards/" + FORMAT + "/deck-detail?deckTypeCode=" + encodeURIComponent(d.deckTypeCode) + "&period=" + encodeURIComponent(targetPeriod);
+						aDeck.target = "_blank";
+						aDeck.rel = "noopener noreferrer";
+						aDeck.style.color = "inherit";
+						aDeck.style.textDecoration = "underline";
+						aDeck.textContent = d.deckTypeName || d.deckTypeCode;
+						tdName.appendChild(aDeck);
+					} else {
+						tdName.textContent = d.deckTypeName || d.deckTypeCode;
+					}
 					tr.appendChild(tdName);
 
 					var tdMatches = document.createElement("td");
@@ -738,7 +754,52 @@ export function renderPlayerDetailPage(formatId: string): string {
 
 					// 6. 双方卡组
 					var tdDecks = document.createElement("td");
-					tdDecks.textContent = m.playerDeckTypeName + " vs " + m.opponentDeckTypeName;
+					function getMatchHalfYear(dateStr) {
+						var d = new Date(dateStr);
+						var formatter = new Intl.DateTimeFormat("en-CA", {
+							timeZone: "Asia/Shanghai",
+							year: "numeric",
+							month: "2-digit"
+						});
+						var parts = formatter.formatToParts(d);
+						var year = "1970";
+						var month = "01";
+						for (var pi = 0; pi < parts.length; pi++) {
+							if (parts[pi].type === "year") year = parts[pi].value;
+							if (parts[pi].type === "month") month = parts[pi].value;
+						}
+						return year + (parseInt(month, 10) <= 6 ? "H1" : "H2");
+					}
+
+					var matchPeriod = getMatchHalfYear(m.date);
+					var isPlayerNamed = m.playerDeckTypeCode && m.playerDeckTypeCode !== "OTHERS" && m.playerDeckTypeCode !== "unknown";
+					var isOppNamed = m.opponentDeckTypeCode && m.opponentDeckTypeCode !== "OTHERS" && m.opponentDeckTypeCode !== "unknown";
+
+					if (isPlayerNamed) {
+						var aP = document.createElement("a");
+						aP.href = "/leaderboards/" + FORMAT + "/deck-detail?deckTypeCode=" + encodeURIComponent(m.playerDeckTypeCode) + "&period=" + encodeURIComponent(matchPeriod);
+						aP.target = "_blank";
+						aP.style.color = "inherit";
+						aP.style.textDecoration = "underline";
+						aP.textContent = m.playerDeckTypeName;
+						tdDecks.appendChild(aP);
+					} else {
+						tdDecks.appendChild(document.createTextNode(m.playerDeckTypeName));
+					}
+
+					tdDecks.appendChild(document.createTextNode(" vs "));
+
+					if (isOppNamed) {
+						var aO = document.createElement("a");
+						aO.href = "/leaderboards/" + FORMAT + "/deck-detail?deckTypeCode=" + encodeURIComponent(m.opponentDeckTypeCode) + "&period=" + encodeURIComponent(matchPeriod);
+						aO.target = "_blank";
+						aO.style.color = "inherit";
+						aO.style.textDecoration = "underline";
+						aO.textContent = m.opponentDeckTypeName;
+						tdDecks.appendChild(aO);
+					} else {
+						tdDecks.appendChild(document.createTextNode(m.opponentDeckTypeName));
+					}
 					tr.appendChild(tdDecks);
 
 					// 7. 积分变化及结算后总积分（仅展示当前详情页玩家）
@@ -903,7 +964,7 @@ export function renderPlayerDetailPage(formatId: string): string {
 					document.getElementById("stat-overall-winrate").textContent = (ov.winRate * 100).toFixed(1) + "%";
 
 					// 总使用率表格
-					renderDeckTable("tbody-overall-decks", data.overallDeckStats);
+					renderDeckTable("tbody-overall-decks", data.overallDeckStats, true);
 
 					// 半年模块展示与隐藏
 					var secSeasonSummary = document.getElementById("section-season-summary");
@@ -924,7 +985,7 @@ export function renderPlayerDetailPage(formatId: string): string {
 						document.getElementById("stat-season-record").textContent = sn.wins + " 胜 " + sn.losses + " 负";
 						document.getElementById("stat-season-winrate").textContent = (sn.winRate * 100).toFixed(1) + "%";
 
-						renderDeckTable("tbody-season-decks", data.seasonDeckStats || []);
+						renderDeckTable("tbody-season-decks", data.seasonDeckStats || [], false);
 					} else {
 						secSeasonSummary.style.display = "none";
 						secSeasonDecks.style.display = "none";

@@ -497,7 +497,8 @@ export function renderDeckStatsPage(formatId: string): string {
 			// Render header
 			var headerHtml = '<tr><th class="corner-header">本方 \\ 对手</th>';
 			for (var i = 0; i < decks.length; i++) {
-				headerHtml += '<th title="' + escapeHtml(decks[i].nameZh) + '">' + escapeHtml(decks[i].nameZh) + '</th>';
+				var colUrl = '/leaderboards/' + FORMAT + '/deck-detail?deckTypeCode=' + encodeURIComponent(decks[i].code) + (state.period ? '&period=' + encodeURIComponent(state.period) : '');
+				headerHtml += '<th title="' + escapeHtml(decks[i].nameZh) + '"><a href="' + colUrl + '" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:underline;">' + escapeHtml(decks[i].nameZh) + '</a></th>';
 			}
 			headerHtml += '<th class="total-col-header" title="仅汇总本方对入选前 16 名类别的对局">前 16 内合计</th></tr>';
 			thead.innerHTML = headerHtml;
@@ -508,7 +509,8 @@ export function renderDeckStatsPage(formatId: string): string {
 
 			for (var r = 0; r < decks.length; r++) {
 				var deckA = decks[r];
-				rowsHtml += '<tr><th class="row-header" title="' + escapeHtml(deckA.nameZh) + '">' + escapeHtml(deckA.nameZh) + '</th>';
+				var rowUrl = '/leaderboards/' + FORMAT + '/deck-detail?deckTypeCode=' + encodeURIComponent(deckA.code) + (state.period ? '&period=' + encodeURIComponent(state.period) : '');
+				rowsHtml += '<tr><th class="row-header" title="' + escapeHtml(deckA.nameZh) + '"><a href="' + rowUrl + '" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:underline;">' + escapeHtml(deckA.nameZh) + '</a></th>';
 				var totalWins = 0;
 				var totalMatches = 0;
 

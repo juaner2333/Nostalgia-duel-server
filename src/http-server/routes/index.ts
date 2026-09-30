@@ -16,8 +16,10 @@ import { GetDeckStatsPeriodsController } from "../controllers/GetDeckStatsPeriod
 import { LeaderboardPageController } from "../controllers/LeaderboardPageController";
 import { PlayerDetailPageController } from "../controllers/PlayerDetailPageController";
 import { GetPlayerDetailController } from "../controllers/GetPlayerDetailController";
+import { GetDeckDetailController } from "../controllers/GetDeckDetailController";
 import { UsageDashboardPageController } from "../controllers/UsageDashboardPageController";
 import { DeckStatsPageController } from "../controllers/DeckStatsPageController";
+import { DeckDetailPageController } from "../controllers/DeckDetailPageController";
 import { GetReplayListController } from "../controllers/GetReplayListController";
 import { DownloadReplayController } from "../controllers/DownloadReplayController";
 import { DownloadMatchDeckController } from "../controllers/DownloadMatchDeckController";
@@ -75,6 +77,9 @@ export function loadRoutes(app: Express, logger: Logger, tickets: TicketReposito
 	app.get("/leaderboards/:format/deck-stats", (req, res) =>
 		new DeckStatsPageController().run(req, res),
 	);
+	app.get("/leaderboards/:format/deck-detail", (req, res) =>
+		new DeckDetailPageController().run(req, res),
+	);
 
 	app.get("/api/replays/:format", RateLimitMiddleware, async (req, res) => {
 		await new GetReplayListController().run(req, res);
@@ -102,6 +107,10 @@ export function loadRoutes(app: Express, logger: Logger, tickets: TicketReposito
 
 	app.get("/api/ladder/:format/deck-stats", RateLimitMiddleware, async (req, res) => {
 		await new GetDeckStatsController().run(req, res);
+	});
+
+	app.get("/api/ladder/:format/deck-detail", RateLimitMiddleware, async (req, res) => {
+		await new GetDeckDetailController().run(req, res);
 	});
 
 	app.post("/api/ladder/:format/player", RateLimitMiddleware, async (req, res) => {

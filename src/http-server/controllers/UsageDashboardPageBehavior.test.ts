@@ -68,4 +68,10 @@ describe("UsageDashboardPageBehavior", () => {
 		controller.run({ params: { format: "1109" } } as unknown as Request, res200 as Response);
 		expect(res200.status).toHaveBeenCalledWith(200);
 	});
+
+	it("5.1 links named deck types to deck-detail with target='_blank' while leaving OTHERS without link", () => {
+		expect(html1109).toContain("/deck-detail?deckTypeCode=");
+		expect(html1109).toContain('target="_blank"');
+		expect(html1109).toContain('d.code !== "OTHERS"');
+	});
 });

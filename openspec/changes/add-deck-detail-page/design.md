@@ -81,23 +81,31 @@ usage.count = 合计.matches
 
 备选：沿用矩阵的完全排除未知 G1 规则。详情是所选具名卡组的综合 Match 查询，保留有效结算结果能够更完整展示历史，且通过未知计数解释综合与先后攻分母的差异。
 
-### 4. 整个详情按需实时查询，不借用每日批次元数据
+### 4. 每日预聚合物理表，卡组详情极速点查
 
-选中类型后，仓库在一个 `QueryRunner` 上启动 `REPEATABLE READ` 只读事务，首个取数确定快照及数据库查询时间。统一截止时间为历史半年固定结束边界或当前半年的查询时间，所有取数顺序执行于该事务。输出 `queriedAt`，不输出暗示每日发布的 `publishedAt`；成功提交或异常回滚后释放连接。
+为彻底消除运行时重复扫描多表 CTE 的数据库开销，卡组详情接入系统既有的每日批处理（`npm run rebuild:usage`）体系，通过数据库迁移新增两张轻量物理表，并挂载在 `usage_stat_runs` 外键下：
 
-半年标识与当前半年复用现有北京时间工具，详情自己的领域边界同时保留时分秒，不改变 `HalfYearWindow` 为每日任务截到零点的行为。年月日边界按北京时间墙钟字符串传入 `matches.date` 比较；`queriedAt` 从数据库绝对时间取值并显式转换为北京时间墙钟上界，公共时间字段携带明确偏移或 UTC 标识。独立数据库测试在 UTC 与 Asia/Shanghai 进程设置下使用明确的生产存储样本验证同一半年边界，不通过更改旧写入链路解决本页时间筛选。
+1. **卡组对阵 8 计数表 `stats_deck_detail_matchups`**：
+   - 联合主键：`(format_id, window_start, deck_type_code, opp_deck_type_code)`
+   - 存储 8 项守恒计数：`matches`, `match_wins`, `first_matches`, `first_wins`, `second_matches`, `second_wins`, `unknown_seat_matches`, `unknown_seat_wins`。
+   - 包含守恒性 CHECK 约束（`matches = first + second + unknownSeat`，`match_wins = firstWins + secondWins + unknownSeatWins`）。
+   - 单半年数据量固定约 930 行（30 种具名卡组 × 31 种对手）。
 
-事务中读取：
+2. **卡组专精玩家 Top10 榜表 `stats_deck_top_players`**：
+   - 联合主键：`(format_id, window_start, deck_type_code, rank)`
+   - 存储：`user_id`, `username`, `matches`, `wins`, `losses`, `win_rate`（约束 `matches >= 25`，`rank BETWEEN 1 AND 10`）。
+   - 单半年数据量最多约 300 行（30 种具名卡组 × 10 位达标玩家）。
 
-1. 全目录的使用聚合，至多 30 行；分母为符合本次样本规则的全部具名本方份数之和。
-2. 所选卡组的对手计数，至多 30 个具名类型加 1 个未知行；没有样本的目录项由领域补零。
-3. 所选卡组按内部用户身份聚合后连接可确认账号，`HAVING count >= 25`，按完整精度胜率、场数、昵称排序并 `LIMIT 10`；仅把公开昵称及战绩返回应用。
+3. **具名使用占比分母复用**：
+   - 直接复用 `usage_deck_rows`：
+     - 分子：当前卡组的 `deck_count`；
+     - 分母：当前半年全部具名卡组（`deck_type_code <> 'OTHERS'`）的 `SUM(deck_count)`。
+     - 保证卡组详情的使用数、占比与使用率看板完全一致。
 
-Top10 不调用 `player_stats` 作为卡组榜，不先取全量玩家到 Node 排序。三个结果同快照，但可以复用局部 CTE 在不同聚合查询中计算；没有缓存或每日汇总依赖，详情即使该半年尚未发布批次也可返回有效结果。
-
-页面写明“实时查询；排除其他，未知对手保留；具名卡组使用占比与每日使用率榜口径不同”。每日榜分母包含其他、允许不同快照完整性，本页分母采用有效物理比赛和具名本方，禁止暗示数值必然一致。Top10 点击只打开玩家详情公开模式；玩家详情原有卡组表包含其他、全时期历史等，本次不为制造数值一致而修改其聚合。
-
-备选：为全类型对阵和玩家榜新增每日汇总表，加入既有发布事务。该方案可降低重复查询，但扩大迁移与后台链路改造；首版两个聚合维度先采用现有事实及索引，隔离库查询计划若无法接受则在实现前调整方案，而不自动引入表或索引。
+4. **查询与发布流程**：
+   - **写入时**：在每日跑批 `RebuildUsageStatisticsUseCase.rebuildFormatWindow` 事务中统一计算并写入两张表，级联随批次发布更新。
+   - **读取时**：`DeckDetailPostgresRepository` 直接利用主键索引进行两次极简点查（读取 31 行对阵 + 最多 10 行玩家），查询耗时控制在 1~2 毫秒内，零运行时聚合开销。
+   - 响应与页面统一展示发布快照元数据（`format`, `period`, `windowStart`, `windowEndExclusive`, `dataEndExclusive`, `publishedAt`）。
 
 ### 5. 页面与入口只携带公开选择状态
 
@@ -112,7 +120,7 @@ Top10 不调用 `player_stats` 作为卡组榜，不先取全量玩家到 Node �
 | 使用率具名行 | 原 `period` | OTHERS、未知 |
 | 矩阵行名/列名 | 原 `period` | 合计列 |
 | 玩家详情半年卡组表 | 原 `season` 转成 `period` | OTHERS、未知 |
-| 玩家详情总卡组表 | 当前北京时间半年，入口注明“查看当前半年详情” | OTHERS、未知 |
+| 玩家详情总卡组表 | 当前北京时间半年，具名卡组名称超链接跳转 | OTHERS、未知 |
 | 玩家详情对战记录中的具名卡组 | 该场结算时间所属北京时间半年 | 无法确认环境、OTHERS、未知 |
 | 详情对手行 | 当前 `period` | unknown |
 | Top10 玩家 | `scope=season&season=<period>` | 无可确认账号 |
