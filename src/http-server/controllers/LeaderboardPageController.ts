@@ -863,7 +863,19 @@ export function renderLeaderboardPage(formatId: string): string {
 				container.className = "player-deck-cell";
 
 				var nameSpan = document.createElement("span");
-				nameSpan.textContent = player ? (player.name || "未知玩家") : "未知玩家";
+				if (player && player.name && player.name !== "未知玩家") {
+					var currentSeason = getBeijingHalfYear().label;
+					var playerLink = document.createElement("a");
+					playerLink.href = "/leaderboards/" + FORMAT + "/player?player=" + encodeURIComponent(player.name) + "&scope=season&season=" + encodeURIComponent(currentSeason);
+					playerLink.target = "_blank";
+					playerLink.rel = "noopener noreferrer";
+					playerLink.textContent = player.name;
+					playerLink.style.color = "var(--text-bright)";
+					playerLink.style.textDecoration = "none";
+					nameSpan.appendChild(playerLink);
+				} else {
+					nameSpan.textContent = player ? (player.name || "未知玩家") : "未知玩家";
+				}
 				container.appendChild(nameSpan);
 
 				var typeBadge = document.createElement("span");
@@ -1173,7 +1185,20 @@ export function renderLeaderboardPage(formatId: string): string {
 					// Col 2: 玩家 (后 30% 且无搜索时打码)
 					var tdPlayer = document.createElement("td");
 					var isMasked = !ladderState.search && totalCount > 0 && (entry.rank / totalCount >= 0.7);
-					tdPlayer.textContent = isMasked ? "******" : entry.username;
+					if (isMasked) {
+						tdPlayer.textContent = "******";
+					} else {
+						var aPlayer = document.createElement("a");
+						var scopeParam = ladderState.scope || "season";
+						var seasonParam = (scopeParam === "season" && ladderState.season) ? ("&season=" + encodeURIComponent(ladderState.season)) : "";
+						aPlayer.href = "/leaderboards/" + FORMAT + "/player?player=" + encodeURIComponent(entry.username) + "&scope=" + scopeParam + seasonParam;
+						aPlayer.target = "_blank";
+						aPlayer.rel = "noopener noreferrer";
+						aPlayer.textContent = entry.username;
+						aPlayer.style.color = "var(--text-bright)";
+						aPlayer.style.textDecoration = "none";
+						tdPlayer.appendChild(aPlayer);
+					}
 					row.appendChild(tdPlayer);
 
 					// Col 3: 总积分

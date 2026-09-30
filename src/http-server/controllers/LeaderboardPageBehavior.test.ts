@@ -102,6 +102,13 @@ describe("LeaderboardPage client-side scripts and behavior specification", () =>
 				'document.getElementById("btn-next-replays").disabled = replaysState.page >= totalPages;',
 			);
 		});
+
+		it("links visible player names in replays table to player detail page preserving format and default current half-year season in new tab", () => {
+			expect(html1103).toContain(
+				'"/leaderboards/" + FORMAT + "/player?player=" + encodeURIComponent(player.name) + "&scope=season&season="',
+			);
+			expect(html1103).toContain('playerLink.target = "_blank";');
+		});
 	});
 
 	describe("Tab 3: 天梯排行 (Ladder tab)", () => {
@@ -148,6 +155,17 @@ describe("LeaderboardPage client-side scripts and behavior specification", () =>
 		it("serves season-parsing regexes with intact backslash digit escapes", () => {
 			expect(html1103).toContain("/^(\\d{4})H([12])$/");
 		});
+
+		it("links visible ladder usernames to player detail page preserving format and scope/season in new tab", () => {
+			expect(html1103).toContain(
+				'"/leaderboards/" + FORMAT + "/player?player=" + encodeURIComponent(entry.username)',
+			);
+			expect(html1103).toContain('aPlayer.target = "_blank";');
+		});
+
+		it("keeps masked bottom 30% without link or href", () => {
+			expect(html1103).toContain('tdPlayer.textContent = "******"');
+		});
 	});
 
 	describe("Layout: full-width page container", () => {
@@ -168,7 +186,6 @@ describe("LeaderboardPage client-side scripts and behavior specification", () =>
 		});
 
 		it("writes user-controlled data via textContent rather than innerHTML", () => {
-			expect(html1103).toContain('tdPlayer.textContent = isMasked ? "******" : entry.username;');
 			expect(html1103).toContain('tdName.textContent = r.roomname || "-";');
 			expect(html1103).toContain('tdPlayers.textContent = userNames || "无玩家";');
 		});
