@@ -263,6 +263,30 @@ describe("NostalgiaResourceGenerator", () => {
 		fs.rmSync(resourceRoot, { recursive: true, force: true });
 	});
 
+	it("accepts only inactive GOAT placeholders outside the resource lock", async () => {
+		const resourceRoot = await buildLockFixture();
+		const lockPath = path.join(resourceRoot, "lock.json");
+		const goatDir = path.join(resourceRoot, "ygopro", "formats", "goat");
+		const scriptDir = path.join(goatDir, "script");
+		try {
+			await writeNostalgiaResourceLock(resourceRoot, lockPath);
+			fs.mkdirSync(scriptDir, { recursive: true });
+			fs.writeFileSync(path.join(goatDir, "README.md"), "Inactive placeholder\n");
+			fs.writeFileSync(path.join(scriptDir, ".gitkeep"), "");
+			await expect(checkNostalgiaResourceLock(resourceRoot, lockPath)).resolves.toBeUndefined();
+
+			for (const file of [path.join(goatDir, "lflist.conf"), path.join(scriptDir, "c1.lua")]) {
+				fs.writeFileSync(file, "");
+				await expect(checkNostalgiaResourceLock(resourceRoot, lockPath)).rejects.toThrow(
+					path.basename(file),
+				);
+				fs.rmSync(file);
+			}
+		} finally {
+			fs.rmSync(resourceRoot, { recursive: true, force: true });
+		}
+	});
+
 	it("rejects external script trees and non-lua files anywhere in the layout", async () => {
 		const resourceRoot = await buildLockFixture();
 		const lockPath = path.join(resourceRoot, "lock.json");

@@ -250,13 +250,13 @@ export class HistoricalTestDuel {
 		}
 	}
 
-	start(): void {
+	start(duelRule: 1 | 2 = 2): void {
 		this.duel.startDuel(
 			calculateDuelOptions({
 				lflist: 0,
 				rule: 0,
 				mode: 1,
-				duel_rule: 2,
+				duel_rule: duelRule,
 				no_check_deck: 0,
 				no_shuffle_deck: 0,
 				start_lp: 8000,

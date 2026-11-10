@@ -230,10 +230,12 @@ export function assertFixedPoolSizes(lock: {
  *   ├── lock.json
  *   └── ygopro/
  *       ├── base/{cards.cdb, script/*.lua}
- *       └── formats/{1103,1109}/{lflist.conf, script/*.lua}
+ *       └── formats/
+ *           ├── {1103,1109}/{lflist.conf, script/*.lua}
+ *           └── goat/{README.md, script/.gitkeep}（可选占位，不参与资源锁）
  *
- * script 目录只允许 .lua 文件与 .gitkeep（git 空目录占位），不允许子目录；
- * 其余任何条目（EDOPro 树、未启用赛制、外部脚本树、仓库缓存等）都拒绝。
+ * 启用赛制的 script 目录只允许 .lua 文件与 .gitkeep，不允许子目录；
+ * 其余越界条目（包括未启用赛制的卡表和脚本）都拒绝。
  */
 export async function checkNostalgiaResourceBoundaries(resourceRoot: string): Promise<void> {
 	const ygoproDir = path.join(resourceRoot, "ygopro");
@@ -264,14 +266,31 @@ export async function checkNostalgiaResourceBoundaries(resourceRoot: string): Pr
 		]),
 		"base",
 	);
-	await expectEntries(
+	const formatEntries = await expectEntries(
 		formatsDir,
 		new Map([
 			["1103", "dir"],
 			["1109", "dir"],
+			["goat", "dir"],
 		]),
 		"formats",
 	);
+	if (formatEntries.some((entry) => entry.name === "goat")) {
+		const goatDir = path.join(formatsDir, "goat");
+		await expectEntries(
+			goatDir,
+			new Map([
+				["README.md", "file"],
+				["script", "dir"],
+			]),
+			"GOAT placeholder",
+		);
+		await expectEntries(
+			path.join(goatDir, "script"),
+			new Map([[".gitkeep", "file"]]),
+			"GOAT script placeholder",
+		);
+	}
 
 	for (const formatId of ALLOWED_FORMAT_IDS) {
 		const formatDir = path.join(formatsDir, formatId);
@@ -292,8 +311,9 @@ async function expectEntries(
 	directory: string,
 	allowed: Map<string, "file" | "dir">,
 	label: string,
-): Promise<void> {
-	for (const entry of await readdir(directory, { withFileTypes: true })) {
+) {
+	const entries = await readdir(directory, { withFileTypes: true });
+	for (const entry of entries) {
 		const expectedType = allowed.get(entry.name);
 		const ok =
 			expectedType === "file"
@@ -305,6 +325,7 @@ async function expectEntries(
 			throw new Error(`unexpected ${label} entry: ${entry.name}`);
 		}
 	}
+	return entries;
 }
 
 async function expectScriptDirectory(scriptDirectory: string): Promise<void> {
