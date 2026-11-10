@@ -32,7 +32,7 @@ const fs = await import("node:fs").then((m) => m.default);
 const path = await import("node:path").then((m) => m.default);
 
 const PROJECT_ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
-const RESOURCE_ROOT = path.join(PROJECT_ROOT, "nostalgia-resources");
+const RESOURCE_ROOT = process.env.RESOURCES_DIR ?? path.join(PROJECT_ROOT, "nostalgia-resources");
 const PORT = Number(process.env.SMOKE_PORT || process.argv[2] || 706);
 
 // ---------- wire-format builders（YGOPro 线协议，独立于被测代码） ----------
@@ -86,18 +86,31 @@ const initSqlJsPromise = import("sql.js").then((m) => m.default);
  * 怪兽（非融合/同调/XYZ/连接）的真实卡片，保证通过真实卡组校验链。
  */
 async function buildDeck(formatId) {
-	const lflist = fs.readFileSync(
-		path.join(RESOURCE_ROOT, "ygopro", "formats", formatId, "lflist.conf"),
-		"utf-8",
-	);
+	const formatDir = path.join(RESOURCE_ROOT, "ygopro", "formats", formatId);
+	const lflistPath = path.join(formatDir, "lflist.conf");
+	const lflist =
+		formatId === "goat"
+			? await import("../dist/src/ygopro/ygopro/NostalgiaResourceGenerator.js").then(
+					({ readGoatLfList }) => readGoatLfList(RESOURCE_ROOT, lflistPath),
+				)
+			: fs.readFileSync(lflistPath, "utf-8");
 	const scriptDir = path.join(RESOURCE_ROOT, "ygopro", "base", "script");
 	const initSqlJs = await initSqlJsPromise;
 	const SQL = await initSqlJs();
-	const database = new SQL.Database(
-		fs.readFileSync(path.join(RESOURCE_ROOT, "ygopro", "base", "cards.cdb")),
+	const goatCdb = path.join(formatDir, "cards.cdb");
+	const cdbPath =
+		formatId === "goat" && fs.existsSync(goatCdb)
+			? goatCdb
+			: path.join(RESOURCE_ROOT, "ygopro", "base", "cards.cdb");
+	const database = new SQL.Database(fs.readFileSync(cdbPath));
+	const result = database.exec("SELECT id, type, ot FROM datas")[0];
+	database.close();
+	const allowedScope = formatId === "goat" ? 2 : 1;
+	const types = new Map(
+		result.values
+			.filter(([, , ot]) => (Number(ot) & allowedScope) !== 0)
+			.map(([id, type]) => [Number(id), Number(type)]),
 	);
-	const result = database.exec("SELECT id, type FROM datas")[0];
-	const types = new Map(result.values.map(([id, type]) => [Number(id), Number(type)]));
 	const EXTRA_TYPES = 0x40 | 0x2000 | 0x800000 | 0x4000000; // 融合 | 同调 | XYZ | 连接
 
 	const codes = [];
@@ -111,7 +124,8 @@ async function buildDeck(formatId) {
 		if (
 			type & 0x1 &&
 			!(type & EXTRA_TYPES) &&
-			fs.existsSync(path.join(scriptDir, `c${code}.lua`))
+			(fs.existsSync(path.join(scriptDir, `c${code}.lua`)) ||
+				fs.existsSync(path.join(formatDir, "script", `c${code}.lua`)))
 		) {
 			codes.push(code);
 			if (codes.length === 40) {
@@ -258,7 +272,7 @@ async function runFormat(formatId) {
 }
 
 async function main() {
-	for (const formatId of ["1103", "1109"]) {
+	for (const formatId of process.env.NOSTALGIA_PROFILE === "goat" ? ["goat"] : ["1103", "1109"]) {
 		await runFormat(formatId);
 	}
 	console.log("SMOKE PASS");

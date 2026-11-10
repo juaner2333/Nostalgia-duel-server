@@ -1,10 +1,10 @@
-import path from "node:path";
 import { Logger } from "@shared/logger/domain/Logger";
-import { NOSTALGIA_FORMAT_IDS } from "@ygopro/room/domain/NostalgiaFormat";
+import { getActiveNostalgiaFormatIds } from "@ygopro/room/domain/NostalgiaFormat";
 import { YGOProResourceLoader } from "@ygopro/ygopro/YGOProResourceLoader";
 import YGOProBanListMemoryRepository from "@ygopro/ban-list/infrastructure/YGOProBanListMemoryRepository";
 import { checkNostalgiaResourceLock } from "@ygopro/ygopro/NostalgiaResourceGenerator";
 import { config } from "src/config";
+import { resolveResourceLockPath } from "@ygopro/ygopro/ResourcePoolResolver";
 import { loadYgoproBanLists } from "./bootstrapBanListLoaders";
 
 // Runs the full fixed-resource integrity check before any resource is loaded.
@@ -12,8 +12,8 @@ import { loadYgoproBanLists } from "./bootstrapBanListLoaders";
 // port listeners, so a drifted or missing resource tree fails fast and the
 // process never accepts traffic.
 export async function checkYgoproResourceIntegrity(): Promise<void> {
-	const lockPath = path.join(config.resources.dir, "lock.json");
-	await checkNostalgiaResourceLock(config.resources.dir, lockPath);
+	const { dir, profile } = config.resources;
+	await checkNostalgiaResourceLock(dir, resolveResourceLockPath(dir, profile), profile);
 }
 
 // Loads ygopro card resources and ban lists.
@@ -29,10 +29,12 @@ export async function bootstrapYgoproResources(logger: Logger): Promise<void> {
 	// opens (fail-fast, same philosophy as the resource lock check).
 	const loader = YGOProResourceLoader.getShared();
 	await Promise.all([
-		...NOSTALGIA_FORMAT_IDS.map((formatId) => loader.getFormatCardStorage(formatId)),
+		...getActiveNostalgiaFormatIds(config.resources.profile).map((formatId) =>
+			loader.getFormatCardStorage(formatId),
+		),
 		loader.getOcgcoreWasmModule(),
 	]);
-	logger.info("🔥 Pre-warmed 1103/1109 card storages and precompiled ocgcore WASM module");
+	logger.info("🔥 Pre-warmed active format card storages and precompiled ocgcore WASM module");
 
 	const tmp = await loadYgoproBanLists();
 	YGOProBanListMemoryRepository.replaceAll(tmp);

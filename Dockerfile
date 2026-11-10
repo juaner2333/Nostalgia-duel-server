@@ -1,5 +1,9 @@
 # syntax=docker/dockerfile:1
+ARG NOSTALGIA_PROFILE=2011
 FROM public.ecr.aws/docker/library/node:24.11.0-bullseye AS server-builder
+
+ARG NOSTALGIA_PROFILE
+ENV NOSTALGIA_PROFILE=${NOSTALGIA_PROFILE}
 
 WORKDIR /server
 
@@ -22,7 +26,8 @@ RUN apt-get update -y && \
 
 WORKDIR /app
 
-ENV TZ=Asia/Shanghai
+ARG NOSTALGIA_PROFILE
+ENV TZ=Asia/Shanghai NOSTALGIA_PROFILE=${NOSTALGIA_PROFILE}
 
 COPY --from=server-builder /server/dist ./dist
 COPY --from=server-builder /server/package.json ./package.json

@@ -1,16 +1,17 @@
-# GOAT 资源占位目录
+# GOAT 专用服务器
 
-GOAT 当前未启用。此目录仅保留后续审核资源的位置。
+选择 `NOSTALGIA_PROFILE=goat` 后，玩家使用 `goat#1001` 这样的房号。开局采用大师规则 1（`0x00010000`）、8000 LP 和三局两胜。此模式下排位和 WindBot 关闭。
 
-- `lflist.conf` 用于经核对的 GOAT 白名单和禁限数量。
-- `script/c<cardId>.lua` 用于经核对的历史卡片脚本覆盖。
+- `lflist.conf` 可保留两份历史禁限表。服务器选用 `!2005.4.1 W/O Exarion` 段。
+- `cards.cdb` 放在此目录，内容应为经核对的 GOAT 专用卡库。服务器以卡库中的实卡为白名单，并应用所选禁限表。Exarion Universe 禁止入组，衍生物不进入白名单。
+- 也可在所选禁限表段加入 `$whitelist` 和完整的卡号及限用数量。此时如未提供专用卡库，服务器从 `ygopro/base/cards.cdb` 读取白名单中的卡数据。
+- `script/c<cardId>.lua` 用于历史卡片脚本覆盖。脚本优先读取本目录，随后读取基础脚本。
+- `lock.json` 由资源锁生成命令写入此目录，绑定实际使用的 CDB、禁限表、卡池和 Lua。修改上述资源后应重新生成并核对。
 
-请在独立开发分支提交实际文件。当前启动和构建的资源校验仅允许此目录包含 `README.md` 和 `script/.gitkeep` 占位，加入实际卡表或 Lua 会使校验失败。
+```sh
+NOSTALGIA_PROFILE=goat npm run generate:nostalgia-lock
+NOSTALGIA_PROFILE=goat npm run check:nostalgia-resources
+NOSTALGIA_PROFILE=goat npm start
+```
 
-## 开局规则
-
-接入 GOAT 房间时，GOAT 的 `duel_rule` 设为 `1`，开局参数为 `0x00010000`（低 16 位为零）。1103 和 1109 继续使用规则 2（`0x00020000`）。
-
-锁定的 WASM 已通过「加农炮兵」对「激流葬」的召唤优先权对照测试。规则 1 下先提示召唤方发动起动效果，再提示对方连锁；规则 2 下由对方先获得「激流葬」的发动机会。
-
-启用前需明确 GOAT 卡池与卡片数据来源，继续核对其他历史规则和卡片裁定，再通过独立变更接入赛制注册、资源校验和资源锁。
+构建 GOAT Docker 镜像时使用 `docker build --build-arg NOSTALGIA_PROFILE=goat .`。锁定的 WASM 已通过「加农炮兵」对「激流葬」的召唤优先权对照测试。卡片裁定取决于实际使用的 Lua。

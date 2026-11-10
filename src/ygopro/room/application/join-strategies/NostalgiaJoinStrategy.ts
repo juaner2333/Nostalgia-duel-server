@@ -1,5 +1,6 @@
 import { generateUniqueId } from "src/utils/generateUniqueId";
-import { getNostalgiaFormat, type NostalgiaFormatId } from "../../domain/NostalgiaFormat";
+import { config } from "src/config";
+import { getActiveNostalgiaFormatIds, type NostalgiaFormatId } from "../../domain/NostalgiaFormat";
 import type { NostalgiaFormatResourcePort } from "../../domain/NostalgiaFormatResourcePort";
 import { YGOProRoom } from "../../domain/YGOProRoom";
 import YGOProRoomList from "../../infrastructure/YGOProRoomList";
@@ -14,7 +15,7 @@ export interface NostalgiaRoomId {
 }
 
 export function isNostalgiaRoomInput(rawPass: string): boolean {
-	return rawPass === "1103" || rawPass === "1109" || /^\d{4}#/.test(rawPass);
+	return /^(?:1103|1109|goat)$|^(?:\d{4}|goat)#/.test(rawPass);
 }
 
 export function parseNostalgiaRoomId(rawPass: string): NostalgiaRoomId {
@@ -26,7 +27,7 @@ export function parseNostalgiaRoomId(rawPass: string): NostalgiaRoomId {
 		throw new Error("Nostalgia room ID must contain exactly one format separator");
 	}
 	const [formatId, roomId] = parts;
-	if (!getNostalgiaFormat(formatId)) {
+	if (!getActiveNostalgiaFormatIds(config.resources.profile).some((id) => id === formatId)) {
 		throw new Error(`Unsupported nostalgia format: ${formatId}`);
 	}
 	if (!/^\d+$/.test(roomId)) {

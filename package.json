@@ -16,7 +16,7 @@
 		"start": "npm run build && node --env-file=.env ./dist/src/index.js",
 		"lint": "biome lint",
 		"check:nostalgia-resources": "npm run build --silent && node ./dist/src/ygopro/ygopro/NostalgiaResourceGeneratorCli.js --root nostalgia-resources",
-		"generate:nostalgia-lock": "npm run build --silent && node -e \"require('./dist/src/ygopro/ygopro/NostalgiaResourceGenerator').writeNostalgiaResourceLock('nostalgia-resources', 'nostalgia-resources/lock.json').catch((error) => { process.stderr.write(String(error) + '\\\\n'); process.exitCode = 1; })\"",
+		"generate:nostalgia-lock": "npm run build --silent && node ./dist/src/ygopro/ygopro/NostalgiaResourceGeneratorCli.js --write --root nostalgia-resources",
 		"lint:fix": "biome check --write",
 		"format": "biome format --write",
 		"check": "biome check",

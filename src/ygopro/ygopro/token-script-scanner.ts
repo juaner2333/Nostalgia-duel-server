@@ -56,14 +56,17 @@ export function extractTokenCodes(luaText: string): Set<number> {
 }
 
 /** 递归扫描脚本目录（format-first 查找链的全部目录） */
-export async function scanTokenCodes(scriptDirectories: string[]): Promise<Set<number>> {
+export async function scanTokenCodes(
+	scriptDirectories: string[],
+	includesScript: (filename: string) => boolean = () => true,
+): Promise<Set<number>> {
 	const codes = new Set<number>();
 	async function walk(directory: string): Promise<void> {
 		for (const entry of await readdir(directory, { withFileTypes: true })) {
 			const entryPath = path.join(directory, entry.name);
 			if (entry.isDirectory()) {
 				await walk(entryPath);
-			} else if (entry.isFile() && entry.name.endsWith(".lua")) {
+			} else if (entry.isFile() && entry.name.endsWith(".lua") && includesScript(entryPath)) {
 				for (const code of extractTokenCodes(await readFile(entryPath, "utf-8"))) {
 					codes.add(code);
 				}

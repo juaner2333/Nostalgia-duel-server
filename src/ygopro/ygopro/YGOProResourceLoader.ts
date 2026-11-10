@@ -8,8 +8,10 @@ import { config } from "src/config";
 import { Logger } from "src/shared/logger/domain/Logger";
 import LoggerFactory from "src/shared/logger/infrastructure/LoggerFactory";
 import { CardStorage } from "./card-storage";
+import { readGoatLfList } from "./NostalgiaResourceGenerator";
 import { CardLoadWorker } from "./card-load-worker";
 import {
+	resolveBaseDatabaseDirectory,
 	resolveFormatPath,
 	resolveFormatPreloadScriptPaths,
 	resolvePools,
@@ -22,6 +24,7 @@ export class YGOProResourceLoader {
 	private readonly loadingLock = new BetterLock();
 	private readonly resolvedPools = resolvePools({
 		resourcesDir: config.resources.dir,
+		profile: config.resources.profile,
 		logger: LoggerFactory.getLogger(),
 	});
 	private baseLoadingPromise?: Promise<CardStorage>;
@@ -29,6 +32,7 @@ export class YGOProResourceLoader {
 	private baseSha512?: Buffer;
 	private readonly formatCardStorages = new Map<string, CardStorage>();
 	private readonly formatCardStoragePromises = new Map<string, Promise<CardStorage>>();
+	private goatLfList?: Promise<string>;
 	private readonly formatBanListHashes = new Map<string, number>();
 	private wasmModulePromise?: Promise<WebAssembly.Module>;
 	private wasmModule?: WebAssembly.Module;
@@ -106,10 +110,7 @@ export class YGOProResourceLoader {
 		if (existing !== undefined) {
 			return existing;
 		}
-		const text = await readFile(
-			path.join(resolveFormatPath(this.resolvedPools, formatId), "lflist.conf"),
-			"utf-8",
-		);
+		const text = await this.getFormatLfList(formatId);
 		const item = new YGOProLFList().fromText(text).items[0];
 		if (!item) {
 			throw new Error(`Format ${formatId} has no LFList`);
@@ -150,10 +151,7 @@ export class YGOProResourceLoader {
 
 	async *getLFLists(): AsyncGenerator<{ item: YGOProLFList["items"][number]; text: string }> {
 		for (const formatId of Object.keys(this.resolvedPools.formats).sort()) {
-			const text = await readFile(
-				path.join(resolveFormatPath(this.resolvedPools, formatId), "lflist.conf"),
-				"utf-8",
-			);
+			const text = await this.getFormatLfList(formatId);
 			for (const item of new YGOProLFList().fromText(text).items) {
 				yield { item, text };
 			}
@@ -187,7 +185,7 @@ export class YGOProResourceLoader {
 		}
 		const loading = this.loadingLock.acquire(async () => {
 			const { cardStorage, sha512 } = await this.loadCardStorageFromPaths(
-				[this.basePath()],
+				[resolveBaseDatabaseDirectory(config.resources.dir, config.resources.profile)],
 				"base",
 			);
 			this.baseCardStorage = cardStorage;
@@ -221,9 +219,17 @@ export class YGOProResourceLoader {
 		}
 	}
 
+	private getFormatLfList(formatId: string): Promise<string> {
+		const lflistPath = path.join(resolveFormatPath(this.resolvedPools, formatId), "lflist.conf");
+		if (formatId !== "goat") return readFile(lflistPath, "utf-8");
+		this.goatLfList ??= readGoatLfList(config.resources.dir, lflistPath);
+		return this.goatLfList;
+	}
+
 	private async loadFormatCardStorage(formatId: string): Promise<CardStorage> {
 		const formatPath = resolveFormatPath(this.resolvedPools, formatId);
-		const cardIds = await readWhitelistCardIds(path.join(formatPath, "lflist.conf"));
+		const lflistPath = path.join(formatPath, "lflist.conf");
+		const cardIds = parseWhitelistCardIds(await this.getFormatLfList(formatId), lflistPath);
 		const storage = (await this.loadBaseCdb()).filterForFormat(cardIds);
 		for (const cardId of cardIds) {
 			if (!storage.readCard(cardId)) {
@@ -252,7 +258,11 @@ export class YGOProResourceLoader {
 }
 
 export async function readWhitelistCardIds(lflistPath: string): Promise<Set<number>> {
-	const lines = (await readFile(lflistPath, "utf-8")).split(/\r?\n/);
+	return parseWhitelistCardIds(await readFile(lflistPath, "utf-8"), lflistPath);
+}
+
+function parseWhitelistCardIds(text: string, lflistPath: string): Set<number> {
+	const lines = text.split(/\r?\n/);
 	const whitelistIndex = lines.findIndex((line) => line.trim() === "$whitelist");
 	if (whitelistIndex === -1) {
 		throw new Error(`Whitelist marker missing: ${lflistPath}`);
