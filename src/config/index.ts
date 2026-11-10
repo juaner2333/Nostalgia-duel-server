@@ -1,7 +1,7 @@
 import type { NostalgiaResourceProfile } from "../ygopro/room/domain/NostalgiaFormat";
 import { parseWindbotConfig } from "../ygopro/windbot/infrastructure/WindbotConfig";
 
-const resourceProfile = process.env.NOSTALGIA_PROFILE ?? "2011";
+const resourceProfile = process.env.NOSTALGIA_PROFILE ?? "goat";
 if (resourceProfile !== "2011" && resourceProfile !== "goat") {
 	throw new Error(`Unsupported NOSTALGIA_PROFILE: ${resourceProfile}`);
 }

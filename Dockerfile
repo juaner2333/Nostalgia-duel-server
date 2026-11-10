@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-ARG NOSTALGIA_PROFILE=2011
+ARG NOSTALGIA_PROFILE=goat
 FROM public.ecr.aws/docker/library/node:24.11.0-bullseye AS server-builder
 
 ARG NOSTALGIA_PROFILE

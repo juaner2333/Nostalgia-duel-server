@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /**
- * YGOPro TCP 冒烟脚本：双环境真实决斗 + 观战验证。
+ * YGOPro TCP 冒烟脚本，验证当前模式的真实决斗和观战。
  *
- * 驱动两个测试侧 TCP socket 走完整房间流程：建房（1103#1001 / 1109#1001）、
+ * 驱动两个测试侧 TCP socket 走完整房间流程：建房（默认 goat#1001）、
  * 真实卡组校验（仓库内 CDB + 环境禁限卡表）、双方 READY、RPS、先后手选择、
- * 真实 ocgcore WASM 决斗（MSG_START）、投降与 MATCH_END。卡组从对应环境
+ * 真实 ocgcore WASM 决斗（MSG_START）、投降与换备。卡组从对应环境
  * whitelist 中选取 40 张无限制（qty=3）且有 base 脚本的主卡组怪兽。
  *
  * 同时以第三个 socket 验证观战：房间满员后加入被准入为 OBSERVER，收到
@@ -13,15 +13,14 @@
  *
  * 前置条件：
  *   1. 目标服务器已在运行（本地 dev 或 Docker 容器，端口需可达）；
- *   2. 服务器可连接 Redis（USE_REDIS=true 时）。
+ *   2. 本地已执行 npm run build。
  *
  * 用法：
  *   node scripts/smoke-duel.mjs [port]        # 默认 706（标准 YGOPRO_PORT）
  *   SMOKE_PORT=17711 node scripts/smoke-duel.mjs
  *
  * 预期输出：
- *   OK format 1103: players dueled, spectator admitted and watched
- *   OK format 1109: ...
+ *   OK format goat: players dueled, spectator admitted and watched
  *   SMOKE PASS
  *
  * 退出码：0 = 全部通过；1 = 任一格式失败（超时/被拒/校验失败）。
@@ -272,7 +271,8 @@ async function runFormat(formatId) {
 }
 
 async function main() {
-	for (const formatId of process.env.NOSTALGIA_PROFILE === "goat" ? ["goat"] : ["1103", "1109"]) {
+	const profile = process.env.NOSTALGIA_PROFILE ?? "goat";
+	for (const formatId of profile === "goat" ? ["goat"] : ["1103", "1109"]) {
 		await runFormat(formatId);
 	}
 	console.log("SMOKE PASS");
