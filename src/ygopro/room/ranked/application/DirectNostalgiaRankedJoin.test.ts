@@ -165,14 +165,14 @@ describe("DirectNostalgiaRankedJoin", () => {
 		};
 	};
 
-	it("matches two PIN users in the GOAT profile and rejects 2011 ranked entry", async () => {
+	it("matches bare TT and explicit GOAT entry in the same room", async () => {
 		const oldProfile = config.resources.profile;
 		config.resources.profile = "goat";
 		try {
 			await expect(useCase.run(makeRequest("1109#TT", "OldFormat", "1234"))).rejects.toBeInstanceOf(
 				JoinRejectionError,
 			);
-			const room = await useCase.run(makeRequest("goat#TT", "GoatPlayer1", "1234"));
+			const room = await useCase.run(makeRequest("TT", "GoatPlayer1", "1234"));
 			expect(await useCase.run(makeRequest("goat#TT", "GoatPlayer2", "5678"))).toBe(room);
 			expect(room.formatId).toBe("goat");
 			expect(room.hostInfo.rule).toBe(1);

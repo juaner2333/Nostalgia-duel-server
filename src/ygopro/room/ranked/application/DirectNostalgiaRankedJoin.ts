@@ -83,7 +83,7 @@ export function validateRankedPlayerFormat(raw: string): { name: string; pin: st
 
 export function parseRankedPass(rawPass: string): NostalgiaFormatId {
 	if (rawPass === "TT") {
-		return "1109";
+		return config.resources.profile === "goat" ? "goat" : "1109";
 	}
 	const match = /^(\d{4}|goat)#TT$/.exec(rawPass);
 	if (!match) {
