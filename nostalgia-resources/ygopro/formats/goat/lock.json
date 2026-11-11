@@ -22,8 +22,8 @@
 				"sha256": "09c792196c54ec6c93df5d067f000d42f59174b2c666253c3347a37a924b37ea"
 			},
 			"scripts": {
-				"fileCount": 0,
-				"sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+				"fileCount": 382,
+				"sha256": "d8c799577ef6d09a396807f094ae051874a7e3f161bbc105857e5167a478a79e",
 				"source": {
 					"repository": "https://github.com/Fluorohydride/ygopro-scripts",
 					"commit": "090e881772f488e1256c456b827d5cbed4facf79"
