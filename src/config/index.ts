@@ -26,7 +26,7 @@ export const config = {
 		port: process.env.POSTGRES_PORT ? Number(process.env.POSTGRES_PORT) : 5432,
 	},
 	ranking: {
-		enabled: resourceProfile === "2011" && process.env.RANK_ENABLED === "true",
+		enabled: process.env.RANK_ENABLED === "true",
 	},
 	season: Number(process.env.SEASON),
 	allowedOrigins: process.env.ALLOWED_ORIGINS?.split(",") ?? ["*"],

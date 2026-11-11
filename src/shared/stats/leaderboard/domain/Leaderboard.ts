@@ -28,5 +28,5 @@ export type PlayerPersonalStats = {
 	rank: number | null;
 };
 
-export const SUPPORTED_LEADERBOARD_FORMATS = Object.freeze(["1103", "1109"] as const);
+export const SUPPORTED_LEADERBOARD_FORMATS = Object.freeze(["1103", "1109", "goat"] as const);
 export type SupportedLeaderboardFormat = (typeof SUPPORTED_LEADERBOARD_FORMATS)[number];

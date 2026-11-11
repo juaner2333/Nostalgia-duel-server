@@ -15,6 +15,19 @@ describe("GetLeaderboard UseCase", () => {
 		useCase = new GetLeaderboard(repository);
 	});
 
+	it("queries the GOAT leaderboard under its own format", async () => {
+		repository.getOverallLeaderboard.mockResolvedValue([]);
+		await expect(useCase.run({ format: "goat", scope: "overall" })).resolves.toMatchObject({
+			format: "goat",
+			leaderboard: [],
+		});
+		expect(repository.getOverallLeaderboard).toHaveBeenCalledWith("goat", {
+			search: undefined,
+			page: undefined,
+			pageSize: undefined,
+		});
+	});
+
 	it("rejects unknown formats", async () => {
 		await expect(useCase.run({ format: "unknown", scope: "overall" })).rejects.toThrow(
 			"Invalid format",

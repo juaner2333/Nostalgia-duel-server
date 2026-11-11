@@ -6,7 +6,7 @@
 | --- | --- | ---: | --- |
 | `goat#<roomId>` | `2005.4.1 W/O Exarion` | 1,740 个卡号 | TCG、大师规则 1、三局两胜 |
 
-`roomId` 是非空十进制房间号，例如 `goat#1001`。双方使用相同标识进入同一房间。白名单中有 1,718 个卡号可入组。GOAT 模式关闭排位和 WindBot。详见 [GOAT 资源说明](./nostalgia-resources/ygopro/formats/goat/README.md)。
+`roomId` 是非空十进制房间号，例如 `goat#1001`。双方使用相同标识进入同一房间。白名单中有 1,718 个卡号可入组。GOAT 排位可选开启。GOAT 模式关闭 WindBot。详见 [GOAT 资源说明](./nostalgia-resources/ygopro/formats/goat/README.md)。
 
 > 本项目由 [EDOpro-server-ts](https://github.com/diangogav/EDOpro-server-ts) 派生而来，使用 YGOPro 协议。仓库保留原 1103/1109 资源和裁定资料，默认实例只加载 GOAT 赛制。
 
@@ -15,7 +15,7 @@
 - **YGOPro 线协议**：二字节小端长度前缀 TCP 帧，协议版本 `0x1362`，支持任意分片与粘包；同时提供 WebSocket 传输，兼容 Koishi、YGO Mobile 等客户端。非 `0x1362` 版本连接会先收到版本错误帧与升级客户端提示后断开（不做任何版本兼容）。
 - **真实 WASM 决斗引擎**：基于 `koishipro-core.js` 提供的 ocgcore WASM，在线程 Worker 中运行。GOAT 使用大师规则 1，支持召唤成功后的起动效果优先权。
 - **完整对局功能**：房间创建与加入、卡组校验、决斗状态流转、断线重连、聊天、表情、录像与观战。
-- **GOAT 脚本**：优先查找 GOAT 目录，当前单卡效果沿用基础 Lua。
+- **GOAT 脚本**：优先查找 GOAT 目录，未命中时回退至基础 Lua。
 - **固定资源、零运行时刷新**：干净检出即可启动，无资源克隆、下载、组装或刷新路径。
 
 ## 架构概览
@@ -89,6 +89,29 @@ npm start
 GOAT 使用[独立决斗核心](vendor/goat-core/README.md)，支持攻击卷回后重新选择攻击者，两只 0 攻攻击表示怪兽交战时双方战斗破坏，以及同一回合内取得对方刚在其场上召唤或特殊召唤的怪兽后手动变更表示形式。
 
 GOAT 固定资源随仓库打包，启动时校验。直接运行 `npm start` 或 `npm run dev` 即可启用 GOAT。客户端通过 TCP 端口 `706` 或决斗 WebSocket 端口 `4002` 接入。
+
+## GOAT 天梯
+
+本机可用 PostgreSQL 测试天梯。先在仓库根目录执行 `npm ci`。首次启动时从 `.env.example` 复制 `.env`，填写可用的 `POSTGRES_HOST`、`POSTGRES_PORT`、`POSTGRES_DB`、`POSTGRES_USER`、`POSTGRES_PASSWORD`，并设置 `RANK_ENABLED=true`。例如，已有 Docker 时可在本机启动一个测试数据库，数据库名和账号为 `evolution`，密码与示例配置一致。
+
+```bash
+docker run -d --name goat-postgres -p 127.0.0.1:5432:5432 \
+  -e POSTGRES_DB=evolution -e POSTGRES_USER=evolution \
+  -e POSTGRES_PASSWORD=your-postgres-password \
+  -v goat-postgres-data:/var/lib/postgresql/data postgres:16-alpine
+```
+
+数据库就绪后，从项目目录执行：
+
+```bash
+npm run build
+npm run migration:run:prod
+NOSTALGIA_PROFILE=goat npm start
+```
+
+客户端连接 `127.0.0.1:706`，在玩家名填写 `昵称$四位数字PIN`，例如 `玩家A$1234`，房间密码填写 `goat#TT`。新昵称首次加入时注册，之后用同一个 PIN 登录。双方都提交合法卡组并准备后，由房主点击开始。完整比赛结束后，战绩和积分按 `goat` 赛制保存。打开 `http://127.0.0.1:7922/leaderboards/goat?tab=ladder` 查看赛季或总榜。排位的卡组使用率和胜率统计仍适用于原有赛制。
+
+服务器运行时，在另一终端执行 `npm run smoke:ranked -- 706 7922`，可用两个临时账号完成一场排位并验证积分。请在本地测试数据库执行，这场比赛会写入天梯。
 
 ## Docker 部署
 

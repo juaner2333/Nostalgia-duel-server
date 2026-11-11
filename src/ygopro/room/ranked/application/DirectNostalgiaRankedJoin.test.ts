@@ -30,6 +30,7 @@ jest.mock("@shared/user-profile/infrastructure/postgres/UserProfilePostgresRepos
 }));
 
 import { DirectNostalgiaRankedJoin, RANKED_FORMAT_CLIENT_ERROR } from "./DirectNostalgiaRankedJoin";
+import { config } from "src/config";
 import { YGOProRoom } from "../../domain/YGOProRoom";
 import { JoinRejectionError } from "../../domain/errors/JoinRejectionError";
 import { AuthenticateOrRegisterPinUser } from "@shared/user-auth/application/AuthenticateOrRegisterPinUser";
@@ -163,6 +164,32 @@ describe("DirectNostalgiaRankedJoin", () => {
 			message,
 		};
 	};
+
+	it("matches two PIN users in the GOAT profile and rejects 2011 ranked entry", async () => {
+		const oldProfile = config.resources.profile;
+		config.resources.profile = "goat";
+		try {
+			await expect(useCase.run(makeRequest("1109#TT", "OldFormat", "1234"))).rejects.toBeInstanceOf(
+				JoinRejectionError,
+			);
+			const room = await useCase.run(makeRequest("goat#TT", "GoatPlayer1", "1234"));
+			expect(await useCase.run(makeRequest("goat#TT", "GoatPlayer2", "5678"))).toBe(room);
+			expect(room.formatId).toBe("goat");
+			expect(room.hostInfo.rule).toBe(1);
+			expect(room.hostInfo.duel_rule).toBe(1);
+			expect(room.players).toHaveLength(2);
+			expect(mockCreate).toHaveBeenCalledTimes(2);
+		} finally {
+			config.resources.profile = oldProfile;
+		}
+	});
+
+	it("rejects GOAT ranked entry in the 2011 profile before creating an account", async () => {
+		await expect(useCase.run(makeRequest("goat#TT", "GoatPlayer", "1234"))).rejects.toBeInstanceOf(
+			JoinRejectionError,
+		);
+		expect(mockCreate).not.toHaveBeenCalled();
+	});
 
 	it("creates a new direct ranked waiting room for first 1103 player", async () => {
 		userProfileRepository.findByUsername.mockResolvedValueOnce(null);
