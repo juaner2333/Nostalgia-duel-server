@@ -1,8 +1,8 @@
 diff --git a/common.h b/common.h
-index f04e836..e2d8163 100644
+index f04e836..3d8511d 100644
 --- a/common.h
 +++ b/common.h
-@@ -439,13 +439,14 @@ enum LuaParamType : int32_t {
+@@ -439,13 +439,15 @@ enum LuaParamType : int32_t {
  //Options
  #define DUEL_TEST_MODE			0x01
  #define DUEL_ATTACK_FIRST_TURN	0x02
@@ -15,9 +15,78 @@ index f04e836..e2d8163 100644
  #define DUEL_RETURN_DECK_TOP	0x80
  #define DUEL_REVEAL_DECK_SEQ	0x100
 +#define DUEL_DESTROY_ZERO_ATK_TIE	0x200
++#define DUEL_CHANGE_STOLEN_SUMMON_POSITION	0x400
  
  //Activity
  #define ACTIVITY_SUMMON			1
+diff --git a/field.h b/field.h
+index 65b9fa4..cb80bfa 100644
+--- a/field.h
++++ b/field.h
+@@ -594,6 +594,7 @@ public:
+ 	void select_tribute_cards(card* target, uint8_t playerid, uint8_t cancelable, int32_t min, int32_t max, uint8_t toplayer, uint32_t zone);
+ 
+ 	// summon
++	void apply_summon_position_lock(card* target, uint8_t summon_destination);
+ 	int32_t summon(uint16_t step, uint8_t sumplayer, card* target, effect* proc, uint8_t ignore_count, uint8_t min_tribute, uint32_t zone, uint32_t action_type);
+ 	int32_t mset(uint16_t step, uint8_t setplayer, card* ptarget, effect* proc, uint8_t ignore_count, uint8_t min_tribute, uint32_t zone, uint32_t action_type);
+ 	int32_t flip_summon(uint16_t step, uint8_t sumplayer, card* target, uint32_t action_type);
+diff --git a/operations.cpp b/operations.cpp
+index 79e3cb5..d226471 100644
+--- a/operations.cpp
++++ b/operations.cpp
+@@ -1475,6 +1475,15 @@ int32_t field::equip(uint16_t step, uint8_t equip_player, card * equip_card, car
+ 	}
+ 	return TRUE;
+ }
++void field::apply_summon_position_lock(card* target, uint8_t summon_destination) {
++	// The turn player's idle command checks only their own monsters.
++	// Skip the summon lock for a monster the opponent summoned to their own field.
++	if((core.duel_options & DUEL_CHANGE_STOLEN_SUMMON_POSITION)
++		&& target->summon_player != infos.turn_player
++		&& target->summon_player == summon_destination)
++		return;
++	target->set_status(STATUS_CANNOT_CHANGE_FORM, TRUE);
++}
+ int32_t field::summon(uint16_t step, uint8_t sumplayer, card* target, effect* proc, uint8_t ignore_count, uint8_t min_tribute, uint32_t zone, uint32_t action_type) {
+ 	switch(step) {
+ 	case 0: {
+@@ -1968,7 +1977,7 @@ int32_t field::summon(uint16_t step, uint8_t sumplayer, card* target, effect* pr
+ 		target->set_status(STATUS_SUMMONING, FALSE);
+ 		target->set_status(STATUS_FLIP_SUMMONING, FALSE);
+ 		target->set_status(STATUS_SUMMON_TURN, TRUE);
+-		target->set_status(STATUS_CANNOT_CHANGE_FORM, TRUE);
++		apply_summon_position_lock(target, target->current.controler);
+ 		target->enable_field_effect(true);
+ 		if(target->is_status(STATUS_DISABLED))
+ 			target->reset(RESET_DISABLE, RESET_EVENT);
+@@ -2972,7 +2981,7 @@ int32_t field::special_summon_rule(uint16_t step, uint8_t sumplayer, card* targe
+ 		}
+ 		target->set_status(STATUS_SUMMONING, FALSE);
+ 		target->set_status(STATUS_PROC_COMPLETE | STATUS_SPSUMMON_TURN, TRUE);
+-		target->set_status(STATUS_CANNOT_CHANGE_FORM, TRUE);
++		apply_summon_position_lock(target, target->current.controler);
+ 		target->enable_field_effect(true);
+ 		if(target->is_status(STATUS_DISABLED))
+ 			target->reset(RESET_DISABLE, RESET_EVENT);
+@@ -3201,7 +3210,7 @@ int32_t field::special_summon_rule(uint16_t step, uint8_t sumplayer, card* targe
+ 		for(auto& pcard : pgroup->container) {
+ 			pcard->set_status(STATUS_SUMMONING, FALSE);
+ 			pcard->set_status(STATUS_SPSUMMON_TURN, TRUE);
+-			pcard->set_status(STATUS_CANNOT_CHANGE_FORM, TRUE);
++			apply_summon_position_lock(pcard, pcard->current.controler);
+ 			pcard->enable_field_effect(true);
+ 			if(pcard->is_status(STATUS_DISABLED))
+ 				pcard->reset(RESET_DISABLE, RESET_EVENT);
+@@ -3418,7 +3427,7 @@ int32_t field::special_summon(uint16_t step, effect* reason_effect, uint8_t reas
+ 		for(auto& pcard : targets->container) {
+ 			pcard->set_status(STATUS_SPSUMMON_STEP, FALSE);
+ 			pcard->set_status(STATUS_SPSUMMON_TURN, TRUE);
+-			pcard->set_status(STATUS_CANNOT_CHANGE_FORM, TRUE);
++			apply_summon_position_lock(pcard, (pcard->spsummon_param >> 24) & 0xf);
+ 			if(pcard->is_position(POS_FACEUP))
+ 				pcard->enable_field_effect(true);
+ 		}
 diff --git a/processor.cpp b/processor.cpp
 index d27f4d1..faa75bc 100644
 --- a/processor.cpp

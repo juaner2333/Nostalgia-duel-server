@@ -5,6 +5,7 @@ import type { NostalgiaFormatId } from "../room/domain/NostalgiaFormat";
 // Keep these bits in sync with common.h in vendor/goat-core/rulings.patch.
 const OLD_ATTACK_REPLAY = 0x04;
 const DESTROY_ZERO_ATK_TIE = 0x200;
+const CHANGE_STOLEN_SUMMON_POSITION = 0x400;
 
 /**
  * Calculate duel options from HostInfo
@@ -25,7 +26,7 @@ export function calculateDuelOptions(hostinfo: HostInfo, formatId?: NostalgiaFor
 	}
 
 	if (formatId === "goat") {
-		opt |= OLD_ATTACK_REPLAY | DESTROY_ZERO_ATK_TIE;
+		opt |= OLD_ATTACK_REPLAY | DESTROY_ZERO_ATK_TIE | CHANGE_STOLEN_SUMMON_POSITION;
 	}
 
 	return opt;

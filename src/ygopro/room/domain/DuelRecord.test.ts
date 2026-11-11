@@ -146,7 +146,7 @@ describe("DuelRecord.toEvrpFrames()", () => {
 				formatId: "goat",
 				hostInfo: { ...mockRoom.hostInfo, rule: 1, duel_rule: 1 },
 			});
-			expect(new YGOProYrp().fromYrp(goat.toYrp()).opt).toBe(0x00010204);
+			expect(new YGOProYrp().fromYrp(goat.toYrp()).opt).toBe(0x00010604);
 			expect(parsed.header?.id).toBe(0x32707279);
 		});
 	});
