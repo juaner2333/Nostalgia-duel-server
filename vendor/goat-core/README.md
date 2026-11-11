@@ -1,0 +1,13 @@
+# GOAT 决斗核心
+
+此目录中的 CJS 和 WASM 为同一构建产物。服务端启动时预编译 WASM，并在 GOAT 房间中实例化核心。按仓库根目录的启动方式运行即可。
+
+- 规则卷回返回战斗步骤，允许改选攻击怪兽。原攻击者保留再次宣言的资格。再次宣言会重新检查攻击代价和攻击响应。攻击无效继续按原流程结算。
+- 两只攻击表示怪兽以 0 ATK 交战时，双方进入战斗破坏判定，双方战斗伤害均为 0，适用卡片的战斗破坏保护。
+- GOAT 的 `.yrp` 写入两项规则位。客户端本地重放需要识别这些规则的客户端核心，线上对局由服务端核心结算。
+
+## 重新编译
+
+源码包内含 [ygopro-core ed031ac](https://github.com/purerosefallen/ygopro-core/tree/ed031ac3e8882edea59defa71d11935e0a1b83dd) 和 Lua 5.4.8。核心补丁位于 `rulings.patch`，同时为 Node 包装器导出 `HEAPU8`。原始许可证随源码和此目录提供。
+
+启用 Emscripten 4.0.23，准备 Premake 5.0.0-beta8、GNU make、Git 和 Bash，然后从仓库根目录运行 `bash vendor/goat-core/build.sh`。提交或替换构建产物时请同时更新 CJS 和 WASM。

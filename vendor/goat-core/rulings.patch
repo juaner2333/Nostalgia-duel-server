@@ -1,0 +1,66 @@
+diff --git a/common.h b/common.h
+index f04e836..e2d8163 100644
+--- a/common.h
++++ b/common.h
+@@ -439,13 +439,14 @@ enum LuaParamType : int32_t {
+ //Options
+ #define DUEL_TEST_MODE			0x01
+ #define DUEL_ATTACK_FIRST_TURN	0x02
+-//#define DUEL_OLD_REPLAY			0x04
++#define DUEL_OLD_REPLAY			0x04
+ #define DUEL_OBSOLETE_RULING	0x08
+ #define DUEL_PSEUDO_SHUFFLE		0x10
+ #define DUEL_TAG_MODE			0x20
+ #define DUEL_SIMPLE_AI			0x40
+ #define DUEL_RETURN_DECK_TOP	0x80
+ #define DUEL_REVEAL_DECK_SEQ	0x100
++#define DUEL_DESTROY_ZERO_ATK_TIE	0x200
+ 
+ //Activity
+ #define ACTIVITY_SUMMON			1
+diff --git a/processor.cpp b/processor.cpp
+index d27f4d1..faa75bc 100644
+--- a/processor.cpp
++++ b/processor.cpp
+@@ -2767,6 +2767,18 @@ int32_t field::process_battle_command(uint16_t step) {
+ 			core.units.begin()->step = 18;
+ 			return FALSE;
+ 		}
++		if(core.duel_options & DUEL_OLD_REPLAY) {
++			// The declaration still prevents a manual position change in Main Phase 2.
++			core.attacker->set_status(STATUS_CANNOT_CHANGE_FORM, TRUE);
++			// A rules replay returns to the Battle Step without using up this attack.
++			core.attacker = nullptr;
++			core.attack_target = nullptr;
++			core.attack_rollback = FALSE;
++			core.units.begin()->step = -1;
++			reset_phase(PHASE_DAMAGE);
++			adjust_all();
++			return FALSE;
++		}
+ 		card_vector cv;
+ 		get_attack_target(core.attacker, &cv, core.chain_attack);
+ 		if(!cv.size() && !core.attacker->direct_attackable) {
+@@ -3406,7 +3418,8 @@ void field::calculate_battle_damage(effect** pdamchange, card** preason_card, ui
+ 				reason_card = core.attack_target;
+ 				bd[0] = TRUE;
+ 			} else {
+-				if(attacker_value != 0) {
++				if(attacker_value != 0 || ((core.duel_options & DUEL_DESTROY_ZERO_ATK_TIE)
++					&& core.attacker->is_position(POS_ATTACK))) {
+ 					bd[0] = TRUE;
+ 					bd[1] = TRUE;
+ 				}
+diff --git a/premake/dll.lua b/premake/dll.lua
+index 1dfc90a..dcbab1a 100644
+--- a/premake/dll.lua
++++ b/premake/dll.lua
+@@ -183,7 +183,7 @@ project "ocgcore"
+             "--no-entry",
+             "-s EXIT_RUNTIME=1",
+             "-s ENVIRONMENT=web,worker,node", 
+-            "-s EXPORTED_RUNTIME_METHODS=[\"ccall\",\"cwrap\",\"addFunction\",\"removeFunction\"]", 
++            "-s EXPORTED_RUNTIME_METHODS=[\"ccall\",\"cwrap\",\"addFunction\",\"removeFunction\",\"HEAPU8\"]", 
+             "-s EXPORTED_FUNCTIONS=[\"_malloc\",\"_free\"]", 
+             "-s ALLOW_TABLE_GROWTH=1", 
+             "-s ALLOW_MEMORY_GROWTH=1",

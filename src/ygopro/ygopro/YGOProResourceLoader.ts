@@ -7,6 +7,7 @@ import BetterLock from "better-lock";
 import { config } from "src/config";
 import { Logger } from "src/shared/logger/domain/Logger";
 import LoggerFactory from "src/shared/logger/infrastructure/LoggerFactory";
+import { resolveDuelCoreWasmPath } from "../ocgcore-worker/duel-core";
 import { CardStorage } from "./card-storage";
 import { readGoatLfList } from "./NostalgiaResourceGenerator";
 import { CardLoadWorker } from "./card-load-worker";
@@ -203,18 +204,16 @@ export class YGOProResourceLoader {
 	}
 
 	private async loadOcgcoreWasmModule(): Promise<WebAssembly.Module> {
-		const koishiproEntry = require.resolve("koishipro-core.js");
-		const wasmPath = path.join(path.dirname(koishiproEntry), "vendor/wasm_cjs/libocgcore.wasm");
+		const wasmPath = resolveDuelCoreWasmPath(
+			config.resources.profile === "goat" ? "goat" : undefined,
+		);
 		try {
 			const wasmBinary = await readFile(wasmPath);
 			return await WebAssembly.compile(wasmBinary);
 		} catch (error) {
 			throw new Error(
 				`Failed to precompile ocgcore WASM at ${wasmPath}: ` +
-					`${error instanceof Error ? error.message : String(error)}. ` +
-					`vendor/wasm_cjs/libocgcore.wasm is the internal layout of ` +
-					`koishipro-core.js@^1.5.2 — verify this path still exists when ` +
-					`upgrading the dependency; there is no worker-side compile fallback.`,
+					`${error instanceof Error ? error.message : String(error)}.`,
 			);
 		}
 	}

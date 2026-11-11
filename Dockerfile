@@ -33,6 +33,7 @@ COPY --from=server-builder /server/dist ./dist
 COPY --from=server-builder /server/package.json ./package.json
 COPY --from=server-builder /server/node_modules ./node_modules
 COPY --from=server-builder /server/config ./config
+COPY --from=server-builder /server/vendor/goat-core ./vendor/goat-core
 # The complete fixed resource tree travels with the code as one unit. There is
 # no manifest, no assembled release directory and no entrypoint script: the
 # container starts the Node.js service directly and never provisions resources.

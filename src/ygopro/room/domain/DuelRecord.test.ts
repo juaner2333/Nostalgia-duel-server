@@ -139,6 +139,14 @@ describe("DuelRecord.toEvrpFrames()", () => {
 			expect(parsed.hostName).toBe(record.players[0]?.name || "");
 			expect(parsed.clientName).toBe(record.players[1]?.name || "");
 			expect(parsed.startLp).toBe(8000);
+			expect(parsed.opt).toBe(0x00020000);
+
+			const goat = record.toYrp({
+				...mockRoom,
+				formatId: "goat",
+				hostInfo: { ...mockRoom.hostInfo, rule: 1, duel_rule: 1 },
+			});
+			expect(new YGOProYrp().fromYrp(goat.toYrp()).opt).toBe(0x00010204);
 			expect(parsed.header?.id).toBe(0x32707279);
 		});
 	});

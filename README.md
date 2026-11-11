@@ -86,6 +86,8 @@ cp .env.example .env
 npm start
 ```
 
+GOAT 使用[独立决斗核心](vendor/goat-core/README.md)，支持攻击卷回后重新选择攻击者，以及两只 0 攻攻击表示怪兽交战时双方战斗破坏。
+
 GOAT 固定资源随仓库打包，启动时校验。直接运行 `npm start` 或 `npm run dev` 即可启用 GOAT。客户端通过 TCP 端口 `706` 或决斗 WebSocket 端口 `4002` 接入。
 
 ## Docker 部署
