@@ -1,4 +1,15 @@
+import type { NostalgiaResourceProfile } from "../ygopro/room/domain/NostalgiaFormat";
 import { parseWindbotConfig } from "../ygopro/windbot/infrastructure/WindbotConfig";
+
+const resourceProfile = process.env.NOSTALGIA_PROFILE ?? "goat";
+if (resourceProfile !== "2011" && resourceProfile !== "goat") {
+	throw new Error(`Unsupported NOSTALGIA_PROFILE: ${resourceProfile}`);
+}
+
+const resources: { dir: string; profile: NostalgiaResourceProfile } = {
+	dir: process.env.RESOURCES_DIR ?? "./nostalgia-resources",
+	profile: resourceProfile,
+};
 
 export const config = {
 	redis: {
@@ -37,9 +48,7 @@ export const config = {
 			port: Number(process.env.WEBSOCKET_PORT),
 		},
 	},
-	resources: {
-		dir: process.env.RESOURCES_DIR ?? "./nostalgia-resources",
-	},
+	resources,
 	sideTimeoutMinutes: Number(process.env.SIDE_TIMEOUT_MINUTES) || 3,
-	windbot: parseWindbotConfig(process.env),
+	windbot: parseWindbotConfig(resourceProfile === "goat" ? {} : process.env),
 };

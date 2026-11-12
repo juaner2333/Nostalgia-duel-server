@@ -163,7 +163,7 @@ describe("GetResourceVersionController", () => {
 			"lock",
 			"schemaVersion",
 		]);
-		expect(Object.keys(fixedNostalgia.formats).sort()).toEqual(["1103", "1109"]);
+		expect(Object.keys(fixedNostalgia.formats).sort()).toEqual(["1103", "1109", "goat"]);
 		expect(fixedNostalgia.lock.sha256).toMatch(/^[0-9a-f]{64}$/);
 		expect(body).not.toHaveProperty("sources");
 		expect(body).not.toHaveProperty("releases");

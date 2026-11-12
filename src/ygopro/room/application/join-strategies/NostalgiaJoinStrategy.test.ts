@@ -1,4 +1,5 @@
 import { EventEmitter } from "node:events";
+import { config } from "src/config";
 import { YGOProRoom } from "../../domain/YGOProRoom";
 import YGOProRoomList from "../../infrastructure/YGOProRoomList";
 import { JoinContext } from "./JoinStrategy";
@@ -42,6 +43,19 @@ describe("NostalgiaJoinStrategy", () => {
 			"1103#123456789012345678",
 		]) {
 			expect(() => parseNostalgiaRoomId(value)).toThrow();
+		}
+	});
+
+	it("admits only GOAT identifiers in the GOAT profile", () => {
+		expect(() => parseNostalgiaRoomId("goat#1001")).toThrow("Unsupported nostalgia format");
+		const original = config.resources.profile;
+		try {
+			config.resources.profile = "goat";
+			expect(parseNostalgiaRoomId("goat#1001")).toEqual({ formatId: "goat", roomId: "1001" });
+			expect(() => parseNostalgiaRoomId("1103#1001")).toThrow("Unsupported nostalgia format");
+			expect(() => parseNostalgiaRoomId("1109#1001")).toThrow("Unsupported nostalgia format");
+		} finally {
+			config.resources.profile = original;
 		}
 	});
 

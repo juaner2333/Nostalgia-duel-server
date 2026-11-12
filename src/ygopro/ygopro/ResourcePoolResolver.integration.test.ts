@@ -25,16 +25,18 @@ function findCdbFiles(directory: string): string[] {
 }
 
 describe("fixed nostalgia resource integration", () => {
-	it("loads only the fixed base CDB and derives the two exact format card pools", async () => {
+	it("derives the two exact 2011 pools from their fixed base CDB", async () => {
 		const pools = resolvePools({
 			resourcesDir: RESOURCE_ROOT,
+			profile: "2011",
 			logger: LoggerFactory.getLogger(),
 		});
 		const basePath = pools.base;
 
 		expect(basePath).toBe(path.join(RESOURCE_ROOT, "ygopro", "base"));
-		expect(findCdbFiles(path.join(RESOURCE_ROOT, "ygopro"))).toEqual([
+		expect(findCdbFiles(path.join(RESOURCE_ROOT, "ygopro")).sort()).toEqual([
 			path.join(RESOURCE_ROOT, "ygopro", "base", "cards.cdb"),
+			path.join(RESOURCE_ROOT, "ygopro", "formats", "goat", "cards.cdb"),
 		]);
 
 		const SQL = await initSqlJs();

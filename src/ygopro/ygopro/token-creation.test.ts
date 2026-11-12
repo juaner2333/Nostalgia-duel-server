@@ -11,7 +11,7 @@ const FODDER = 70095154; // サイバー・ドラゴン (ATK 2100)
 const GORZ = 44330098; // 冥府の使者ゴーズ
 const GORZ_TOKEN = 44330099; // 冥府の使者トークン
 
-describe.each(["1103", "1109"] as const)("gorz emissary of darkness token (%s)", (formatId) => {
+describe.each(["1103", "1109", "goat"] as const)("gorz emissary of darkness token (%s)", (formatId) => {
 	it("creates the token with the battle damage stats after a direct attack", async () => {
 		const driver = await HistoricalRulingsDriver.create(formatId);
 		const duel = driver.createDuel();

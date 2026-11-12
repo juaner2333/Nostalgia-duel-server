@@ -53,7 +53,7 @@ describe("fixed nostalgia WASM duels", () => {
 		expect(baseStorage.filterByCardIds(pool1103).readCard(only1109!)).toBeUndefined();
 		expect(baseStorage.filterByCardIds(pool1109).readCard(only1109!)).toBeDefined();
 
-		for (const formatId of ["1103", "1109"]) {
+		for (const formatId of ["1103", "1109", "goat"]) {
 			const formatPath = path.join(RESOURCE_ROOT, "ygopro", "formats", formatId);
 			const basePath = path.join(RESOURCE_ROOT, "ygopro", "base");
 			const cardId = allowedScriptedCard(

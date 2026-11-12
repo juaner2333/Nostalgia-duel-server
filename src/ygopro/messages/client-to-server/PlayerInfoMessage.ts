@@ -13,7 +13,8 @@ export class PlayerInfoMessage {
 		this.raw = data;
 		this.hasMercurySignature = data.includes("$");
 
-		const rankedMatch = /^([^$]+)\$(\d{4})$/.exec(data);
+		// const rankedMatch = /^([^$]+)\$(\d{4})$/.exec(data);
+		const rankedMatch = /^([^$]+)\$([0-9A-Za-z]{4,6})$/.exec(data);
 		this.rankedPin = rankedMatch ? rankedMatch[2] : null;
 
 		const separatorIndex = data.indexOf(":");

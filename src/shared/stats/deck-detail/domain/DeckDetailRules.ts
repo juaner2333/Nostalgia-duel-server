@@ -27,7 +27,7 @@ export {
 };
 
 /** 支持的赛制环境标识 */
-export const SUPPORTED_FORMATS = Object.freeze(["1103", "1109"] as const);
+export const SUPPORTED_FORMATS = Object.freeze(["1103", "1109", "goat"] as const);
 
 /** 专精玩家上榜所需最低有效 Match 场次数（固定 25 场） */
 export const MIN_TOP_PLAYER_MATCHES = 25;

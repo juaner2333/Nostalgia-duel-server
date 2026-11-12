@@ -10,6 +10,7 @@
 			"**",
 			"!node_modules/**",
 			"!dist/**",
+			"!vendor/goat-core/libocgcore.cjs",
 			"!build/**",
 			"!coverage/**",
 			"!databases/**",

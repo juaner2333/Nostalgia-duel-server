@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /**
- * YGOPro TCP 冒烟脚本：双环境真实决斗 + 观战验证。
+ * YGOPro TCP 冒烟脚本，验证当前模式的真实决斗和观战。
  *
- * 驱动两个测试侧 TCP socket 走完整房间流程：建房（1103#1001 / 1109#1001）、
+ * 驱动两个测试侧 TCP socket 走完整房间流程：建房（默认 goat#1001）、
  * 真实卡组校验（仓库内 CDB + 环境禁限卡表）、双方 READY、RPS、先后手选择、
- * 真实 ocgcore WASM 决斗（MSG_START）、投降与 MATCH_END。卡组从对应环境
+ * 真实 ocgcore WASM 决斗（MSG_START）、投降与换备。卡组从对应环境
  * whitelist 中选取 40 张无限制（qty=3）且有 base 脚本的主卡组怪兽。
  *
  * 同时以第三个 socket 验证观战：房间满员后加入被准入为 OBSERVER，收到
@@ -13,26 +13,22 @@
  *
  * 前置条件：
  *   1. 目标服务器已在运行（本地 dev 或 Docker 容器，端口需可达）；
- *   2. 服务器可连接 Redis（USE_REDIS=true 时）。
+ *   2. 本地已执行 npm run build。
  *
  * 用法：
  *   node scripts/smoke-duel.mjs [port]        # 默认 706（标准 YGOPRO_PORT）
  *   SMOKE_PORT=17711 node scripts/smoke-duel.mjs
  *
  * 预期输出：
- *   OK format 1103: players dueled, spectator admitted and watched
- *   OK format 1109: ...
+ *   OK format goat: players dueled, spectator admitted and watched
  *   SMOKE PASS
  *
  * 退出码：0 = 全部通过；1 = 任一格式失败（超时/被拒/校验失败）。
  */
 
 const net = await import("node:net").then((m) => m.default);
-const fs = await import("node:fs").then((m) => m.default);
-const path = await import("node:path").then((m) => m.default);
+import { buildDeck } from "./support/smoke-deck.mjs";
 
-const PROJECT_ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
-const RESOURCE_ROOT = path.join(PROJECT_ROOT, "nostalgia-resources");
 const PORT = Number(process.env.SMOKE_PORT || process.argv[2] || 706);
 
 // ---------- wire-format builders（YGOPro 线协议，独立于被测代码） ----------
@@ -78,52 +74,6 @@ const orderChoiceFrame = () => buildFrame(0x04, Buffer.from([1]));
 const surrenderFrame = () => buildFrame(20, Buffer.alloc(0));
 
 // ---------- 卡组构造 ----------
-
-const initSqlJsPromise = import("sql.js").then((m) => m.default);
-
-/**
- * 从格式 whitelist 中选取 40 张无限制（qty=3）、有 base 脚本、类型为主卡组
- * 怪兽（非融合/同调/XYZ/连接）的真实卡片，保证通过真实卡组校验链。
- */
-async function buildDeck(formatId) {
-	const lflist = fs.readFileSync(
-		path.join(RESOURCE_ROOT, "ygopro", "formats", formatId, "lflist.conf"),
-		"utf-8",
-	);
-	const scriptDir = path.join(RESOURCE_ROOT, "ygopro", "base", "script");
-	const initSqlJs = await initSqlJsPromise;
-	const SQL = await initSqlJs();
-	const database = new SQL.Database(
-		fs.readFileSync(path.join(RESOURCE_ROOT, "ygopro", "base", "cards.cdb")),
-	);
-	const result = database.exec("SELECT id, type FROM datas")[0];
-	const types = new Map(result.values.map(([id, type]) => [Number(id), Number(type)]));
-	const EXTRA_TYPES = 0x40 | 0x2000 | 0x800000 | 0x4000000; // 融合 | 同调 | XYZ | 连接
-
-	const codes = [];
-	for (const rawLine of lflist.split(/\r?\n/)) {
-		const match = /^(\d+)\s+3(?:\s|$)/.exec(rawLine.trim());
-		if (!match) {
-			continue;
-		}
-		const code = Number(match[1]);
-		const type = types.get(code) ?? 0;
-		if (
-			type & 0x1 &&
-			!(type & EXTRA_TYPES) &&
-			fs.existsSync(path.join(scriptDir, `c${code}.lua`))
-		) {
-			codes.push(code);
-			if (codes.length === 40) {
-				break;
-			}
-		}
-	}
-	if (codes.length < 40) {
-		throw new Error(`format ${formatId}: only ${codes.length} main-deck monsters found`);
-	}
-	return codes;
-}
 
 // ---------- socket 侧辅助 ----------
 
@@ -258,7 +208,8 @@ async function runFormat(formatId) {
 }
 
 async function main() {
-	for (const formatId of ["1103", "1109"]) {
+	const profile = process.env.NOSTALGIA_PROFILE ?? "goat";
+	for (const formatId of profile === "goat" ? ["goat"] : ["1103", "1109"]) {
 		await runFormat(formatId);
 	}
 	console.log("SMOKE PASS");

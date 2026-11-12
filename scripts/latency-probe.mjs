@@ -40,7 +40,7 @@ const args = {
 	host: "127.0.0.1",
 	port: 706,
 	rounds: 3,
-	formats: ["1103", "1109"],
+	formats: ["1103", "1109", "goat"],
 	passPrefix: null,
 	help: false,
 };

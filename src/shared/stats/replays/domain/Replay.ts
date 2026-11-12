@@ -40,5 +40,5 @@ export interface ReplayFile {
 	replayData: Buffer;
 }
 
-export const SUPPORTED_REPLAY_FORMATS = Object.freeze(["1103", "1109"] as const);
+export const SUPPORTED_REPLAY_FORMATS = Object.freeze(["1103", "1109", "goat"] as const);
 export type SupportedReplayFormat = (typeof SUPPORTED_REPLAY_FORMATS)[number];

@@ -43,8 +43,15 @@ function fakeLogger(): Logger {
 }
 
 describe("bootstrapYgoproResources startup boundary", () => {
+	const originalProfile = config.resources.profile;
+
 	beforeEach(() => {
 		jest.clearAllMocks();
+		config.resources.profile = "goat";
+	});
+
+	afterEach(() => {
+		config.resources.profile = originalProfile;
 	});
 
 	it("rejects before loading any resource when the fixed resource lock is missing", async () => {
@@ -69,9 +76,8 @@ describe("bootstrapYgoproResources startup boundary", () => {
 		try {
 			await expect(bootstrapYgoproResources(fakeLogger())).resolves.toBeUndefined();
 			expect(MockStart).toHaveBeenCalledTimes(1);
-			// both formats are pre-warmed plus the shared WASM module
-			expect(MockGetShared().getFormatCardStorage).toHaveBeenNthCalledWith(1, "1103");
-			expect(MockGetShared().getFormatCardStorage).toHaveBeenNthCalledWith(2, "1109");
+			expect(MockGetShared().getFormatCardStorage).toHaveBeenCalledTimes(1);
+			expect(MockGetShared().getFormatCardStorage).toHaveBeenCalledWith("goat");
 			expect(MockGetShared().getOcgcoreWasmModule).toHaveBeenCalledTimes(1);
 			expect(YGOProBanListMemoryRepository.replaceAll).toHaveBeenCalledTimes(1);
 		} finally {
