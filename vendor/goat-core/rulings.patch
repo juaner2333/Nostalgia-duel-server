@@ -19,10 +19,41 @@ index f04e836..3d8511d 100644
  
  //Activity
  #define ACTIVITY_SUMMON			1
+diff --git a/field.cpp b/field.cpp
+index 90e6cc2..1282e3c 100644
+--- a/field.cpp
++++ b/field.cpp
+@@ -472,14 +472,9 @@ void field::swap_card(card* pcard1, card* pcard2, uint8_t new_sequence1, uint8_t
+ void field::swap_card(card* pcard1, card* pcard2) {
+ 	return swap_card(pcard1, pcard2, pcard1->current.sequence, pcard2->current.sequence);
+ }
+-void field::set_control(card* pcard, uint8_t playerid, uint16_t reset_phase, uint8_t reset_count) {
+-	if((core.remove_brainwashing && pcard->is_affected_by_effect(EFFECT_REMOVE_BRAINWASHING)) || 
+-#ifdef _IRR_ANDROID_PLATFORM_
+-		std::get<0>(pcard->refresh_control_status())
+-#else
+-		std::get<uint8_t>(pcard->refresh_control_status())
+-#endif
+-	== playerid)
++void field::set_control(card* pcard, uint8_t playerid, uint16_t reset_phase, uint8_t reset_count, bool force_effect) {
++	if((core.remove_brainwashing && pcard->is_affected_by_effect(EFFECT_REMOVE_BRAINWASHING))
++		|| (!force_effect && std::get<0>(pcard->refresh_control_status()) == playerid))
+ 		return;
+ 	effect* peffect = pduel->new_effect();
+ 	if(core.reason_effect)
 diff --git a/field.h b/field.h
-index 65b9fa4..cb80bfa 100644
+index 65b9fa4..dba1564 100644
 --- a/field.h
 +++ b/field.h
+@@ -387,7 +387,7 @@ public:
+ 	void move_card(uint8_t playerid, card* pcard, uint8_t location, uint8_t sequence, uint8_t pzone = FALSE);
+ 	void swap_card(card* pcard1, card* pcard2, uint8_t new_sequence1, uint8_t new_sequence2);
+ 	void swap_card(card* pcard1, card* pcard2);
+-	void set_control(card* pcard, uint8_t playerid, uint16_t reset_phase, uint8_t reset_count);
++	void set_control(card* pcard, uint8_t playerid, uint16_t reset_phase, uint8_t reset_count, bool force_effect = false);
+ 
+ 	int32_t get_pzone_sequence(uint8_t pseq) const;
+ 	const card_vector* get_field_vector(uint8_t playerid, uint8_t location) const;
 @@ -594,6 +594,7 @@ public:
  	void select_tribute_cards(card* target, uint8_t playerid, uint8_t cancelable, int32_t min, int32_t max, uint8_t toplayer, uint32_t zone);
  
@@ -32,7 +63,7 @@ index 65b9fa4..cb80bfa 100644
  	int32_t mset(uint16_t step, uint8_t setplayer, card* ptarget, effect* proc, uint8_t ignore_count, uint8_t min_tribute, uint32_t zone, uint32_t action_type);
  	int32_t flip_summon(uint16_t step, uint8_t sumplayer, card* target, uint32_t action_type);
 diff --git a/operations.cpp b/operations.cpp
-index 79e3cb5..d226471 100644
+index 79e3cb5..c356385 100644
 --- a/operations.cpp
 +++ b/operations.cpp
 @@ -1475,6 +1475,15 @@ int32_t field::equip(uint16_t step, uint8_t equip_player, card * equip_card, car
@@ -87,6 +118,33 @@ index 79e3cb5..d226471 100644
  			if(pcard->is_position(POS_FACEUP))
  				pcard->enable_field_effect(true);
  		}
+@@ -4948,6 +4957,16 @@ int32_t field::change_position(uint16_t step, group * targets, effect * reason_e
+ 			uint8_t flag = pcard->position_param >> 16;
+ 			if((pcard->data.type & TYPE_TOKEN) && (npos & POS_FACEDOWN))
+ 				npos = POS_FACEUP_DEFENSE;
++			uint8_t snatch_controller = PLAYER_NONE;
++			if((opos & POS_FACEUP) && (npos & POS_FACEDOWN) && !pcard->equiping_cards.empty()) {
++				const auto control = pcard->refresh_control_status();
++				const auto control_effect = std::get<1>(control);
++				if(std::get<0>(control) == pcard->current.controler && control_effect && (control_effect->type & EFFECT_TYPE_EQUIP)) {
++					const auto equip = control_effect->get_handler();
++					if(equip->data.code == 45986603 && equip->equiping_target == pcard)
++						snatch_controller = pcard->current.controler;
++				}
++			}
+ 			pcard->previous.position = opos;
+ 			pcard->current.position = npos;
+ 			if((npos & POS_DEFENSE) && !pcard->is_affected_by_effect(EFFECT_DEFENSE_ATTACK))
+@@ -5007,6 +5026,9 @@ int32_t field::change_position(uint16_t step, group * targets, effect * reason_e
+ 					(*erm)->unequip();
+ 				}
+ 			}
++			// In GOAT, setting the monster breaks Snatch Steal's equip but preserves control.
++			if(snatch_controller != PLAYER_NONE)
++				set_control(pcard, snatch_controller, 0, 0, true);
+ 			if((npos & POS_FACEDOWN) && pcard->equiping_target)
+ 				pcard->unequip();
+ 			if(trapmonster) {
 diff --git a/processor.cpp b/processor.cpp
 index d27f4d1..faa75bc 100644
 --- a/processor.cpp
