@@ -68,7 +68,8 @@ export function validateRankedPlayerFormat(raw: string): { name: string; pin: st
 		);
 	}
 
-	if (!/^\d{4}$/.test(pin)) {
+	// if (!/^\d{4}$/.test(pin)) {
+	if (!/^[0-9A-Za-z]{4,6}$/.test(pin)) {
 		const isTruncated = raw.length === 20 && pin.length < 4;
 		const reason = isTruncated
 			? "Ranked player name too long; PIN was truncated at 20 characters"

@@ -5,7 +5,7 @@ import { PlayerDeckStatDto, PlayerDetailQuery, PlayerRatingPointDto } from "./Pl
 export const PLAYER_DETAIL_PAGE_SIZE = 20;
 
 /** 支持的赛制环境列表 */
-export const SUPPORTED_FORMATS = Object.freeze(["1103", "1109"] as const);
+export const SUPPORTED_FORMATS = Object.freeze(["1103", "1109", "goat"] as const);
 
 /**
  * 校验后的玩家详情查询参数

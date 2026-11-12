@@ -166,7 +166,7 @@ export async function runBackfillCli(args = process.argv.slice(2)) {
 
 		const aliasProvider = new CdbCardAliasProvider();
 		const service = new ReplayDeckBackfillService(readonlyPool, writePool, aliasProvider);
-		const formats = options.format === "all" ? ["1103", "1109"] : [options.format];
+		const formats = options.format === "all" ? ["1103", "1109", "goat"] : [options.format];
 
 		for (const formatId of formats) {
 			if (formatId !== "1103" && formatId !== "1109") {

@@ -122,7 +122,7 @@ async function withFormat(formatId: "1103" | "1109") {
 }
 
 describe("nostalgia archetype setcode effects", () => {
-	describe.each(["1103", "1109"] as const)("format %s", (formatId) => {
+	describe.each(["1103", "1109", "goat"] as const)("format %s", (formatId) => {
 		it("adds one bushido counter to 紫炎的道场 when a six samurai is summoned", async () => {
 			const { driver, duel } = await withFormat(formatId);
 			try {

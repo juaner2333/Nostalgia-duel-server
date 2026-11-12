@@ -186,7 +186,7 @@ describe("historical card rulings: necrovalley A-version", () => {
 	it("47355498 script checks cards returning to the extra deck (CATEGORY_TOEXTRA)", () => {
 		// no 1103-whitelisted effect moves grave cards with CATEGORY_TOEXTRA, so the
 		// branch is guarded at script level; the behavior is covered by the greedy jar test
-		for (const formatId of ["1103", "1109"]) {
+		for (const formatId of ["1103", "1109", "goat"]) {
 			const script = fs.readFileSync(
 				path.join(RESOURCE_ROOT, "ygopro", "formats", formatId, "script", "c47355498.lua"),
 				"utf8",

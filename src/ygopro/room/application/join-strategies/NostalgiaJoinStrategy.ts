@@ -15,7 +15,8 @@ export interface NostalgiaRoomId {
 }
 
 export function isNostalgiaRoomInput(rawPass: string): boolean {
-	return /^(?:1103|1109|goat)$|^(?:\d{4}|goat)#/.test(rawPass);
+	// return /^(?:1103|1109|goat)$|^(?:\d{4}|goat)#/.test(rawPass);
+	return /^(?:1103|1109|goat)$|^(?:\d{4}|goat)#/i.test(rawPass);
 }
 
 export function parseNostalgiaRoomId(rawPass: string): NostalgiaRoomId {

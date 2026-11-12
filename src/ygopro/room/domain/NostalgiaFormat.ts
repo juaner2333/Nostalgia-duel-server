@@ -1,6 +1,6 @@
 import { GameMode } from "ygopro-msg-encode";
 
-export const NOSTALGIA_FORMAT_IDS = Object.freeze(["1103", "1109"] as const);
+export const NOSTALGIA_FORMAT_IDS = Object.freeze(["1103", "1109", "goat"] as const);
 
 export type NostalgiaResourceProfile = "2011" | "goat";
 export type NostalgiaFormatId = (typeof NOSTALGIA_FORMAT_IDS)[number] | "goat";

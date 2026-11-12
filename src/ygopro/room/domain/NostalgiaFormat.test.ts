@@ -2,7 +2,7 @@ import { GameMode } from "ygopro-msg-encode";
 import { getNostalgiaFormat, NOSTALGIA_FORMAT_IDS } from "./NostalgiaFormat";
 
 describe("NostalgiaFormat", () => {
-	it.each(["1103", "1109"] as const)("defines the fixed %s OCG match environment", (id) => {
+	it.each(["1103", "1109", "goat"] as const)("defines the fixed %s OCG match environment", (id) => {
 		const format = getNostalgiaFormat(id);
 
 		expect(format?.id).toBe(id);
@@ -15,7 +15,7 @@ describe("NostalgiaFormat", () => {
 	});
 
 	it("exposes only immutable enabled format IDs", () => {
-		expect(NOSTALGIA_FORMAT_IDS).toEqual(["1103", "1109"]);
+		expect(NOSTALGIA_FORMAT_IDS).toEqual(["1103", "1109", "goat"]);
 		expect(Object.isFrozen(NOSTALGIA_FORMAT_IDS)).toBe(true);
 		expect(getNostalgiaFormat("1104")).toBeNull();
 	});
