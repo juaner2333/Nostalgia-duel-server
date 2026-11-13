@@ -958,6 +958,13 @@ export function renderLeaderboardPage(formatId: string): string {
 					var safeP2 = (p2.name || "P2").replace(/[/\\?%*:|"<>]/g, "_");
 					downloadLink.setAttribute("download", safeTime + " " + safeP1 + " VS " + safeP2 + ".yrp");
 					tdAction.appendChild(downloadLink);
+                    var playLink = document.createElement("a");
++					playLink.className = "btn btn-copy";
++					playLink.href = "/leaderboards/" + FORMAT + "/replay/" + encodeURIComponent(rep.replayId);
++					playLink.target = "_blank";
++					playLink.textContent = "观看录像";
++					playLink.style.marginLeft = "6px";
++					tdAction.appendChild(playLink);
 					row.appendChild(tdAction);
 
 					tbody.appendChild(row);
