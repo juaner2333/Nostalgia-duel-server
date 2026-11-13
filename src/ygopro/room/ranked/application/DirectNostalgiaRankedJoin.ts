@@ -82,8 +82,12 @@ export function validateRankedPlayerFormat(raw: string): { name: string; pin: st
 	return { name, pin };
 }
 
+function isImplicitRankedPass(rawPass: string): boolean {
+	return rawPass === "TT" || (rawPass === "" && config.resources.profile === "goat");
+}
+
 export function parseRankedPass(rawPass: string): NostalgiaFormatId {
-	if (rawPass === "TT") {
+	if (isImplicitRankedPass(rawPass)) {
 		return config.resources.profile === "goat" ? "goat" : "1109";
 	}
 	const match = /^(\d{4}|goat)#TT$/.exec(rawPass);
@@ -102,7 +106,7 @@ export function isRankedSpectatorPass(rawPass: string): boolean {
 }
 
 export function isRankedPass(rawPass: string): boolean {
-	return rawPass === "TT" || /^(?:\d{4}|goat)#TT\d*$/.test(rawPass);
+	return isImplicitRankedPass(rawPass) || /^(?:\d{4}|goat)#TT\d*$/.test(rawPass);
 }
 
 export class DirectNostalgiaRankedJoin {
@@ -181,7 +185,7 @@ export class DirectNostalgiaRankedJoin {
 			if (existingOccupancy) {
 				const existingRoom = YGOProRoomList.findById(existingOccupancy.roomId);
 				if (existingRoom && !existingRoom.finalizing) {
-					if (ctx.rawPass !== "TT" && existingOccupancy.formatId !== targetFormat) {
+					if (!isImplicitRankedPass(ctx.rawPass) && existingOccupancy.formatId !== targetFormat) {
 						throw new JoinRejectionError(
 							`User is currently occupied in format ${existingOccupancy.formatId} and cannot join ${targetFormat}`,
 							`你已加入 ${existingOccupancy.formatId} 排位，无法同时加入 ${targetFormat} 排位。`,
