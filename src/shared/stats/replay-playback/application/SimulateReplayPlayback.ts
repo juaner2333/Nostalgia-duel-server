@@ -1,3 +1,6 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+
 import { DirScriptReaderEx, type OcgcoreDuel, type OcgcoreWrapper } from "koishipro-core.js";
 import { YGOProYrp } from "ygopro-yrp-encode";
 import {
@@ -34,6 +37,10 @@ export interface ReplayPlaybackResult {
 	 * MSG_WIN was ever recorded). The partial stream is still returned.
 	 */
 	truncated: boolean;
+	/** Engine build used for the simulation (only goat has versioned engines). */
+	engineVersion?: { id: string; label: string };
+	/** Duel start time from the replay header, ISO string when available. */
+	startedAt?: string;
 }
 
 export class ReplayPlaybackError extends Error {
@@ -45,6 +52,76 @@ export class ReplayPlaybackError extends Error {
 	}
 }
 
+// ============================================================
+// Engine versioning (goat only)
+// ============================================================
+//
+// The goat core (vendor/goat-core/libocgcore.wasm) is rebuilt whenever rulings
+// are patched. A replay recorded under an older engine only replays correctly
+// under that same build — the recorded responses encode the old ruling flow.
+// Whenever the wasm is rebuilt, archive the previous file under
+// vendor/goat-core/versions/ and register it here so old replays keep working.
+interface GoatEngineVersion {
+	id: string;
+	label: string;
+	/** Unix seconds when this build went live; null = oldest known build. */
+	since: number | null;
+	/** Path relative to vendor/goat-core. */
+	wasmFile: string;
+}
+
+const GOAT_ENGINE_VERSIONS: GoatEngineVersion[] = [
+	{
+		id: "20261111",
+		label: "旧版（2026-11-12 强夺规则修复前）",
+		since: null,
+		wasmFile: "versions/libocgcore-20261111.wasm",
+	},
+	{
+		id: "20261112",
+		label: "当前（2026-11-12 强夺规则修复）",
+		since: Date.parse("2026-11-12T23:24:05+08:00") / 1000,
+		wasmFile: "libocgcore.wasm",
+	},
+];
+
+const DEFAULT_GOAT_ENGINE = GOAT_ENGINE_VERSIONS[GOAT_ENGINE_VERSIONS.length - 1]!;
+
+export function listGoatEngineVersions(): { id: string; label: string }[] {
+	return GOAT_ENGINE_VERSIONS.map(({ id, label }) => ({ id, label }));
+}
+
+/**
+ * Picks the engine build that matches the recording: the newest version whose
+ * `since` is not later than the duel start time, or the oldest build for
+ * replays that predate every registered cutoff.
+ */
+function resolveGoatEngineVersion(
+	startedAtSec: number | undefined,
+	requestedId?: string,
+): GoatEngineVersion {
+	if (requestedId) {
+		const version = GOAT_ENGINE_VERSIONS.find((item) => item.id === requestedId);
+		if (!version) {
+			throw new ReplayPlaybackError(
+				`Unknown engine version: ${requestedId}`,
+				"未知的引擎版本。",
+			);
+		}
+		return version;
+	}
+	if (startedAtSec && startedAtSec > 0) {
+		let chosen = GOAT_ENGINE_VERSIONS[0]!;
+		for (const version of GOAT_ENGINE_VERSIONS) {
+			if (version.since === null || version.since <= startedAtSec) {
+				chosen = version;
+			}
+		}
+		return chosen;
+	}
+	return DEFAULT_GOAT_ENGINE;
+}
+
 interface FormatCore {
 	wrapper: OcgcoreWrapper;
 	preloadScriptPaths: string[];
@@ -52,7 +129,12 @@ interface FormatCore {
 
 const formatCoreCache = new Map<string, Promise<FormatCore>>();
 
-async function createFormatCore(formatId: string): Promise<FormatCore> {
+const GOAT_CORE_DIR = "vendor/goat-core";
+
+async function createFormatCore(
+	formatId: string,
+	engine?: GoatEngineVersion,
+): Promise<FormatCore> {
 	const logger = LoggerFactory.getLogger();
 	const pools = resolvePools({
 		resourcesDir: config.resources.dir,
@@ -60,19 +142,42 @@ async function createFormatCore(formatId: string): Promise<FormatCore> {
 		logger,
 	});
 	const formatPath = resolveFormatPath(pools, formatId);
-	const wrapper = await createDuelCoreWrapper(formatId as NostalgiaFormatId);
+
+	let wrapper: OcgcoreWrapper;
+	if (engine && engine.wasmFile !== DEFAULT_GOAT_ENGINE.wasmFile) {
+		// Older engine build: the Emscripten glue (libocgcore.cjs) is unchanged
+		// across builds, so we only swap the wasm payload via instantiateWasm,
+		// exactly like the live-duel worker injects its precompiled module.
+		const wasmBinary = await readFile(path.resolve(GOAT_CORE_DIR, engine.wasmFile));
+		const wasmModule = await WebAssembly.compile(wasmBinary);
+		wrapper = await createDuelCoreWrapper("goat", {
+			instantiateWasm: (info, receiveInstance) => {
+				WebAssembly.instantiate(wasmModule, info).then(
+					(instance) => receiveInstance(instance),
+					(error) => {
+						throw error;
+					},
+				);
+				return {};
+			},
+		});
+	} else {
+		wrapper = await createDuelCoreWrapper(formatId as NostalgiaFormatId);
+	}
+
 	wrapper.setScriptReader(await DirScriptReaderEx(formatPath, pools.base));
 	const storage = await YGOProResourceLoader.get().getFormatCardStorage(formatId);
 	wrapper.setCardReader(storage.toCardReader());
 	return { wrapper, preloadScriptPaths: resolveFormatPreloadScriptPaths(formatPath) };
 }
 
-function getFormatCore(formatId: string): Promise<FormatCore> {
-	let cached = formatCoreCache.get(formatId);
+function getFormatCore(formatId: string, engine?: GoatEngineVersion): Promise<FormatCore> {
+	const cacheKey = `${formatId}:${engine?.wasmFile ?? "default"}`;
+	let cached = formatCoreCache.get(cacheKey);
 	if (!cached) {
-		cached = createFormatCore(formatId);
-		cached.catch(() => formatCoreCache.delete(formatId));
-		formatCoreCache.set(formatId, cached);
+		cached = createFormatCore(formatId, engine);
+		cached.catch(() => formatCoreCache.delete(cacheKey));
+		formatCoreCache.set(cacheKey, cached);
 	}
 	return cached;
 }
@@ -230,6 +335,7 @@ function collectCardCodes(payload: unknown, into: Set<number>): void {
 export async function simulateReplayPlayback(
 	formatId: string,
 	replayData: Buffer,
+	options: { engine?: string } = {},
 ): Promise<ReplayPlaybackResult> {
 	let yrp: YGOProYrp;
 	try {
@@ -248,7 +354,16 @@ export async function simulateReplayPlayback(
 		throw new ReplayPlaybackError("Tag replays are not supported", "暂不支持双人（TAG）录像回放。");
 	}
 
-	const { wrapper, preloadScriptPaths } = await getFormatCore(formatId);
+	// The replay header carries the duel start time (unix seconds) written by
+	// DuelRecord.toYrp, which selects the engine build that originally ran the
+	// duel — unless the caller forces a version via the `engine` option.
+	const startedAtSec =
+		formatId === "goat" && yrp.header.hash > 0 ? yrp.header.hash : undefined;
+	const engine = formatId === "goat"
+		? resolveGoatEngineVersion(startedAtSec, options.engine)
+		: undefined;
+
+	const { wrapper, preloadScriptPaths } = await getFormatCore(formatId, engine);
 	const duel = wrapper.createDuelV2(yrp.header.seedSequence);
 
 	try {
@@ -323,6 +438,8 @@ export async function simulateReplayPlayback(
 			messages: serialized,
 			cardNames,
 			truncated,
+			engineVersion: engine ? { id: engine.id, label: engine.label } : undefined,
+			startedAt: startedAtSec ? new Date(startedAtSec * 1000).toISOString() : undefined,
 		};
 	} finally {
 		try {

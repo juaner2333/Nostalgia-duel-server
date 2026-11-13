@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 
+import { listGoatEngineVersions } from "@shared/stats/replay-playback/application/SimulateReplayPlayback";
 import { config } from "src/config";
 
 const PAGE_HTML = `<!DOCTYPE html>
@@ -15,6 +16,8 @@ header { padding: 12px 20px; background: #1c2130; border-bottom: 1px solid #2c33
 header h1 { font-size: 17px; font-weight: 600; color: #eef1f7; }
 header .meta { font-size: 13px; color: #8b93a7; }
 header a.back { color: #6ea8fe; text-decoration: none; font-size: 13px; margin-left: auto; }
+header .engine-picker { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #8b93a7; }
+header .engine-picker select { background: #2a3350; color: #dfe5f0; border: 1px solid #3a4566; border-radius: 6px; padding: 4px 8px; font-size: 12px; max-width: 260px; }
 .statusbar { display: flex; gap: 18px; align-items: center; padding: 8px 20px; background: #181c28; border-bottom: 1px solid #262c3e; font-size: 13px; flex-wrap: wrap; }
 .statusbar .pill { background: #232a3d; border: 1px solid #323b56; border-radius: 12px; padding: 2px 12px; }
 .statusbar .pill b { color: #ffd166; font-weight: 600; }
@@ -62,6 +65,10 @@ header a.back { color: #6ea8fe; text-decoration: none; font-size: 13px; margin-l
 <header>
   <h1 id="title">录像回放</h1>
   <span class="meta" id="subtitle"></span>
+  <span class="engine-picker" id="engine-picker" style="display:none">
+    引擎版本
+    <select id="engine-select"></select>
+  </span>
   <a class="back" id="backlink" href="#">← 返回决斗专区</a>
 </header>
 <div class="statusbar">
@@ -94,8 +101,34 @@ header a.back { color: #6ea8fe; text-decoration: none; font-size: 13px; margin-l
 <script>
 var FORMAT = "__FORMAT__";
 var REPLAY_ID = "__REPLAY_ID__";
+var ENGINE_VERSIONS = __ENGINE_VERSIONS__;
+var urlParams = new URLSearchParams(location.search);
+var ENGINE = urlParams.get("engine") || "";
 var API_URL = "/api/replays/" + encodeURIComponent(FORMAT) + "/" + encodeURIComponent(REPLAY_ID) + "/playback";
+if (ENGINE) { API_URL += "?engine=" + encodeURIComponent(ENGINE); }
 document.getElementById("backlink").href = "/leaderboards/" + encodeURIComponent(FORMAT) + "?tab=replays";
+
+(function initEnginePicker() {
+  if (!ENGINE_VERSIONS.length) return;
+  var picker = document.getElementById("engine-picker");
+  var select = document.getElementById("engine-select");
+  var auto = document.createElement("option");
+  auto.value = "";
+  auto.textContent = "自动（按录像日期）";
+  select.appendChild(auto);
+  ENGINE_VERSIONS.forEach(function (v) {
+    var opt = document.createElement("option");
+    opt.value = v.id;
+    opt.textContent = v.label;
+    select.appendChild(opt);
+  });
+  select.value = ENGINE;
+  select.addEventListener("change", function () {
+    var target = location.pathname + (select.value ? "?engine=" + encodeURIComponent(select.value) : "");
+    location.href = target;
+  });
+  picker.style.display = "flex";
+})();
 
 var LOC = { DECK: 1, HAND: 2, MZONE: 4, SZONE: 8, GRAVE: 16, REMOVED: 32, EXTRA: 64, OVERLAY: 128 };
 var PHASES = { 1: "抽卡阶段", 2: "准备阶段", 4: "主要阶段 1", 8: "战斗阶段·开始", 16: "战斗阶段", 32: "伤害步骤", 64: "伤害计算", 128: "战斗阶段", 256: "主要阶段 2", 512: "结束阶段" };
@@ -544,10 +577,18 @@ fetch(API_URL)
     cardNames = data.cardNames || {};
     document.title = data.playerNames[0] + " VS " + data.playerNames[1] + " · 录像回放";
     document.getElementById("title").textContent = data.playerNames[0] + " VS " + data.playerNames[1];
-    document.getElementById("subtitle").textContent = "赛制 " + FORMAT + " · 共 " + data.messages.length + " 步";
-    if (data.truncated) {
-      document.getElementById("subtitle").textContent += " · 录像到此中断（对局可能因断线或超时提前结束）";
+    var sub = "赛制 " + FORMAT + " · 共 " + data.messages.length + " 步";
+    if (data.startedAt) {
+      var when = new Date(data.startedAt);
+      sub = when.toLocaleString("zh-CN", { hour12: false }) + " · " + sub;
     }
+    if (data.engineVersion) {
+      sub += " · 引擎 " + data.engineVersion.label + (ENGINE ? "" : "（自动）");
+    }
+    if (data.truncated) {
+      sub += " · 录像到此中断（对局可能因断线或超时提前结束）";
+    }
+    document.getElementById("subtitle").textContent = sub;
     document.getElementById("seek").max = data.messages.length;
     state = freshState();
     precompute();
@@ -584,6 +625,10 @@ export class ReplayPlayPageController {
 
 		res.setHeader("Content-Type", "text/html; charset=utf-8");
 		res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-		res.send(PAGE_HTML.replaceAll("__FORMAT__", format).replaceAll("__REPLAY_ID__", replayId));
+		res.send(
+			PAGE_HTML.replaceAll("__FORMAT__", format)
+				.replaceAll("__REPLAY_ID__", replayId)
+				.replaceAll("__ENGINE_VERSIONS__", JSON.stringify(listGoatEngineVersions())),
+		);
 	}
 }
