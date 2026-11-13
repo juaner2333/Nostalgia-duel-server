@@ -29,7 +29,11 @@ jest.mock("@shared/user-profile/infrastructure/postgres/UserProfilePostgresRepos
 	})),
 }));
 
-import { DirectNostalgiaRankedJoin, RANKED_FORMAT_CLIENT_ERROR } from "./DirectNostalgiaRankedJoin";
+import {
+	DirectNostalgiaRankedJoin,
+	isRankedPass,
+	RANKED_FORMAT_CLIENT_ERROR,
+} from "./DirectNostalgiaRankedJoin";
 import { config } from "src/config";
 import { YGOProRoom } from "../../domain/YGOProRoom";
 import { JoinRejectionError } from "../../domain/errors/JoinRejectionError";
@@ -165,20 +169,34 @@ describe("DirectNostalgiaRankedJoin", () => {
 		};
 	};
 
-	it("matches bare TT and explicit GOAT entry in the same room", async () => {
+	it.each([
+		"",
+		"TT",
+	])("matches GOAT entry %j with explicit GOAT entry in the same room", async (pass) => {
 		const oldProfile = config.resources.profile;
 		config.resources.profile = "goat";
 		try {
 			await expect(useCase.run(makeRequest("1109#TT", "OldFormat", "1234"))).rejects.toBeInstanceOf(
 				JoinRejectionError,
 			);
-			const room = await useCase.run(makeRequest("TT", "GoatPlayer1", "1234"));
+			expect(isRankedPass(pass)).toBe(true);
+			const room = await useCase.run(makeRequest(pass, "GoatPlayer1", "1234"));
 			expect(await useCase.run(makeRequest("goat#TT", "GoatPlayer2", "5678"))).toBe(room);
 			expect(room.formatId).toBe("goat");
 			expect(room.hostInfo.rule).toBe(1);
 			expect(room.hostInfo.duel_rule).toBe(1);
 			expect(room.players).toHaveLength(2);
 			expect(mockCreate).toHaveBeenCalledTimes(2);
+		} finally {
+			config.resources.profile = oldProfile;
+		}
+	});
+
+	it("keeps an empty password outside ranked routing in the 2011 profile", () => {
+		const oldProfile = config.resources.profile;
+		config.resources.profile = "2011";
+		try {
+			expect(isRankedPass("")).toBe(false);
 		} finally {
 			config.resources.profile = oldProfile;
 		}
