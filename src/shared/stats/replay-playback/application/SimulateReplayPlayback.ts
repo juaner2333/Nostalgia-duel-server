@@ -271,7 +271,13 @@ export async function simulateReplayPlayback(
 		loadDeck(duel, yrp.clientDeck, 1);
 		duel.startDuel(yrp.opt);
 
-		const { messages, truncated } = driveDuel(duel, yrp.responses);
+		const { messages, truncated: ranOutOfResponses } = driveDuel(duel, yrp.responses);
+		// A recorded MSG_WIN means the duel reached a normal end; any prompt after
+		// it is post-game noise (the engine still emits a few hints/requests after
+		// the last recorded response), so only flag replays with no winner as
+		// genuinely truncated.
+		const hasWin = messages.some((msg) => msg.constructor.name === "YGOProMsgWin");
+		const truncated = ranOutOfResponses && !hasWin;
 		const serialized = serializeMessages(messages);
 
 		// The engine never emits MSG_START — in live play the server builds it
