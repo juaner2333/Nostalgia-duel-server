@@ -180,7 +180,7 @@ describe("nostalgia setcode compatibility patch", () => {
 
 	it("keeps the 1103 and 1109 whitelist card pools at 5197 / 5310 with locked ID sets", async () => {
 		const lock = JSON.parse(fs.readFileSync(LOCK_JSON, "utf-8"));
-		for (const formatId of ["1103", "1109"]) {
+		for (const formatId of ["1103", "1109", "goat"]) {
 			const cardIds = await readWhitelistCardIds(
 				path.join(RESOURCE_ROOT, "ygopro", "formats", formatId, "lflist.conf"),
 			);

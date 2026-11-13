@@ -3,7 +3,6 @@ import {
 	OcgcoreDuel,
 	OcgcoreMessageType,
 	OcgcoreWrapper,
-	createOcgcoreWrapper,
 	DirScriptReaderEx,
 	_OcgcoreConstants,
 	parseCardQuery,
@@ -28,6 +27,7 @@ import {
 	TransportType,
 	TransportEncoder,
 } from "yuzuthread";
+import { createDuelCoreWrapper } from "./duel-core";
 import { OcgcoreWorkerOptions } from "./ocgcore-worker-options";
 import { ReplaySubject, Subject } from "rxjs";
 import { calculateDuelOptions } from "../utils/calculate-duel-options";
@@ -128,17 +128,15 @@ export class OcgcoreWorker {
 		// a corrupt/mismatched module must NOT leave the factory promise pending
 		// forever (receiveInstance never called -> wasm-instantiate dependency
 		// never removed -> worker init would hang without any error).
-		this.ocgcore = await createOcgcoreWrapper({
-			moduleOverrides: {
-				instantiateWasm: (info, receiveInstance) => {
-					WebAssembly.instantiate(wasmModule, info).then(
-						(instance) => receiveInstance(instance),
-						(error) => {
-							throw error;
-						},
-					);
-					return {};
-				},
+		this.ocgcore = await createDuelCoreWrapper(this.options.formatId, {
+			instantiateWasm: (info, receiveInstance) => {
+				WebAssembly.instantiate(wasmModule, info).then(
+					(instance) => receiveInstance(instance),
+					(error) => {
+						throw error;
+					},
+				);
+				return {};
 			},
 		});
 		this.ocgcore.setMessageHandler(async (_, message, type) => {
@@ -179,7 +177,7 @@ export class OcgcoreWorker {
 		}
 
 		// Calculate duel options
-		const opt = calculateDuelOptions(hostinfo);
+		const opt = calculateDuelOptions(hostinfo, this.options.formatId);
 
 		// Helper function to load a deck
 		const loadDeck = (deck: (typeof this.options.decks)[0], owner: number, player: number) => {

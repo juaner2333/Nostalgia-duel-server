@@ -2,8 +2,10 @@ import YGOProDeck from "ygopro-deck-encode";
 import { HostInfo } from "ygopro-msg-encode";
 import { TransportEncoder, TransportType } from "yuzuthread";
 import { CardStorage } from "../ygopro/card-storage";
+import type { NostalgiaFormatId } from "../room/domain/NostalgiaFormat";
 
 export class OcgcoreWorkerOptions {
+	formatId?: NostalgiaFormatId;
 	ygoproPaths: string[];
 	extraScriptPaths: string[];
 	@TransportType(() => CardStorage)

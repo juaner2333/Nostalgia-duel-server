@@ -171,6 +171,7 @@ export class OCGCore {
 			this.ocgcore = await initWorker(OcgcoreWorker, {
 				seed: duelRecord.seed,
 				hostinfo: this.room.hostInfo,
+				formatId: this.room.formatId,
 				ygoproPaths: scriptSearchPaths,
 				extraScriptPaths,
 				cardStorage,

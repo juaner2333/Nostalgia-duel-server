@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import fs from "node:fs";
-import path from "node:path";
+import { getActiveNostalgiaFormatIds } from "@ygopro/room/domain/NostalgiaFormat";
+import { resolveResourceLockPath } from "@ygopro/ygopro/ResourcePoolResolver";
 import { Request, Response } from "express";
 
 import YGOProBanListMemoryRepository from "@ygopro/ban-list/infrastructure/YGOProBanListMemoryRepository";
@@ -43,14 +44,17 @@ interface FixedNostalgiaVersion {
 
 function readFixedNostalgiaVersion(): FixedNostalgiaVersion | null {
 	try {
-		const lockText = fs.readFileSync(path.join(config.resources.dir, "lock.json"), "utf-8");
+		const lockText = fs.readFileSync(
+			resolveResourceLockPath(config.resources.dir, config.resources.profile),
+			"utf-8",
+		);
 		const lock = JSON.parse(lockText) as unknown;
 		const root = asRecord(lock);
 		const inputs = asRecord(root?.inputs);
 		const baseDatabase = asRecord(inputs?.baseDatabase);
 		const formats = asRecord(root?.formats);
 		const formatVersions = Object.fromEntries(
-			["1103", "1109"].map((formatId) => {
+			getActiveNostalgiaFormatIds(config.resources.profile).map((formatId) => {
 				const format = asRecord(formats?.[formatId]);
 				const cardPool = asRecord(format?.cardPool);
 				const lflist = asRecord(format?.lflist);

@@ -1,10 +1,21 @@
-import path from "node:path";
-import { checkNostalgiaResourceLock } from "./NostalgiaResourceGenerator";
+import { config } from "src/config";
+import {
+	checkNostalgiaResourceLock,
+	writeNostalgiaResourceLock,
+} from "./NostalgiaResourceGenerator";
+import { resolveResourceLockPath } from "./ResourcePoolResolver";
 
 export async function runNostalgiaResourceGenerator(arguments_: string[]): Promise<void> {
-	const resourceRoot = parseResourceRoot(arguments_);
-	const lockPath = path.join(resourceRoot, "lock.json");
-	await checkNostalgiaResourceLock(resourceRoot, lockPath);
+	const write = arguments_[0] === "--write";
+	const resourceRoot = parseResourceRoot(write ? arguments_.slice(1) : arguments_);
+	const { profile } = config.resources;
+	const lockPath = resolveResourceLockPath(resourceRoot, profile);
+	if (write) {
+		await writeNostalgiaResourceLock(resourceRoot, lockPath, profile);
+		process.stdout.write(`nostalgia-resources lock written: ${lockPath}\n`);
+		return;
+	}
+	await checkNostalgiaResourceLock(resourceRoot, lockPath, profile);
 	process.stdout.write(`nostalgia-resources integrity check passed: ${lockPath}\n`);
 }
 

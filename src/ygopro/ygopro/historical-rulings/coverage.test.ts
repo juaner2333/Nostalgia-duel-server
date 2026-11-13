@@ -36,7 +36,7 @@ const listCardScriptIds = (formatId: string): number[] =>
 describe("historical card rulings coverage", () => {
 	it("contains exactly the fixed card script counts plus special.lua per format, byte-identical across formats", () => {
 		const idsByFormat = new Map<string, number[]>();
-		for (const formatId of ["1103", "1109"]) {
+		for (const formatId of ["1103", "1109", "goat"]) {
 			const files = fs.readdirSync(formatScriptDir(formatId));
 			const ids = listCardScriptIds(formatId);
 			expect(ids.length).toBe(COUNT_BY_FORMAT[formatId]);
@@ -81,7 +81,7 @@ describe("historical card rulings coverage", () => {
 			const pool1109 = await readWhitelistCardIds(
 				path.join(RESOURCE_ROOT, "ygopro", "formats", "1109", "lflist.conf"),
 			);
-			for (const formatId of ["1103", "1109"] as const) {
+			for (const formatId of ["1103", "1109", "goat"] as const) {
 				const pool = formatId === "1103" ? pool1103 : pool1109;
 				const storage = formatId === "1103" ? driver1103.storage : driver1109.storage;
 				for (const id of listCardScriptIds(formatId)) {

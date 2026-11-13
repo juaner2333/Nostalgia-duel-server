@@ -63,7 +63,7 @@ export class DuelRecord {
 		});
 	}
 
-	toYrp(room: Pick<YGOProRoom, "hostInfo" | "isTag">) {
+	toYrp(room: Pick<YGOProRoom, "hostInfo" | "isTag"> & Partial<Pick<YGOProRoom, "formatId">>) {
 		const isTag = room.isTag;
 
 		// Create replay header
@@ -99,7 +99,7 @@ export class DuelRecord {
 			startLp: room.hostInfo.start_lp,
 			startHand: room.hostInfo.start_hand,
 			drawCount: room.hostInfo.draw_count,
-			opt: calculateDuelOptions(room.hostInfo),
+			opt: calculateDuelOptions(room.hostInfo, room.formatId),
 			hostDeck: this.toReplayDeck(players[0]?.deck),
 			clientDeck: isTag ? this.toReplayDeck(players[2]?.deck) : this.toReplayDeck(players[1]?.deck),
 			tagHostName: isTag ? players[1]?.name || "" : null,
