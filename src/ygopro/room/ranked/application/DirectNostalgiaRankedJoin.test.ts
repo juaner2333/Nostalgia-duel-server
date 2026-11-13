@@ -594,8 +594,8 @@ describe("DirectNostalgiaRankedJoin", () => {
 			expect(YGOProRoomList.getRooms()).toHaveLength(0);
 		});
 
-		it("rejects player with 5-digit PIN with format error prompt", async () => {
-			const req = makeRawRequest("1109#TT", "Player$12345");
+		it("rejects player with 7-character PIN with format error prompt", async () => {
+			const req = makeRawRequest("1109#TT", "Player$1234567");
 			await expect(useCase.run(req)).rejects.toMatchObject({
 				name: "JoinRejectionError",
 				clientMessage: FORMAT_ERROR_PROMPT,
@@ -603,13 +603,21 @@ describe("DirectNostalgiaRankedJoin", () => {
 			expect(YGOProRoomList.getRooms()).toHaveLength(0);
 		});
 
-		it("rejects player with non-digit PIN with format error prompt", async () => {
-			const req = makeRawRequest("1109#TT", "Player$abcd");
+		it("rejects player with PIN containing symbols with format error prompt", async () => {
+			const req = makeRawRequest("1109#TT", "Player$ab@d");
 			await expect(useCase.run(req)).rejects.toMatchObject({
 				name: "JoinRejectionError",
 				clientMessage: FORMAT_ERROR_PROMPT,
 			});
 			expect(YGOProRoomList.getRooms()).toHaveLength(0);
+		});
+
+        it("accepts player with 5-letter PIN", async () => {
+			userProfileRepository.findByUsername.mockResolvedValueOnce(null);
+			const req = makeRawRequest("1109#TT", "Player$abcde");
+			const room = await useCase.run(req);
+			expect(room).toBeDefined();
+			expect(YGOProRoomList.getRooms()).toHaveLength(1);
 		});
 
 		it("rejects player with multiple $ delimiters with format error prompt", async () => {
@@ -679,7 +687,7 @@ describe("DirectNostalgiaRankedJoin", () => {
 			const req = makeRequest("1109#TT", "ExistingPlayer", "1234");
 			await expect(useCase.run(req)).rejects.toMatchObject({
 				name: "JoinRejectionError",
-				clientMessage: "排位密码错误：请输入该昵称对应的4位数字PIN。",
+				clientMessage: "排位密码错误：PIN 与该昵称不匹配。",
 			});
 			expect(YGOProRoomList.getRooms()).toHaveLength(0);
 		});

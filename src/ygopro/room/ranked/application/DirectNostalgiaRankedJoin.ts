@@ -73,9 +73,9 @@ export function validateRankedPlayerFormat(raw: string): { name: string; pin: st
 		const isTruncated = raw.length === 20 && pin.length < 4;
 		const reason = isTruncated
 			? "Ranked player name too long; PIN was truncated at 20 characters"
-			: !/^\d+$/.test(pin)
-				? "Ranked PIN contains non-digit characters"
-				: `Ranked PIN must be exactly 4 digits (received ${pin.length} digits)`;
+			: !/^[0-9A-Za-z]+$/.test(pin)
+				? "Ranked PIN contains characters outside 0-9/A-Za-z"
+				: `Ranked PIN must be 4-6 characters (received ${pin.length})`;
 		throw new JoinRejectionError(reason, RANKED_FORMAT_CLIENT_ERROR);
 	}
 
@@ -152,7 +152,7 @@ export class DirectNostalgiaRankedJoin {
 				case AuthFailureReason.INVALID_PASSWORD:
 					throw new JoinRejectionError(
 						"Ranked authentication failed: invalid PIN",
-						"排位密码错误：请输入该昵称对应的4位数字PIN。",
+						"排位密码错误：PIN 与该昵称不匹配。",
 					);
 				case AuthFailureReason.USER_BANNED:
 					throw new JoinRejectionError(
