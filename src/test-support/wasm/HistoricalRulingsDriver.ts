@@ -33,6 +33,8 @@ import {
 	YGOProMsgNewTurn,
 	type YGOProMsgBase,
 } from "ygopro-msg-encode";
+import { createDuelCoreWrapper } from "@ygopro/ocgcore-worker/duel-core";
+import type { NostalgiaFormatId } from "@ygopro/room/domain/NostalgiaFormat";
 import { calculateDuelOptions } from "@ygopro/utils/calculate-duel-options";
 import { CardStorage } from "@ygopro/ygopro/card-storage";
 import { resolveFormatPreloadScriptPaths } from "@ygopro/ygopro/ResourcePoolResolver";
@@ -96,7 +98,10 @@ export class HistoricalRulingsDriver {
 		this.preloadScriptPaths = preloadScriptPaths;
 	}
 
-	static async create(formatId: FormatId): Promise<HistoricalRulingsDriver> {
+	static async create(
+		formatId: FormatId,
+		coreFormat?: NostalgiaFormatId,
+	): Promise<HistoricalRulingsDriver> {
 		const SQL = await initSqlJs();
 		const cdb = new YGOProCdb(
 			new SQL.Database(fs.readFileSync(path.join(RESOURCE_ROOT, "ygopro", "base", "cards.cdb"))),
@@ -107,7 +112,7 @@ export class HistoricalRulingsDriver {
 			path.join(RESOURCE_ROOT, "ygopro", "formats", formatId, "lflist.conf"),
 		);
 		const storage = baseStorage.filterForFormat(pool);
-		const wrapper = await createOcgcoreWrapper();
+		const wrapper = await createDuelCoreWrapper(coreFormat);
 		const formatPath = path.join(RESOURCE_ROOT, "ygopro", "formats", formatId);
 		const basePath = path.join(RESOURCE_ROOT, "ygopro", "base");
 		wrapper.setScriptReader(await DirScriptReaderEx(formatPath, basePath));
@@ -250,20 +255,23 @@ export class HistoricalTestDuel {
 		}
 	}
 
-	start(): void {
+	start(duelRule: 1 | 2 = 2, formatId?: NostalgiaFormatId): void {
 		this.duel.startDuel(
-			calculateDuelOptions({
-				lflist: 0,
-				rule: 0,
-				mode: 1,
-				duel_rule: 2,
-				no_check_deck: 0,
-				no_shuffle_deck: 0,
-				start_lp: 8000,
-				start_hand: 5,
-				draw_count: 1,
-				time_limit: 450,
-			}),
+			calculateDuelOptions(
+				{
+					lflist: 0,
+					rule: 0,
+					mode: 1,
+					duel_rule: duelRule,
+					no_check_deck: 0,
+					no_shuffle_deck: 0,
+					start_lp: 8000,
+					start_hand: 5,
+					draw_count: 1,
+					time_limit: 450,
+				},
+				formatId,
+			),
 		);
 	}
 

@@ -22,6 +22,8 @@ import { DeckStatsPageController } from "../controllers/DeckStatsPageController"
 import { DeckDetailPageController } from "../controllers/DeckDetailPageController";
 import { GetReplayListController } from "../controllers/GetReplayListController";
 import { DownloadReplayController } from "../controllers/DownloadReplayController";
+import { GetReplayPlaybackController } from "../controllers/GetReplayPlaybackController";//获取回放播放数据
+import { ReplayPlayPageController } from "../controllers/ReplayPlayPageController";//回放播放页面
 import { DownloadMatchDeckController } from "../controllers/DownloadMatchDeckController";
 import { GetRoomListController } from "../controllers/GetRoomListController";
 import { InspectPageController } from "../controllers/InspectPageController";
@@ -88,6 +90,15 @@ export function loadRoutes(app: Express, logger: Logger, tickets: TicketReposito
 	app.get("/api/replays/:format/:replayId", RateLimitMiddleware, async (req, res) => {
 		await new DownloadReplayController().run(req, res);
 	});
+
+    // 回放播放数据接口
+    app.get("/api/replays/:format/:replayId/playback", RateLimitMiddleware, async (req, res) => {
+		await new GetReplayPlaybackController().run(req, res);
+	});
+    // 回放播放页面接口
+	app.get("/leaderboards/:format/replay/:replayId", (req, res) =>
+		new ReplayPlayPageController().run(req, res),
+	);
 
 	app.get("/api/ladder/:format/matches/:matchId/deck", RateLimitMiddleware, async (req, res) => {
 		await new DownloadMatchDeckController().run(req, res);

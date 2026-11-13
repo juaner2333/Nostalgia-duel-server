@@ -9,7 +9,7 @@ import { AuthenticateOrRegisterPinUser } from "@shared/user-auth/application/Aut
 import { UserProfilePostgresRepository } from "@shared/user-profile/infrastructure/postgres/UserProfilePostgresRepository";
 import { RankedRoomRegistry } from "../../ranked/domain/RankedRoomRegistry";
 import { NostalgiaFormatResources } from "../../infrastructure/NostalgiaFormatResources";
-import { getNostalgiaFormat } from "../../domain/NostalgiaFormat";
+import { getActiveNostalgiaFormatIds } from "../../domain/NostalgiaFormat";
 import { DuelState } from "@shared/room/domain/YgoRoom";
 import YGOProRoomList from "../../infrastructure/YGOProRoomList";
 import { config } from "src/config";
@@ -47,14 +47,13 @@ export class NostalgiaRankedJoinStrategy implements JoinStrategy {
 			throw new Error("Ranked spectator pass exceeds the JoinGame protocol limit");
 		}
 
-		const formatId = ctx.rawPass.slice(0, 4);
-		const spectatorIdStr = ctx.rawPass.slice(7);
-		if (!getNostalgiaFormat(formatId)) {
+		const [formatId, roomPass] = ctx.rawPass.split("#");
+		if (!getActiveNostalgiaFormatIds(config.resources.profile).some((id) => id === formatId)) {
 			throw new Error(`Unsupported nostalgia format: ${formatId}`);
 		}
 
-		const spectatorId = parseInt(spectatorIdStr, 10);
-		if (isNaN(spectatorId)) {
+		const spectatorId = Number(roomPass.slice(2));
+		if (!Number.isSafeInteger(spectatorId)) {
 			throw new Error("Invalid spectator room ID");
 		}
 

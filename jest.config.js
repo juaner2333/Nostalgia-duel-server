@@ -1,6 +1,9 @@
 const { pathsToModuleNameMapper } = require("ts-jest");
 const { compilerOptions } = require("./tsconfig");
 
+// Most suites exercise the existing 1103/1109 fixtures.
+process.env.NOSTALGIA_PROFILE ??= "2011";
+
 module.exports = {
 	preset: "ts-jest",
 	testEnvironment: "node",

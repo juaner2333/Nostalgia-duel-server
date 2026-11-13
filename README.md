@@ -1,22 +1,23 @@
 # Nostalgia Duel Server（怀旧决斗服务器）
 
-面向 **YGOPro 客户端** 的怀旧 OCG 决斗服务器，仅提供两个固定环境：**1103**（OCG 2011.03）与 **1109**（OCG 2011.09）。卡池、禁限卡表、Lua 脚本与裁定均为固定历史版本，随应用单一版本发布，绝不跟随上游浮动更新。
+面向 **YGOPro 客户端** 的怀旧决斗服务器。本分支默认启动 **GOAT**，用于独立部署 GOAT 对局。
 
-| 加入标识 | 禁限卡表 | 卡池 | 规则 |
-| --- | --- | --- | --- |
-| `1103#<roomId>` | OCG 2011.03 | 5,002 张 | OCG、Master Rule 2、三局两胜 |
-| `1109#<roomId>` | OCG 2011.09 | 5,120 张 | OCG、Master Rule 2、三局两胜 |
+[查看 GOAT 六张卡的裁定表](#goat-历史裁定资料)
 
-`roomId` 是非空十进制房间号，不是密码。`1103#1001` 与 `1109#1001` 是相互隔离的两个房间——`format` 与 `roomId` 的组合才是房间身份。
+| 加入标识 | 禁限卡表 | 卡池白名单 | 规则 |
+| --- | --- | ---: | --- |
+| `goat#<roomId>` | `2005.4.1 W/O Exarion` | 1,740 个卡号 | TCG、大师规则 1、三局两胜 |
 
-> 本项目由 [EDOpro-server-ts](https://github.com/diangogav/EDOpro-server-ts) 派生而来，在移除 EDOPro 支持后，重构为仅面向 YGOPro 客户端、使用固定 1103/1109 怀旧环境的决斗服务器。
+`roomId` 是非空十进制房间号，例如 `goat#1001`。双方使用相同标识进入同一房间。白名单中有 1,718 个卡号可入组。GOAT 排位可选开启。GOAT 模式关闭 WindBot。详见 [GOAT 资源说明](./nostalgia-resources/ygopro/formats/goat/README.md)。
+
+> 本项目由 [EDOpro-server-ts](https://github.com/diangogav/EDOpro-server-ts) 派生而来，使用 YGOPro 协议。仓库保留原 1103/1109 资源和裁定资料，默认实例只加载 GOAT 赛制。
 
 ## 核心特性
 
 - **YGOPro 线协议**：二字节小端长度前缀 TCP 帧，协议版本 `0x1362`，支持任意分片与粘包；同时提供 WebSocket 传输，兼容 Koishi、YGO Mobile 等客户端。非 `0x1362` 版本连接会先收到版本错误帧与升级客户端提示后断开（不做任何版本兼容）。
-- **真实 WASM 决斗引擎**：基于 `koishipro-core.js` 提供的 ocgcore WASM，在线程 Worker 中运行，还原 2011 年 OCG 效果处理。
-- **完整对局功能**：房间创建与加入、卡组校验、决斗状态流转、断线重连、聊天、表情、录像、匹配、WindBot 与观战。
-- **历史裁定覆盖**：为已确认的 12 张卡片恢复 2011 OCG 裁定（见下文「历史裁定覆盖」）。
+- **真实 WASM 决斗引擎**：基于 `koishipro-core.js` 提供的 ocgcore WASM，在线程 Worker 中运行。GOAT 使用大师规则 1，支持召唤成功后的起动效果优先权。
+- **完整对局功能**：房间创建与加入、卡组校验、决斗状态流转、断线重连、聊天、表情、录像与观战。
+- **GOAT 脚本**：优先查找 GOAT 目录，未命中时回退至基础 Lua。
 - **固定资源、零运行时刷新**：干净检出即可启动，无资源克隆、下载、组装或刷新路径。
 
 ## 架构概览
@@ -29,7 +30,7 @@
 | 管理 API | `src/http-server/` | Express REST 接口：房间列表、卡组/数据库查询、资源版本、匹配等 |
 | 实时通信 | `src/socket-server/` | YGOPro TCP 与 WebSocket 连接接入 |
 | 持久化 | `src/shared/infrastructure/persistence` | TypeORM + PostgreSQL（用户数据）、Redis/Valkey（缓存） |
-| 固定资源 | `nostalgia-resources/` | 1103/1109 卡池、LFList、Lua 脚本与资源锁 |
+| 固定资源 | `nostalgia-resources/` | GOAT 卡库、LFList、Lua 脚本与资源锁 |
 
 领域层不感知数据库、HTTP 或 Socket；外部能力通过端口与依赖注入接入。核心领域使用 `koishipro-core.js` 的 ocgcore WASM 作为决斗引擎。
 
@@ -37,23 +38,37 @@
 
 ```text
 nostalgia-resources/
-├── lock.json                  # 资源锁：全部资源摘要
+├── lock.json                  # 原 2011 资源锁
 └── ygopro/
     ├── base/
-    │   ├── cards.cdb          # 唯一基础数据库（5,120 实卡 + 79 个脚本引用 token 元数据）
+    │   ├── cards.cdb          # 原 2011 卡库
     │   └── script/            # 基础脚本
     └── formats/
         ├── 1103/{lflist.conf,script/}   # 环境禁限卡表 + 环境覆盖脚本
-        └── 1109/{lflist.conf,script/}
+        ├── 1109/{lflist.conf,script/}
+        └── goat/{cards.cdb,lflist.conf,lock.json,script/}
 ```
 
 - 应用与固定资源是**同一个不可拆分版本**：代码、CDB、LFList、Lua 与 `lock.json` 随同一提交/镜像发布、升级与回滚，不存在独立资源版本或运行时刷新。
 - 每场决斗的脚本查找链固定为 `formats/<format>/script` → `base/script`，**禁止**读取另一环境的脚本目录。
-- 两份 `lflist.conf` 中的 `$whitelist` 是各环境卡池与禁限数量的唯一事实来源；运行时按它过滤唯一基础 CDB（同时保留脚本引用的 token 虚拟卡元数据，供引擎 `Duel.CreateToken` 读取；token 不可入卡组）。
+- GOAT 从专用 `cards.cdb` 派生白名单，并应用 `lflist.conf` 中的 `2005.4.1 W/O Exarion` 段。衍生物仅供引擎使用。
 - 启动时（持久化连接与端口监听之前）、CI 与 Docker 构建执行**同一完整 lock 校验**（`npm run check:nostalgia-resources`），任何文件缺失、漂移或越界都会快速失败。
 - 部署后可通过 `GET /api/resources/version` 核对镜像内实际加载的资源摘要。
 
-## 历史裁定覆盖
+## GOAT 历史裁定资料
+
+| 卡号 | 卡名 | GOAT 裁定摘要 |
+| --- | --- | --- |
+| 31786629 | 雷龙 | 卡组没有同名卡时仍可丢弃发动。有可加入手牌的同名卡时，选择 1 至 2 张加入手牌并展示。 |
+| 63519819 | 千眼纳祭神 | 吸收效果处理时，自身已离场或变成里侧表示，原对象留在对方场上。 |
+| 64631466 | 纳祭之魔 | 吸收效果处理时，自身已离场或变成里侧表示，原对象留在对方场上。 |
+| 6733059 | 死灵之巢 | 表侧存在后可另行发动效果。除外自己墓地的怪兽作为代价，处理时选 1 只等等级的表侧怪兽破坏。同一连锁内满足条件可再次发动。 |
+| 80604091 | 血之代偿 | 表侧存在后，可在自己的主要阶段或对方战斗阶段的适用时点支付 500 LP，进行 1 次通常召唤或盖放。 |
+| 93016201 | 王宫的弹压 | 表侧存在后，双方均可支付 800 LP，无效不入连锁的特殊召唤，或连锁无效包含特殊召唤的效果。 |
+
+Lua 实现、裁定来源和验证状态见 [GOAT 历史裁定修复台账](./docs/goat/historical-card-rulings.md)。
+
+## 1103/1109 历史裁定资料
 
 为还原 2011 OCG 的原始效果处理，项目为 **12 张卡**在 1103/1109 双环境提供了 2011 裁定脚本覆盖（两环境同 ID 脚本逐字节一致），例如移除勘误新增的「卡名 1 回合 1 次」限制、恢复目标选择时点与表示形式语义等。每张覆盖均由真实 WASM 场景测试验证，且两环境逐字节一致。
 
@@ -83,60 +98,50 @@ nostalgia-resources/
 ```bash
 npm ci
 cp .env.example .env
-npm run dev
+npm start
 ```
 
-固定 1103/1109 资源已随仓库打包在 `nostalgia-resources/` 中，启动时全量校验。干净检出在安装依赖、创建环境文件后即可直接启动，无需任何资源准备步骤。
+GOAT 使用[独立决斗核心](vendor/goat-core/README.md)，支持攻击卷回后重新选择攻击者，两只 0 攻攻击表示怪兽交战时双方战斗破坏，以及同一回合内取得对方刚在其场上召唤或特殊召唤的怪兽后手动变更表示形式。
 
-## 可选中间件（不依赖 PostgreSQL / Redis 启动）
+GOAT 固定资源随仓库打包，启动时校验。直接运行 `npm start` 或 `npm run dev` 即可启用 GOAT。客户端通过 TCP 端口 `706` 或决斗 WebSocket 端口 `4002` 接入。
 
-PostgreSQL 与 Redis/Valkey 都是**可选依赖**，最小启动不需要任何中间件：
+## GOAT 天梯
 
-- **PostgreSQL**：仅当 `RANK_ENABLED=true`（排行与统计持久化）时才连接；
-- **Redis / Valkey**：仅当 `USE_REDIS=true` 时才连接。无 Redis 时握手门票校验 fail-closed（不授予 rank 资格）、HTTP 限流 fail-open（直接放行），不影响启动与正常对局。
-
-`.env.example` 默认值即为零中间件组合（`USE_REDIS=false`、`RANK_ENABLED=false`），本地只需 `cp .env.example .env` 后 `npm run dev`。
-
-Docker 方式（只启动 server，不启动 postgres/valkey）：
+本机可用 PostgreSQL 测试天梯。先在仓库根目录执行 `npm ci`。首次启动时从 `.env.example` 复制 `.env`，填写可用的 `POSTGRES_HOST`、`POSTGRES_PORT`、`POSTGRES_DB`、`POSTGRES_USER`、`POSTGRES_PASSWORD`，并设置 `RANK_ENABLED=true`。例如，已有 Docker 时可在本机启动一个测试数据库，数据库名和账号为 `evolution`，密码与示例配置一致。
 
 ```bash
-# 方式一：compose 单服务启动（--no-deps 跳过 postgres/valkey 依赖）
-USE_REDIS=false RANK_ENABLED=false docker compose -f docker-compose.prod.yaml up --no-deps -d server
-
-# 方式二：直接运行镜像
-docker compose -f docker-compose.prod.yaml build server
-docker run -d --name nostalgia-duel-server \
-  -p 706:706 -p 7922:7922 -p 4000:4000 \
-  -e NODE_ENV=production -e USE_REDIS=false -e RANK_ENABLED=false \
-  evolutionygo-server
+docker run -d --name goat-postgres -p 127.0.0.1:5432:5432 \
+  -e POSTGRES_DB=evolution -e POSTGRES_USER=evolution \
+  -e POSTGRES_PASSWORD=your-postgres-password \
+  -v goat-postgres-data:/var/lib/postgresql/data postgres:16-alpine
 ```
 
-注意：`docker-compose.prod.yaml` 中 server 服务默认 `USE_REDIS=true`、`RANK_ENABLED=true` 且 `depends_on` 中间件健康检查，因此不带环境变量覆盖的 `up` 会连带启动 postgres/valkey；完整三服务部署见下文 [Docker 部署](#docker-部署)。
-
-## 云主机部署（镜像直拉）
-
-无需中间件（无 PostgreSQL / Valkey，与压测基线一致）时，使用独立的镜像直拉编排，不依赖源码构建：
+数据库就绪后，从项目目录执行：
 
 ```bash
-cp .env.example .env                                # 填 SERVER_IMAGE 与 ADMIN_API_KEY
-chmod 600 .env
-# 不同环境只需改 SERVER_IMAGE 的 registry 前缀；仓库名后缀与 tag 必须与发布版本一致
-docker compose -f docker-compose.cloud.yaml pull     # 镜像不存在/不一致直接失败
-docker compose -f docker-compose.cloud.yaml up -d
+npm run build
+npm run migration:run:prod
+NOSTALGIA_PROFILE=goat npm start
 ```
 
-- 密钥（`ADMIN_API_KEY`）只存在于服务器 `.env`（600 权限，已入 `.gitignore`），仓库只有 `.env.example` 占位符
-- 端口：`YGOPRO_PORT`(706) / `HTTP_PORT`(7922) / `WEBSOCKET_PORT`(4000) / `4002`
-- `ulimits nofile 65535` 已内置（在线连接上限不受容器默认 1024 限制）
-- 回滚：修改 `.env` 中 `SERVER_IMAGE` 的 tag 后 `up -d`，或 `docker compose down` 后用旧镜像重新拉起
+客户端连接 `127.0.0.1:706`，在玩家名填写 `昵称$四位数字PIN`，例如 `玩家A$1234`，主机密码可留空，也可填写 `TT` 或 `goat#TT`，三种写法进入同一 GOAT 排位队列。新昵称首次加入时注册，之后用同一个 PIN 登录。双方都提交合法卡组并准备后，由房主点击开始。完整比赛结束后，战绩和积分按 `goat` 赛制保存。打开 `http://127.0.0.1:7922/leaderboards/goat?tab=ladder` 查看赛季或总榜。排位的卡组使用率和胜率统计仍适用于原有赛制。
+
+服务器运行时，在另一终端执行 `npm run smoke:ranked -- 706 7922`，可用两个临时账号完成一场排位并验证积分。请在本地测试数据库执行，这场比赛会写入天梯。
 
 ## Docker 部署
 
+在云主机上从本分支构建并运行单个 GOAT 容器。沿用示例端口时，使用以下命令。
+
 ```bash
-docker compose -f docker-compose.prod.yaml up -d --build
+cp .env.example .env
+# 在 .env 中设置 ADMIN_API_KEY
+docker build -t nostalgia-duel-server:goat .
+docker run -d --name nostalgia-duel-server --restart unless-stopped \
+  --env-file .env -e NODE_ENV=production \
+  -p 706:706 -p 4002:4002 nostalgia-duel-server:goat
 ```
 
-构建时对完整固定资源根执行校验，然后把 `nostalgia-resources/` 与代码一起直接拷入最终镜像。容器入口直接启动 Node.js 服务，运行时不做任何资源供给、刷新或发布。
+镜像构建和启动默认使用 GOAT。按示例配置即可单容器运行，无需 PostgreSQL 或 Redis。使用预构建镜像时，在 `.env` 中将 `SERVER_IMAGE` 指向本分支构建的镜像，再运行 `docker compose -f docker-compose.cloud.yaml up -d`。
 
 ## 环境变量
 
@@ -145,6 +150,7 @@ docker compose -f docker-compose.prod.yaml up -d --build
 | `YGOPRO_PORT` | `706` | YGOPro TCP 端口 |
 | `HTTP_PORT` | `7922` | 管理 API 端口 |
 | `WEBSOCKET_PORT` | `4000` | 实时 API（WebSocket）端口 |
+| `NOSTALGIA_PROFILE` | `goat` | 当前分支的默认赛制模式 |
 | `RESOURCES_DIR` | `./nostalgia-resources` | 随应用打包的固定资源根（本地开发可覆盖） |
 
 数据库、Redis、排行、限流、WindBot、备牌超时等设置见 [.env.example](.env.example)。
@@ -157,16 +163,16 @@ docker compose -f docker-compose.prod.yaml up -d --build
 | `npm run build` | 构建生产代码 |
 | `npm run test` | 运行全部 Jest 测试 |
 | `npm run lint` | 检查代码规范 |
-| `npm run check:nostalgia-resources` | 对完整资源根执行同一 lock 校验（数据库、双环境 LFList、脚本摘要与边界检查） |
-| `npm run generate:nostalgia-lock` | 在审核过的资源变更后重新生成 `nostalgia-resources/lock.json` |
-| `npm run smoke:duel -- [port]` | 双环境 TCP 冒烟（详见下文「冒烟验证」） |
+| `npm run check:nostalgia-resources` | 对完整资源根执行同一 lock 校验（GOAT 卡库、LFList、脚本摘要与边界检查） |
+| `npm run generate:nostalgia-lock` | 在审核过的资源变更后重新生成 `nostalgia-resources/ygopro/formats/goat/lock.json` |
+| `npm run smoke:duel -- [port]` | GOAT TCP 冒烟（详见下文「冒烟验证」） |
 | `npm run migration:generate --name=NameOfChange` | 生成 TypeORM 迁移 |
 
 ## 冒烟验证（smoke-duel.mjs）
 
-`scripts/smoke-duel.mjs` 用测试侧 TCP socket 驱动真实服务器完成 `1103#1001` 与 `1109#1001` 的双环境完整决斗流程，并额外以第三个 socket 验证观战，用于确认资源加载、准入、卡组校验与真实 WASM 引擎在改动后仍可用。
+`scripts/smoke-duel.mjs` 用测试侧 TCP socket 驱动真实服务器完成 `goat#1001` 的房间加入、开局及换备流程，并额外以第三个 socket 验证观战，用于确认资源加载、准入、卡组校验与真实 WASM 引擎在改动后仍可用。
 
-**前置条件**：目标服务器已运行（本地 `npm run dev` 或容器均可）且可连接 Redis（无本地 Redis 时可临时 `docker run -d -p 6379:6379 valkey/valkey:9.0-alpine`）。
+**前置条件**：目标服务器已运行，且本地已执行 `npm run build`。
 
 ```bash
 node scripts/smoke-duel.mjs [port]      # 默认 706
@@ -176,9 +182,9 @@ SMOKE_PORT=17711 node scripts/smoke-duel.mjs
 
 **覆盖阶段**：
 
-1. **建房与加入**：`1103#1001` / `1109#1001` 建房，两名玩家依次加入，房间满员后第三个连接被准入为 OBSERVER，host 侧收到观众数从 0 → 1 的 `HS_WATCH_CHANGE` 广播；
+1. **建房与加入**：`goat#1001` 建房，两名玩家依次加入，房间满员后第三个连接被准入为 OBSERVER，host 侧收到观众数从 0 → 1 的 `HS_WATCH_CHANGE` 广播；
 2. **真实卡组校验**：从对应环境 whitelist 选取 40 张无限制（qty=3）且有 base 脚本的主卡组怪兽，经仓库内 CDB + 环境禁限卡表真实校验；
-3. **真实 WASM 决斗**：双方 READY → RPS 先后手（host=ROCK / guest=PAPER 时按服务器既有判定 host 胜并选择先后手）→ 真实 ocgcore WASM 启动并发出 `MSG_START` → 投降 → `MATCH_END`；
+3. **真实 WASM 决斗**：双方 READY → RPS 先后手（host=ROCK / guest=PAPER 时按服务器既有判定 host 胜并选择先后手）→ 真实 ocgcore WASM 启动并发出 `MSG_START` → 投降 → `STOC_CHANGE_SIDE`；
 4. **观战验证**：决斗期间观战者同样收到 `DUEL_START` 与观战视角的 `MSG_START`，且玩家席位不受影响。
 
 **预期结果**：每个格式打印 `OK format <id>: ...`，最后 `SMOKE PASS`，退出码 0；任一格式失败（超时 / 被拒 / 校验失败）退出码为 1。注意脚本依赖仓库内 `nostalgia-resources/` 构造卡组，只能对使用固定资源的实例运行。
@@ -192,7 +198,7 @@ npm run test
 npm run build
 ```
 
-修改涉及协议、资源或冒烟相关逻辑后，另需运行冒烟验证（见上文「冒烟验证」小节）验证双环境真实决斗与观战流程。
+修改涉及协议、资源或冒烟相关逻辑后，另需运行冒烟验证（见上文「冒烟验证」小节）验证 GOAT 真实决斗与观战流程。
 
 ## 相关文档
 

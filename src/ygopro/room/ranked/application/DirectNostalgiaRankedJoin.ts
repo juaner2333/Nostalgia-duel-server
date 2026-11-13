@@ -5,7 +5,12 @@ import { JoinRejectionError } from "../../domain/errors/JoinRejectionError";
 import { NostalgiaFormatResourcePort } from "../../domain/NostalgiaFormatResourcePort";
 import { NostalgiaFormatResources } from "../../infrastructure/NostalgiaFormatResources";
 import { Mutex } from "async-mutex";
-import { getNostalgiaFormat, type NostalgiaFormatId } from "../../domain/NostalgiaFormat";
+import { config } from "src/config";
+import {
+	getActiveNostalgiaFormatIds,
+	getNostalgiaFormat,
+	type NostalgiaFormatId,
+} from "../../domain/NostalgiaFormat";
 import { RankedAdmissionResult, YGOProRoom } from "../../domain/YGOProRoom";
 import YGOProRoomList from "../../infrastructure/YGOProRoomList";
 import { RankedRoomRegistry } from "../domain/RankedRoomRegistry";
@@ -63,7 +68,8 @@ export function validateRankedPlayerFormat(raw: string): { name: string; pin: st
 		);
 	}
 
-	if (!/^\d{4}$/.test(pin)) {
+	// if (!/^\d{4}$/.test(pin)) {
+	if (!/^[0-9A-Za-z]{4,6}$/.test(pin)) {
 		const isTruncated = raw.length === 20 && pin.length < 4;
 		const reason = isTruncated
 			? "Ranked player name too long; PIN was truncated at 20 characters"
@@ -76,11 +82,15 @@ export function validateRankedPlayerFormat(raw: string): { name: string; pin: st
 	return { name, pin };
 }
 
+function isImplicitRankedPass(rawPass: string): boolean {
+	return rawPass === "TT" || (rawPass === "" && config.resources.profile === "goat");
+}
+
 export function parseRankedPass(rawPass: string): NostalgiaFormatId {
-	if (rawPass === "TT") {
-		return "1109";
+	if (isImplicitRankedPass(rawPass)) {
+		return config.resources.profile === "goat" ? "goat" : "1109";
 	}
-	const match = /^(\d{4})#TT$/.exec(rawPass);
+	const match = /^(\d{4}|goat)#TT$/.exec(rawPass);
 	if (!match) {
 		throw new Error("Invalid ranked room identifier");
 	}
@@ -92,11 +102,11 @@ export function parseRankedPass(rawPass: string): NostalgiaFormatId {
 }
 
 export function isRankedSpectatorPass(rawPass: string): boolean {
-	return /^\d{4}#TT\d+$/.test(rawPass);
+	return /^(?:\d{4}|goat)#TT\d+$/.test(rawPass);
 }
 
 export function isRankedPass(rawPass: string): boolean {
-	return rawPass === "TT" || /^\d{4}#TT$/.test(rawPass) || isRankedSpectatorPass(rawPass);
+	return isImplicitRankedPass(rawPass) || /^(?:\d{4}|goat)#TT\d*$/.test(rawPass);
 }
 
 export class DirectNostalgiaRankedJoin {
@@ -112,6 +122,12 @@ export class DirectNostalgiaRankedJoin {
 
 	async run(ctx: JoinContext): Promise<YGOProRoom> {
 		const targetFormat = parseRankedPass(ctx.rawPass);
+		if (!getActiveNostalgiaFormatIds(config.resources.profile).includes(targetFormat)) {
+			throw new JoinRejectionError(
+				`Ranked format is not active: ${targetFormat}`,
+				"此服务器未开放该赛制的排位。",
+			);
+		}
 
 		const rawInput =
 			ctx.playerInfo.raw !== undefined && ctx.playerInfo.raw !== ""
@@ -169,7 +185,7 @@ export class DirectNostalgiaRankedJoin {
 			if (existingOccupancy) {
 				const existingRoom = YGOProRoomList.findById(existingOccupancy.roomId);
 				if (existingRoom && !existingRoom.finalizing) {
-					if (ctx.rawPass !== "TT" && existingOccupancy.formatId !== targetFormat) {
+					if (!isImplicitRankedPass(ctx.rawPass) && existingOccupancy.formatId !== targetFormat) {
 						throw new JoinRejectionError(
 							`User is currently occupied in format ${existingOccupancy.formatId} and cannot join ${targetFormat}`,
 							`你已加入 ${existingOccupancy.formatId} 排位，无法同时加入 ${targetFormat} 排位。`,

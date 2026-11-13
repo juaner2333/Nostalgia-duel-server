@@ -1,5 +1,9 @@
 # syntax=docker/dockerfile:1
+ARG NOSTALGIA_PROFILE=goat
 FROM public.ecr.aws/docker/library/node:24.11.0-bullseye AS server-builder
+
+ARG NOSTALGIA_PROFILE
+ENV NOSTALGIA_PROFILE=${NOSTALGIA_PROFILE}
 
 WORKDIR /server
 
@@ -22,12 +26,14 @@ RUN apt-get update -y && \
 
 WORKDIR /app
 
-ENV TZ=Asia/Shanghai
+ARG NOSTALGIA_PROFILE
+ENV TZ=Asia/Shanghai NOSTALGIA_PROFILE=${NOSTALGIA_PROFILE}
 
 COPY --from=server-builder /server/dist ./dist
 COPY --from=server-builder /server/package.json ./package.json
 COPY --from=server-builder /server/node_modules ./node_modules
 COPY --from=server-builder /server/config ./config
+COPY --from=server-builder /server/vendor/goat-core ./vendor/goat-core
 # The complete fixed resource tree travels with the code as one unit. There is
 # no manifest, no assembled release directory and no entrypoint script: the
 # container starts the Node.js service directly and never provisions resources.

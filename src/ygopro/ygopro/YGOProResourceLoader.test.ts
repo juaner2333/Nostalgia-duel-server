@@ -14,7 +14,7 @@ describe("YGOProResourceLoader", () => {
 		tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "nostalgia-loader-"));
 		previousResourcesDir = config.resources.dir;
 		config.resources.dir = tmpDir;
-		for (const formatId of ["1103", "1109"]) {
+		for (const formatId of ["1103", "1109", "goat"]) {
 			fs.mkdirSync(path.join(tmpDir, "ygopro", "formats", formatId), { recursive: true });
 		}
 		fs.mkdirSync(path.join(tmpDir, "ygopro", "base"), { recursive: true });

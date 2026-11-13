@@ -4,6 +4,7 @@ import path from "node:path";
 import initSqlJs from "sql.js";
 import {
 	readCdbCardIds,
+	readGoatLfList,
 	validateLfListFile,
 	validateWhitelist,
 	checkNostalgiaResourceLock,
@@ -261,6 +262,70 @@ describe("NostalgiaResourceGenerator", () => {
 
 		await expect(checkNostalgiaResourceLock(resourceRoot, lockPath)).resolves.toBeUndefined();
 		fs.rmSync(resourceRoot, { recursive: true, force: true });
+	});
+
+	it("accepts only inactive GOAT placeholders outside the resource lock", async () => {
+		const resourceRoot = await buildLockFixture();
+		const lockPath = path.join(resourceRoot, "lock.json");
+		const goatDir = path.join(resourceRoot, "ygopro", "formats", "goat");
+		const scriptDir = path.join(goatDir, "script");
+		try {
+			await writeNostalgiaResourceLock(resourceRoot, lockPath);
+			fs.mkdirSync(scriptDir, { recursive: true });
+			fs.writeFileSync(path.join(goatDir, "README.md"), "Inactive placeholder\n");
+			fs.writeFileSync(path.join(scriptDir, ".gitkeep"), "");
+			await expect(checkNostalgiaResourceLock(resourceRoot, lockPath)).resolves.toBeUndefined();
+
+			for (const file of [path.join(goatDir, "lflist.conf"), path.join(scriptDir, "c1.lua")]) {
+				fs.writeFileSync(file, "");
+				await expect(checkNostalgiaResourceLock(resourceRoot, lockPath)).rejects.toThrow(
+					path.basename(file),
+				);
+				fs.rmSync(file);
+			}
+		} finally {
+			fs.rmSync(resourceRoot, { recursive: true, force: true });
+		}
+	});
+
+	it("locks the dedicated GOAT CDB and selected list without reading 2011 lists", async () => {
+		const resourceRoot = await buildLockFixture();
+		const goatDir = path.join(resourceRoot, "ygopro", "formats", "goat");
+		const lockPath = path.join(goatDir, "lock.json");
+		const lflistPath = path.join(goatDir, "lflist.conf");
+		try {
+			fs.mkdirSync(path.join(goatDir, "script"), { recursive: true });
+			fs.rmSync(path.join(resourceRoot, "ygopro", "formats", "1109"), { recursive: true });
+			const sourceList = "!2005.4.1\n4 1\n!2005.4.1 W/O Exarion\n4 2\n";
+			fs.writeFileSync(lflistPath, sourceList);
+			await expect(writeNostalgiaResourceLock(resourceRoot, lockPath, "goat")).rejects.toThrow(
+				"GOAT needs a curated",
+			);
+			const SQL = await initSqlJs();
+			const database = new SQL.Database();
+			database.run("CREATE TABLE datas (id INTEGER PRIMARY KEY, type INTEGER DEFAULT 0)");
+			database.run("INSERT INTO datas (id) VALUES (4), (7), (63749102)");
+			fs.writeFileSync(path.join(goatDir, "cards.cdb"), database.export());
+			database.close();
+
+			await writeNostalgiaResourceLock(resourceRoot, lockPath, "goat");
+			const lock = JSON.parse(fs.readFileSync(lockPath, "utf-8"));
+			expect(Object.keys(lock.formats)).toEqual(["goat"]);
+			expect(lock.inputs.baseDatabase.path).toBe("ygopro/formats/goat/cards.cdb");
+			expect(await readGoatLfList(resourceRoot, lflistPath)).toBe(
+				"!2005.4.1 W/O Exarion\n$whitelist\n4 2\n7 3\n63749102 0\n",
+			);
+			await expect(
+				checkNostalgiaResourceLock(resourceRoot, lockPath, "goat"),
+			).resolves.toBeUndefined();
+
+			fs.writeFileSync(lflistPath, sourceList.replace("4 2", "4 1"));
+			await expect(checkNostalgiaResourceLock(resourceRoot, lockPath, "goat")).rejects.toThrow(
+				"lock drift",
+			);
+		} finally {
+			fs.rmSync(resourceRoot, { recursive: true, force: true });
+		}
 	});
 
 	it("rejects external script trees and non-lua files anywhere in the layout", async () => {

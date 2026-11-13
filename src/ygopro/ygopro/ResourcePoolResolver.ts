@@ -1,10 +1,14 @@
 import fs from "node:fs";
 import path from "node:path";
-import { NOSTALGIA_FORMAT_IDS } from "@ygopro/room/domain/NostalgiaFormat";
+import {
+	getActiveNostalgiaFormatIds,
+	type NostalgiaResourceProfile,
+} from "@ygopro/room/domain/NostalgiaFormat";
 import type { Logger } from "src/shared/logger/domain/Logger";
 
 export interface ResourcePoolResolverOptions {
 	resourcesDir: string;
+	profile?: NostalgiaResourceProfile;
 	logger: Logger;
 }
 
@@ -22,13 +26,33 @@ export function resolvePools(options: ResourcePoolResolverOptions): ResolvedPool
 	const root = path.resolve(options.resourcesDir);
 	const base = path.join(root, "ygopro", "base");
 	const formats = Object.fromEntries(
-		NOSTALGIA_FORMAT_IDS.map((formatId) => [
+		getActiveNostalgiaFormatIds(options.profile).map((formatId) => [
 			formatId,
 			path.join(root, "ygopro", "formats", formatId),
 		]),
 	);
 	warnMissingDirectories([base, ...Object.values(formats)], options.logger);
 	return { base, formats };
+}
+
+export function resolveBaseDatabaseDirectory(
+	resourceRoot: string,
+	profile: NostalgiaResourceProfile = "2011",
+): string {
+	const root = path.resolve(resourceRoot);
+	const goatPath = path.join(root, "ygopro", "formats", "goat");
+	return profile === "goat" && fs.existsSync(path.join(goatPath, "cards.cdb"))
+		? goatPath
+		: path.join(root, "ygopro", "base");
+}
+
+export function resolveResourceLockPath(
+	resourceRoot: string,
+	profile: NostalgiaResourceProfile = "2011",
+): string {
+	return profile === "goat"
+		? path.join(resourceRoot, "ygopro", "formats", "goat", "lock.json")
+		: path.join(resourceRoot, "lock.json");
 }
 
 export function resolveFormatPath(resolved: ResolvedPools, formatId: string): string {

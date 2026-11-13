@@ -211,7 +211,7 @@ export class RebuildUsageStatisticsUseCase {
 		}
 
 		const currentWindow = HalfYearWindow.current(referenceDate);
-		const formats = ["1103", "1109"];
+		const formats = [];
 		const results: RebuildResult[] = [];
 
 		for (const formatId of formats) {
@@ -275,7 +275,7 @@ export class RebuildUsageStatisticsUseCase {
 		}
 
 		const window = HalfYearWindow.fromPeriodString(periodStr, referenceDate);
-		const formats = ["1103", "1109"];
+		const formats = [];
 		const results: RebuildResult[] = [];
 
 		for (const formatId of formats) {
